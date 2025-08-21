@@ -1,0 +1,233 @@
+import { useMemo, useState, type ReactNode } from 'react';
+import { Link } from 'react-router-dom';
+import logo from '../assets/gapa-logo.png';
+
+type Category = {
+  label: string;
+  caret?: boolean;
+  items?: string[];
+  icon?: ReactNode;
+};
+
+export default function Header() {
+  const countdown = useMemo(() => ['12', '15', '24'], [])
+  const [query, setQuery] = useState('')
+  const [openIdx, setOpenIdx] = useState<number | null>(null)
+
+  const categories: Category[] = [
+    { label: 'Car Brands', caret: true, icon: (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+        <circle cx="12" cy="12" r="9" />
+        <circle cx="12" cy="12" r="2" />
+        <path d="M7 12h10" />
+        <path d="M12 14v4" />
+      </svg>
+    ), items: ['Toyota', 'Honda', 'BMW', 'Mercedes', 'Kia', 'Hyundai'] },
+    { label: 'Car Parts', caret: true, icon: (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+        <circle cx="12" cy="12" r="3" />
+        <path d="M12 2v3M12 19v3M4.9 4.9l2.1 2.1M16.9 16.9l2.1 2.1M2 12h3M19 12h3M4.9 19.1l2.1-2.1M16.9 7.1l2.1-2.1" />
+      </svg>
+    ), items: ['Brake Discs', 'Suspension', 'Brakes', 'Electrical', 'Body', 'Cooling'] },
+    { label: 'Tyres', icon: (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+        <circle cx="12" cy="12" r="8" />
+        <circle cx="12" cy="12" r="3" />
+      </svg>
+    ) },
+    { label: 'Car Accessories', icon: (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+        <path d="M3 7h18v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z" />
+        <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
+        <path d="M3 12h18" />
+      </svg>
+    ) },
+    { label: 'Engine Oil', icon: (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+        <path d="M12 2s5 6 5 9a5 5 0 0 1-10 0c0-3 5-9 5-9z" />
+      </svg>
+    ) },
+    { label: 'Tools', icon: (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+        <path d="M21 16.5a4.5 4.5 0 0 1-6-6l-8 8a3 3 0 1 0 4 4l8-8z" />
+      </svg>
+    ) },
+    { label: 'Brakes', icon: (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+        <circle cx="12" cy="12" r="8" />
+        <circle cx="12" cy="12" r="2" />
+        <path d="M12 4v4M12 12h8" />
+      </svg>
+    ) },
+  ]
+
+  const onSearch = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!query.trim()) return
+    // TODO: integrate real search routing. For now, log and show a basic feedback.
+    console.log('Searching for:', query)
+    alert(`Searching for: ${query}`)
+  }
+
+  const toSlug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
+
+  return (
+    <header className="fixed w-full top-0 z-50 shadow-sm">
+      {/* Top promo strip */}
+      <div className="bg-brand text-white py-1">
+        <div className="mx-auto flex h-10 max-w-7xl items-center justify-between px-4 sm:px-6">
+            <div />
+          <p className="text-[14px] font-normal tracking-wide">
+            Free Delivery on Orders Over ₦50,000 – Limited Time!
+          </p>
+          <div className="hidden items-center gap-3 sm:flex">
+            <span className="text-[12px] font-semibold tracking-wider text-white/90">OFFER ENDS IN:</span>
+            <div className="flex items-center gap-1.5">
+              {countdown.map((v, i) => (
+                <div key={i} className="flex items-center gap-1.5">
+                  <span className="inline-flex h-6 min-w-7 items-center justify-center rounded-md bg-white/10 px-1.5 text-[12px] font-bold leading-none text-white ring-1 ring-white/15">
+                    {v}
+                  </span>
+                  {i < countdown.length - 1 && (
+                    <span className="text-white/80">:</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Main bar: logo + search + actions */}
+      <div className="bg-[#F7CD3A] py-2">
+        <div className="mx-auto grid max-w-7xl grid-cols-1 items-center gap-4 px-4 py-3 sm:px-6 md:grid-cols-[auto_minmax(0,1fr)_auto]">
+          {/* Logo */}
+          <Link to="/" className="flex items-center gap-2">
+            <img
+              src={logo}
+              onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/gapa-logo.png' }}
+              alt="Gapa Naija"
+              className="h-8 w-auto md:h-9"
+            />
+          </Link>
+
+          {/* Search */}
+          <form onSubmit={onSearch} className="w-full">
+            <div className="relative flex h-11 w-[80%] ml-20 overflow-hidden rounded-md bg-white ring-1 ring-black/10 focus-within:ring-black/20">
+              <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">
+                {/* Magnifier icon */}
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="11" cy="11" r="8" />
+                  <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                </svg>
+              </div>
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                type="text"
+                placeholder="Enter the part number or name"
+                className="h-full w-full pl-10 pr-28 text-[14px] outline-none placeholder:text-gray-400"
+                aria-label="Search parts"
+              />
+              <button
+                type="submit"
+                className="absolute right-0 top-0 rounded-md h-full px-5 text-[13px] font-semibold text-white transition-colors bg-brand hover:brightness-110"
+              >
+                Search
+              </button>
+            </div>
+          </form>
+
+          {/* Actions */}
+          <div className="flex items-center justify-end gap-4">
+            {/* Gapa Fix */}
+            <a href="#" className="hidden items-center gap-2 text-[14px] text-gray-900 md:flex">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-700">
+                <path d="M14.7 6.3a2 2 0 0 1 2.8 2.8L10 16.6 7 17l.4-3 7.3-7.7z" />
+                <path d="M16 7l1 1" />
+              </svg>
+              <span className="font-medium">Gapa Fix</span>
+              <span className="mx-2 inline-block h-5 w-px bg-black/20" aria-hidden />
+            </a>
+
+            {/* Cart */}
+            <a href="#cart" className="hidden items-center gap-2 text-[14px] text-gray-900 md:flex">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-700">
+                <circle cx="9" cy="21" r="1" />
+                <circle cx="20" cy="21" r="1" />
+                <path d="M1 1h4l2.68 12.39a2 2 0 0 0 2 1.61h7.72a2 2 0 0 0 2-1.61L23 6H6" />
+              </svg>
+              <span className="font-medium">My Cart</span>
+            </a>
+
+            {/* Sign In */}
+            <a
+              href="#sign-in"
+              className="inline-flex items-center gap-2 bg-white px-3 py-2 text-[14px] font-semibold text-gray-900 ring-1 ring-black/10 hover:bg-white/90"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-700">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                <circle cx="12" cy="7" r="4" />
+              </svg>
+              <span>Sign In</span>
+            </a>
+          </div>
+        </div>
+      </div>
+
+      {/* Category bar with dropdowns */}
+      <nav className="relative bg-brand text-white">
+        <div
+          className="mx-auto flex h-12 max-w-7xl items-center justify-between gap-6 overflow-x-auto px-4 sm:px-6"
+          onMouseLeave={() => setOpenIdx(null)}
+        >
+          {categories.map((cat, i) => (
+            <div key={cat.label} className="relative">
+              <Link
+                to={cat.label === 'Car Parts' ? '/parts' : '/parts'}
+                onMouseEnter={() => setOpenIdx(cat.items ? i : null)}
+                onFocus={() => setOpenIdx(cat.items ? i : null)}
+                onClick={() => setOpenIdx((prev) => prev === i ? null : (cat.items ? i : null))}
+                className="group inline-flex shrink-0 items-center gap-2 whitespace-nowrap text-[14px] font-medium text-white/90 hover:text-white"
+                aria-haspopup={!!cat.items}
+                aria-expanded={openIdx === i}
+              >
+                {cat.icon && (
+                  <span aria-hidden="true" className="inline-flex items-center justify-center">
+                    {cat.icon}
+                  </span>
+                )}
+                <span>{cat.label}</span>
+                {cat.caret && (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="opacity-80 group-hover:opacity-100">
+                    <polyline points="6 9 12 15 18 9" />
+                  </svg>
+                )}
+              </Link>
+            </div>
+          ))}
+        </div>
+
+        {/* Dropdown panel */}
+        {openIdx !== null && categories[openIdx]?.items && (
+          <div className="absolute inset-x-0 top-full z-40 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/70 shadow ring-1 ring-black/10">
+            <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+                {categories[openIdx].items!.map((item) => (
+                  <Link
+                    key={item}
+                    to={openIdx === 0 ? `/parts/${toSlug(item)}/brake-discs` : `/parts/${toSlug(item)}`}
+                    className="block rounded-md px-3 py-2 text-sm text-gray-800 hover:bg-brand hover:text-white"
+                    onClick={() => setOpenIdx(null)}
+                  >
+                    {item}
+                  </Link>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </nav>
+    </header>
+  );
+}

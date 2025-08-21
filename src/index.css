@@ -1,0 +1,48 @@
+@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap');
+
+/* Global design tokens using CSS variables */
+:root {
+  --brand: #5A1E78;   /* primary */
+  --accent: #BC81EA;  /* secondary */
+}
+
+/* Helper utilities for brand usage */
+.bg-brand { background-color: var(--brand); }
+.text-brand { color: var(--brand); }
+.border-brand { border-color: var(--brand); }
+
+.bg-accent { background-color: var(--accent); }
+.text-accent { color: var(--accent); }
+.border-accent { border-color: var(--accent); }
+
+.bg-gradient-brand { background-image: linear-gradient(to right, var(--brand), var(--accent)); }
+
+/* Base element polish */
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  /* Set global font to Poppins with sensible fallbacks */
+  font-family: "Poppins", ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Ensure form controls also inherit Poppins */
+button, input, select, textarea {
+  font-family: inherit;
+}
+
+button, a, link{
+  cursor: pointer;
+  text-decoration: none;
+}
+
+/* Accessible focus ring using the accent color */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}

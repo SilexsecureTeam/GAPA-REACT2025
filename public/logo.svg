@@ -1,0 +1,9 @@
+<svg width="160" height="40" viewBox="0 0 160 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="160" height="40" rx="8" fill="#F4F0FF"/>
+  <g font-family="Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, " font-weight="700" font-size="20">
+    <text x="16" y="26" fill="#4C2FA3">GAPA</text>
+    <text x="70" y="26" fill="#6B5BC6">2025</text>
+  </g>
+  <circle cx="140" cy="20" r="10" fill="#4C2FA3"/>
+  <circle cx="140" cy="20" r="6" fill="#F9C74F"/>
+</svg>
