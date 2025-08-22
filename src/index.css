@@ -18,6 +18,16 @@
 
 .bg-gradient-brand { background-image: linear-gradient(to right, var(--brand), var(--accent)); }
 
+/* Hide scrollbars utility (cross-browser) */
+.no-scrollbar {
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none;    /* Firefox */
+}
+.no-scrollbar::-webkit-scrollbar { /* Chrome, Safari and Opera */
+  width: 0px;
+  height: 0px;
+}
+
 /* Base element polish */
 html, body, #root {
   height: 100%;

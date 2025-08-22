@@ -1,24 +1,21 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-
-// Simple slug util (kept local for now)
-const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
-
-// Demo vehicle data (reuse from Home semantics)
-const MAKERS = ['BMW', 'Audi', 'Toyota', 'Honda', 'Mercedes', 'Hyundai']
-const MODELS: Record<string, string[]> = {
-  BMW: ['1 Convertible (E88)', '3 Series (E90)', 'X5 (E70)'],
-  Audi: ['A1', 'A3', 'Q5'],
-  Toyota: ['Corolla', 'Camry'],
-}
-const ENGINES: Record<string, string[]> = {
-  '1 Convertible (E88)': ['125 i (160kW / 218 HP)', '120 i (112kW / 150 HP)'],
-  A1: ['1.0 TFSI', '1.4 TFSI'],
-  Corolla: ['1.6', '1.8'],
-}
+import brand1 from '../assets/brand1.png'
+import brand2 from '../assets/brand2.png'
+import brand3 from '../assets/brand3.png'
+import brand4 from '../assets/brand4.png'
+import brand5 from '../assets/brand5.png'
+import brand6 from '../assets/brand6.png'
 
 // Sample brands
-const BRANDS = ['Febreze', 'glade', 'P&G', 'AirspenceUSA', 'OZIUM', 'renuzit']
+const BRANDS = [
+    { name: 'BMW', logo: brand1 },
+  { name: 'Vaxhaul', logo: brand2 },
+  { name: 'Audi', logo: brand3 },
+  { name: 'Ford', logo: brand4 },
+  { name: 'Mercedes-Benz', logo: brand5 },
+  { name: 'Toyota', logo: brand6 },
+]
 
 // Result item type
 interface SpecItem { label: string; value: string }
@@ -102,10 +99,10 @@ function BrandCarousel() {
           <button aria-label="Next" onClick={() => ref.current?.scrollBy({ left: 280, behavior: 'smooth' })} disabled={!canNext} className="inline-flex h-7 w-7 items-center justify-center rounded-full ring-1 ring-black/10 text-gray-700 disabled:opacity-50">▶</button>
         </div>
       </div>
-      <div ref={ref} className="mt-2 flex items-center gap-6 overflow-x-auto rounded-xl bg-white px-4 py-3 ring-1 ring-black/10">
+      <div ref={ref} className="mt-2 flex items-center justify-between gap-6 overflow-x-auto rounded-xl bg-white px-4 py-3 ring-1 ring-black/10">
         {BRANDS.map((b) => (
-          <div key={b} className="shrink-0">
-            <img src={`https://dummyimage.com/110x48/ffffff/111111.png&text=${encodeURIComponent(b)}`} alt={b} className="h-10 w-auto object-contain" />
+          <div key={b.name} className="shrink-0">
+            <img src={b.logo} alt={b.name} className="h-10 w-auto object-contain" />
           </div>
         ))}
       </div>
@@ -115,7 +112,7 @@ function BrandCarousel() {
 
 function FiltersSidebar() {
   return (
-    <aside>
+    <aside className="sticky top-30 sm:top-34 self-start max-h-[calc(100vh-6rem)] overflow-auto pr-1 no-scrollbar">
       {/* Select Vehicle card */}
       <div className="rounded-xl bg-white p-4 ring-1 ring-black/10">
         <h4 className="text-[12px] font-bold tracking-wide text-white">
@@ -165,7 +162,7 @@ function FiltersSidebar() {
             <div className="flex items-center justify-between rounded-t-lg border-b border-black/10 bg-white p-3">
               <h5 className="text-[12px] font-bold tracking-wide text-gray-900">{f.title}</h5>
             </div>
-            <ul className="max-h-72 overflow-auto p-3 text-[13px]">
+            <ul className="max-h-72 overflow-auto no-scrollbar p-3 text-[13px]">
               {f.items.map((it) => (
                 <li key={it} className="flex items-center gap-2 py-1.5">
                   <input type="checkbox" className="h-4 w-4 rounded border-gray-300 text-brand focus:ring-brand" />

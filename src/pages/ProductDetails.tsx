@@ -3,6 +3,7 @@ import { Link, useParams, useNavigate } from 'react-router-dom'
 import Rating from '../components/Rating'
 import WishlistButton from '../components/WishlistButton'
 import useWishlist from '../hooks/useWishlist'
+import airLogo from '../assets/air-freshner.png'
 
 // Placeholder product fetcher (ready to be replaced with API)
 const useProduct = (id?: string) => {
@@ -11,15 +12,15 @@ const useProduct = (id?: string) => {
     return {
       id,
       brand: 'Febreze',
-      brandLogo: 'https://dummyimage.com/110x44/ffffff/111111.png&text=Febreze',
-      name: 'Febreze Lucky Leaf Car sir Freshner 537960',
+      brandLogo: airLogo,
+      name: 'Febreze Lucky Leaf Car Air Freshener 537960',
       articleNo: '123456',
       price: 40000,
-      image: 'https://dummyimage.com/300x520/f6f5fa/aaaaaa.png&text=Freshener',
+      image: airLogo,
       gallery: [
-        'https://dummyimage.com/300x520/f6f5fa/aaaaaa.png&text=Freshener',
-        'https://dummyimage.com/300x520/f6f5fa/aaaaaa.png&text=Side',
-        'https://dummyimage.com/300x520/f6f5fa/aaaaaa.png&text=Back'
+        airLogo,
+        airLogo,
+        airLogo,
       ],
       rating: 0,
       reviews: 0,

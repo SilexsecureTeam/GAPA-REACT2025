@@ -1,5 +1,12 @@
 import { useMemo, useRef, useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
+import airLogo from '../assets/air-freshner.png'
+import brand1 from '../assets/brand1.png'
+import brand2 from '../assets/brand2.png'
+import brand3 from '../assets/brand3.png'
+import brand4 from '../assets/brand4.png'
+import brand5 from '../assets/brand5.png'
+import brand6 from '../assets/brand6.png'
 
 // Data types
 type AFAttr = { label: string; value: string }
@@ -18,16 +25,23 @@ export type AFProduct = {
   attrs: AFAttr[]
 }
 
-const BRANDS = ['Febreze', 'glade', 'P&G', 'AirSpenceUSA.com', 'OZIUM', 'renuzit']
+const BRANDS = [
+    { name: 'BMW', logo: brand1 },
+  { name: 'Vaxhaul', logo: brand2 },
+  { name: 'Audi', logo: brand3 },
+  { name: 'Ford', logo: brand4 },
+  { name: 'Mercedes-Benz', logo: brand5 },
+  { name: 'Toyota', logo: brand6 },
+]
 
 const SAMPLE_PRODUCTS: AFProduct[] = Array.from({ length: 8 }).map((_, i) => ({
   id: `af-${i + 1}`,
   brand: ['Febreze', 'glade', 'P&G', 'OZIUM'][i % 4],
-  brandLogo: 'https://dummyimage.com/90x36/ffffff/111111.png&text=' + encodeURIComponent(['Febreze','glade','P&G','OZIUM'][i%4]),
+  brandLogo: airLogo,
   articleNo: '123456',
-  name: 'Febreze Lucky Leaf Car sir Freshner 537960',
+  name: 'Febreze Lucky Leaf Car Air Freshener 537960',
   subtitle: 'Tutti Frutti, Bag, Orange',
-  image: 'https://dummyimage.com/96x260/f6f5fa/aaaaaa.png&text=Spray',
+  image: airLogo,
   price: 40000,
   rating: 0,
   reviews: 0,
@@ -74,10 +88,10 @@ function BrandCarousel() {
           <button aria-label="Next" onClick={() => ref.current?.scrollBy({ left: 280, behavior: 'smooth' })} disabled={!canNext} className="inline-flex h-7 w-7 items-center justify-center rounded-full ring-1 ring-black/10 text-gray-700 disabled:opacity-50">▶</button>
         </div>
       </div>
-      <div ref={ref} className="mt-2 flex items-center gap-6 overflow-x-auto rounded-xl bg-white px-4 py-3 ring-1 ring-black/10">
+      <div ref={ref} className="mt-2 flex items-center justify-between gap-6 overflow-x-auto rounded-xl bg-white px-4 py-3 ring-1 ring-black/10">
         {BRANDS.map((b) => (
-          <div key={b} className="shrink-0">
-            <img src={`https://dummyimage.com/110x48/ffffff/111111.png&text=${encodeURIComponent(b)}`} alt={b} className="h-10 w-auto object-contain" />
+          <div key={b.name} className="shrink-0">
+            <img src={b.logo} alt={b.name} className="h-10 w-auto object-contain" />
           </div>
         ))}
       </div>
@@ -179,10 +193,10 @@ export default function AirFresheners() {
 
         <div className="mt-6 grid gap-6 lg:grid-cols-[280px_1fr]">
           {/* Sidebar */}
-          <aside>
+          <aside className="sticky top-30 sm:top-34 self-start max-h-[calc(100vh-6rem)] overflow-auto pr-1 no-scrollbar">
             <div className="rounded-xl bg-white p-4 ring-1 ring-black/10">
               <div className="flex items-center justify-center rounded-lg bg-[#F6F5FA] p-6">
-                <img src="https://dummyimage.com/220x360/f6f5fa/aaaaaa.png&text=Little+Trees" alt="Preview" className="h-72 w-auto object-contain" />
+                <img src={airLogo} alt="Preview" className="h-72 w-auto object-contain" />
               </div>
             </div>
             <FilterSection title="SCENT" items={[ 'diamond wings yellow', 'caramel coffee', 'Alpine Meadow', 'BUBBLE GUM', 'Alpine Pine', 'New Car', 'Alaska' ]} />
