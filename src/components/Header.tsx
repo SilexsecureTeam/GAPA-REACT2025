@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useState, type ReactNode, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import logo from '../assets/gapa-logo.png';
 
@@ -10,9 +10,32 @@ type Category = {
 };
 
 export default function Header() {
-  const countdown = useMemo(() => ['12', '15', '24'], [])
+  // Live timer to Sept 1, 12am displayed as HH:MM:SS (no labels)
+  const [timeLeft, setTimeLeft] = useState(() => {
+    const now = new Date()
+    const target = new Date(now.getFullYear(), 8, 1, 0, 0, 0, 0)
+    const diff = Math.max(0, target.getTime() - now.getTime())
+    const h = Math.floor(diff / (60 * 60 * 1000))
+    const m = Math.floor((diff % (60 * 60 * 1000)) / (60 * 1000))
+    const s = Math.floor((diff % (60 * 1000)) / 1000)
+    return { h, m, s }
+  })
   const [query, setQuery] = useState('')
   const [openIdx, setOpenIdx] = useState<number | null>(null)
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      const now = new Date()
+      const target = new Date(now.getFullYear(), 8, 1, 0, 0, 0, 0)
+      const diff = Math.max(0, target.getTime() - now.getTime())
+      const h = Math.floor(diff / (60 * 60 * 1000))
+      const m = Math.floor((diff % (60 * 60 * 1000)) / (60 * 1000))
+      const s = Math.floor((diff % (60 * 1000)) / 1000)
+      setTimeLeft({ h, m, s })
+      if (diff === 0) clearInterval(id)
+    }, 1000)
+    return () => clearInterval(id)
+  }, [])
 
   const categories: Category[] = [
     { label: 'Car Brands', caret: true, icon: (
@@ -71,6 +94,8 @@ export default function Header() {
 
   const toSlug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
 
+  const pad2 = (n: number) => n.toString().padStart(2, '0')
+
   return (
     <header className="fixed w-full top-0 z-50 shadow-sm">
       {/* Top promo strip */}
@@ -80,15 +105,16 @@ export default function Header() {
           <p className="text-[14px] font-normal tracking-wide">
             Free Delivery on Orders Over ₦50,000 – Limited Time!
           </p>
-          <div className="hidden items-center gap-3 sm:flex">
+          <div className="hidden items-center gap-3 sm:flex" aria-live="polite">
             <span className="text-[12px] font-semibold tracking-wider text-white/90">OFFER ENDS IN:</span>
             <div className="flex items-center gap-1.5">
-              {countdown.map((v, i) => (
+              {/* HH:MM:SS boxes with colons like before */}
+              {[pad2(timeLeft.h), pad2(timeLeft.m), pad2(timeLeft.s)].map((v, i, arr) => (
                 <div key={i} className="flex items-center gap-1.5">
                   <span className="inline-flex h-6 min-w-7 items-center justify-center rounded-md bg-white/10 px-1.5 text-[12px] font-bold leading-none text-white ring-1 ring-white/15">
                     {v}
                   </span>
-                  {i < countdown.length - 1 && (
+                  {i < arr.length - 1 && (
                     <span className="text-white/80">:</span>
                   )}
                 </div>
@@ -176,10 +202,9 @@ export default function Header() {
       </div>
 
       {/* Category bar with dropdowns */}
-      <nav className="relative bg-brand text-white">
+      <nav className="relative bg-brand text-white" onMouseLeave={() => setOpenIdx(null)} onKeyDown={(e) => { if (e.key === 'Escape') setOpenIdx(null) }}>
         <div
           className="mx-auto flex h-12 max-w-7xl items-center justify-between gap-6 overflow-x-auto px-4 sm:px-6"
-          onMouseLeave={() => setOpenIdx(null)}
         >
           {categories.map((cat, i) => (
             <div key={cat.label} className="relative">
@@ -187,8 +212,8 @@ export default function Header() {
                 to={cat.label === 'Car Parts' ? '/parts' : '/parts'}
                 onMouseEnter={() => setOpenIdx(cat.items ? i : null)}
                 onFocus={() => setOpenIdx(cat.items ? i : null)}
-                onClick={() => setOpenIdx((prev) => prev === i ? null : (cat.items ? i : null))}
-                className="group inline-flex shrink-0 items-center gap-2 whitespace-nowrap text-[14px] font-medium text-white/90 hover:text-white"
+                onClick={() => setOpenIdx(null)}
+                className={`group inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-md px-2 py-1.5 text-[14px] font-medium ${openIdx===i ? 'bg-white/10 text-white' : 'text-white/90 hover:text-white hover:bg-white/10'}`}
                 aria-haspopup={!!cat.items}
                 aria-expanded={openIdx === i}
               >
@@ -204,30 +229,29 @@ export default function Header() {
                   </svg>
                 )}
               </Link>
+
+              {/* Dropdown panel opens on hover, links clickable */}
+              {openIdx === i && cat.items && (
+                <div className="absolute left-0 top-full z-40 mt-2 w-screen max-w-md rounded-xl bg-white p-3 text-gray-900 shadow-lg ring-1 ring-black/10 sm:max-w-lg md:max-w-xl">
+                  <div role="menu" aria-label={`${cat.label} menu`} className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                    {cat.items.map((item) => (
+                      <Link
+                        key={item}
+                        role="menuitem"
+                        to={i === 0 ? `/parts/${toSlug(item)}/brake-discs` : `/parts/${toSlug(item)}`}
+                        className="block rounded-md px-3 py-2 text-sm text-gray-800 hover:bg-brand hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                        onClick={() => setOpenIdx(null)}
+                      >
+                        {item}
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           ))}
         </div>
-
-        {/* Dropdown panel */}
-        {openIdx !== null && categories[openIdx]?.items && (
-          <div className="absolute inset-x-0 top-full z-40 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/70 shadow ring-1 ring-black/10">
-            <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6">
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
-                {categories[openIdx].items!.map((item) => (
-                  <Link
-                    key={item}
-                    to={openIdx === 0 ? `/parts/${toSlug(item)}/brake-discs` : `/parts/${toSlug(item)}`}
-                    className="block rounded-md px-3 py-2 text-sm text-gray-800 hover:bg-brand hover:text-white"
-                    onClick={() => setOpenIdx(null)}
-                  >
-                    {item}
-                  </Link>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
       </nav>
     </header>
-  );
+  )
 }

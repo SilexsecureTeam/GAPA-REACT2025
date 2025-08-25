@@ -6,6 +6,10 @@ import brand3 from '../assets/brand3.png'
 import brand4 from '../assets/brand4.png'
 import brand5 from '../assets/brand5.png'
 import brand6 from '../assets/brand6.png'
+import faxle from '../assets/f-axle.png'
+import baxle from '../assets/b-axle.png'
+import ridex from '../assets/ridex.jpg'
+import brDisk from '../assets/br-disk.png'
 
 // Sample brands
 const BRANDS = [
@@ -36,8 +40,8 @@ interface ResultItem {
 const SAMPLE_RESULTS: ResultItem[] = Array.from({ length: 6 }).map((_, i) => ({
   id: `bd-${i + 1}`,
   brand: 'RIDEX',
-  brandLogo: 'https://dummyimage.com/80x28/ffffff/111111.png&text=RIDEX',
-  image: 'https://dummyimage.com/220x180/f6f5fa/aaaaaa.png&text=Brake+Disc',
+  brandLogo: ridex,
+  image: brDisk,
   name: 'Brake Disc RIDEX82B0169',
   articleNo: '123456',
   rating: 4.5,
@@ -112,7 +116,7 @@ function BrandCarousel() {
 
 function FiltersSidebar() {
   return (
-    <aside className="sticky top-30 sm:top-34 self-start max-h-[calc(100vh-6rem)] overflow-auto pr-1 no-scrollbar">
+    <aside className="sticky top-34 sm:top-42 self-start max-h-[calc(100vh-6rem)] overflow-auto pr-1 no-scrollbar">
       {/* Select Vehicle card */}
       <div className="rounded-xl bg-white p-4 ring-1 ring-black/10">
         <h4 className="text-[12px] font-bold tracking-wide text-white">
@@ -262,7 +266,15 @@ export default function CarPartDetails() {
           </ol>
         </nav>
 
-        {/* Toolbar */}
+        
+
+        {/* Layout grid */}
+        <div className="mt-8 grid gap-6 lg:grid-cols-[300px_1fr]">
+          <FiltersSidebar />
+
+          {/* Results list */}
+          <div className="space-y-4">
+            {/* Toolbar */}
         <div className="mt-4 flex items-center justify-between gap-4">
           <div className="text-[13px] text-gray-700">Sort by:
             <select className="ml-2 rounded-md border border-black/10 bg-white px-2 py-1 text-[13px]"><option>Recommended</option><option>Price: Low to High</option><option>Price: High to Low</option></select>
@@ -284,11 +296,11 @@ export default function CarPartDetails() {
 
         {/* Fitting position cards */}
         <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {[{ label: 'FRONT AXLE' }, { label: 'REAR AXLE' }].map((c) => (
+          {[{ label: 'FRONT AXLE', icon: faxle }, { label: 'REAR AXLE', icon: baxle }].map((c) => (
             <div key={c.label} className="rounded-xl bg-white p-5 ring-1 ring-black/10">
               <div className="flex items-center gap-3">
-                <div className="flex items-center justify-center rounded-lg bg-[#F6F5FA] p-3">
-                  <img src="https://dummyimage.com/120x60/f6f5fa/aaaaaa.png&text=Axle" alt="" className="h-14 w-auto object-contain" />
+                <div className="flex items-center justify-center rounded-lg p-3">
+                  <img src={c.icon} alt="" className="h-14 w-auto object-contain" />
                 </div>
                 <div className="text-center">
                   <div className="text-[12px] text-gray-700">Fitting position</div>
@@ -299,12 +311,7 @@ export default function CarPartDetails() {
           ))}
         </div>
 
-        {/* Layout grid */}
-        <div className="mt-6 grid gap-6 lg:grid-cols-[300px_1fr]">
-          <FiltersSidebar />
 
-          {/* Results list */}
-          <div className="space-y-4">
             {SAMPLE_RESULTS.map((item) => (
               <ResultCard key={item.id} item={item} />
             ))}

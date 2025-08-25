@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import airLogo from '../assets/air-freshner.png'
+import airImg from '../assets/air2.png'
 import brand1 from '../assets/brand1.png'
 import brand2 from '../assets/brand2.png'
 import brand3 from '../assets/brand3.png'
@@ -41,7 +42,7 @@ const SAMPLE_PRODUCTS: AFProduct[] = Array.from({ length: 8 }).map((_, i) => ({
   articleNo: '123456',
   name: 'Febreze Lucky Leaf Car Air Freshener 537960',
   subtitle: 'Tutti Frutti, Bag, Orange',
-  image: airLogo,
+  image: airImg,
   price: 40000,
   rating: 0,
   reviews: 0,
