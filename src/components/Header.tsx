@@ -51,7 +51,7 @@ export default function Header() {
         <circle cx="12" cy="12" r="3" />
         <path d="M12 2v3M12 19v3M4.9 4.9l2.1 2.1M16.9 16.9l2.1 2.1M2 12h3M19 12h3M4.9 19.1l2.1-2.1M16.9 7.1l2.1-2.1" />
       </svg>
-    ), items: ['Brake Discs', 'Suspension', 'Brakes', 'Electrical', 'Body', 'Cooling'] },
+    ), items: ['Brake Pad Set', 'Brake Discs', 'Suspension', 'Brakes', 'Electrical', 'Body', 'Cooling'] },
     { label: 'Tyres', icon: (
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
         <circle cx="12" cy="12" r="8" />
@@ -209,7 +209,7 @@ export default function Header() {
           {categories.map((cat, i) => (
             <div key={cat.label} className="relative">
               <Link
-                to={cat.label === 'Car Parts' ? '/parts' : '/parts'}
+                to={cat.label === 'Car Parts' ? '/parts' : (cat.label === 'Tyres' ? '/tyres' : (cat.label === 'Engine Oil' ? '/engine-oil' : '/parts'))}
                 onMouseEnter={() => setOpenIdx(cat.items ? i : null)}
                 onFocus={() => setOpenIdx(cat.items ? i : null)}
                 onClick={() => setOpenIdx(null)}
@@ -234,17 +234,23 @@ export default function Header() {
               {openIdx === i && cat.items && (
                 <div className="absolute left-0 top-full z-40 mt-2 w-screen max-w-md rounded-xl bg-white p-3 text-gray-900 shadow-lg ring-1 ring-black/10 sm:max-w-lg md:max-w-xl">
                   <div role="menu" aria-label={`${cat.label} menu`} className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                    {cat.items.map((item) => (
-                      <Link
-                        key={item}
-                        role="menuitem"
-                        to={i === 0 ? `/parts/${toSlug(item)}/brake-discs` : `/parts/${toSlug(item)}`}
-                        className="block rounded-md px-3 py-2 text-sm text-gray-800 hover:bg-brand hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
-                        onClick={() => setOpenIdx(null)}
-                      >
-                        {item}
-                      </Link>
-                    ))}
+                    {cat.items.map((item) => {
+                      const demoSlug = toSlug('RIDEX 402B0289 Brake pad set')
+                      const to = i === 0
+                        ? `/parts/${toSlug(item)}/brake-discs`
+                        : (item.toLowerCase() === 'brake pad set' ? `/parts/product/${demoSlug}` : `/parts/${toSlug(item)}`)
+                      return (
+                        <Link
+                          key={item}
+                          role="menuitem"
+                          to={to}
+                          className="block rounded-md px-3 py-2 text-sm text-gray-800 hover:bg-brand hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                          onClick={() => setOpenIdx(null)}
+                        >
+                          {item}
+                        </Link>
+                      )
+                    })}
                   </div>
                 </div>
               )}

@@ -58,7 +58,7 @@ export default function Footer() {
               </span>
               <button
               type="submit"
-              className="inline-flex absolute right-0 h-12 items-center justify-center rounded-md px-5 text-sm font-semibold text-[#0F1020] transition"
+              className="inline-flex absolute right-0 h-12 items-center justify-center rounded-md px-5 text-sm font-semibold text-[#0F1020] !bg-[#FA8232] transition"
               style={{ backgroundColor: BRAND.accent }}
               disabled={status === 'loading'}
             >

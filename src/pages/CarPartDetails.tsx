@@ -64,6 +64,8 @@ const SAMPLE_RESULTS: ResultItem[] = Array.from({ length: 6 }).map((_, i) => ({
   ],
 }))
 
+const toSlug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
+
 function StepBadge({ n }: { n: number }) {
   return (
     <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-white text-[11px] font-semibold text-brand ring-1 ring-black/10">
@@ -185,6 +187,8 @@ function ResultCard({ item }: { item: ResultItem }) {
   const [qty, setQty] = useState(2)
   const inc = () => setQty((v) => Math.min(v + 1, 99))
   const dec = () => setQty((v) => Math.max(v - 1, 1))
+  const slug = toSlug(`${item.brand}-${item.name}-${item.articleNo}`)
+  const to = `/parts/product/${slug}`
   return (
     <div className="rounded-xl bg-white ring-1 ring-black/10">
       <div className="grid grid-cols-[1fr_auto] items-stretch">
@@ -201,11 +205,11 @@ function ResultCard({ item }: { item: ResultItem }) {
             </div>
           </div>
           <div className="mt-2 grid grid-cols-[110px_1fr] gap-3 pr-4 md:grid-cols-[140px_1fr]">
-            <div className="flex items-center justify-center rounded-lg bg-[#F6F5FA]">
+            <Link to={to} className="flex items-center justify-center rounded-lg bg-[#F6F5FA]">
               <img src={item.image} alt={item.name} className="h-28 w-auto object-contain md:h-32" />
-            </div>
+            </Link>
             <div>
-              <div className="font-semibold text-gray-900">{item.name}</div>
+              <Link to={to} className="font-semibold text-gray-900 hover:underline">{item.name}</Link>
               <div className="mt-3 grid grid-cols-1 gap-1">
                 {item.specs.map((s) => (
                   <div key={s.label + s.value} className="grid grid-cols-[260px_1fr] text-[13px]">

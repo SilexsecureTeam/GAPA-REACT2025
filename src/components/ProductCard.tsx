@@ -18,7 +18,7 @@ export default function ProductCard({ product }: ProductCardProps) {
   const wishlist = useWishlist()
   const isFav = wishlist.has(product.id)
   const toSlug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
-  const to = `/parts/${toSlug(product.title)}`
+  const to = `/parts/product/${toSlug(product.title)}`
 
   return (
     <div className="group relative rounded-md bg-[#F6F5FA] p-4 ring-1 ring-black/5 transition hover:bg-white hover:shadow-sm">
