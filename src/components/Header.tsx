@@ -1,12 +1,19 @@
-import { useState, type ReactNode, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import logo from '../assets/gapa-logo.png';
+import icon1 from '../assets/h1.png'
+import icon2 from '../assets/h2.png'
+import icon3 from '../assets/h3.png'
+import icon4 from '../assets/h4.png'
+import icon5 from '../assets/h5.png'
+import icon6 from '../assets/h6.png'
+import icon7 from '../assets/h7.png'
 
 type Category = {
   label: string;
   caret?: boolean;
   items?: string[];
-  icon?: ReactNode;
+  icon?: string; // image source path
 };
 
 export default function Header() {
@@ -38,50 +45,19 @@ export default function Header() {
   }, [])
 
   const categories: Category[] = [
-    { label: 'Car Brands', caret: true, icon: (
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
-        <circle cx="12" cy="12" r="9" />
-        <circle cx="12" cy="12" r="2" />
-        <path d="M7 12h10" />
-        <path d="M12 14v4" />
-      </svg>
-    ), items: ['Toyota', 'Honda', 'BMW', 'Mercedes', 'Kia', 'Hyundai'] },
-    { label: 'Car Parts', caret: true, icon: (
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
-        <circle cx="12" cy="12" r="3" />
-        <path d="M12 2v3M12 19v3M4.9 4.9l2.1 2.1M16.9 16.9l2.1 2.1M2 12h3M19 12h3M4.9 19.1l2.1-2.1M16.9 7.1l2.1-2.1" />
-      </svg>
-    ), items: ['Brake Pad Set', 'Brake Discs', 'Suspension', 'Brakes', 'Electrical', 'Body', 'Cooling'] },
-    { label: 'Tyres', icon: (
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
-        <circle cx="12" cy="12" r="8" />
-        <circle cx="12" cy="12" r="3" />
-      </svg>
-    ) },
-    { label: 'Car Accessories', icon: (
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
-        <path d="M3 7h18v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z" />
-        <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
-        <path d="M3 12h18" />
-      </svg>
-    ) },
-    { label: 'Engine Oil', icon: (
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
-        <path d="M12 2s5 6 5 9a5 5 0 0 1-10 0c0-3 5-9 5-9z" />
-      </svg>
-    ) },
-    { label: 'Tools', icon: (
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
-        <path d="M21 16.5a4.5 4.5 0 0 1-6-6l-8 8a3 3 0 1 0 4 4l8-8z" />
-      </svg>
-    ) },
-    { label: 'Brakes', icon: (
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
-        <circle cx="12" cy="12" r="8" />
-        <circle cx="12" cy="12" r="2" />
-        <path d="M12 4v4M12 12h8" />
-      </svg>
-    ) },
+    { label: 'Car Brands', caret: true, icon: icon1, items: ['Toyota', 'Honda', 'BMW', 'Mercedes', 'Kia', 'Hyundai'] },
+    { label: 'Car Parts', caret: true, icon: icon2, items: ['Brake Pad Set', 'Brake Discs', 'Suspension', 'Brakes', 'Electrical', 'Body', 'Cooling'] },
+    { label: 'Tyres', icon: icon3 },
+    { label: 'Car Accessories', icon: icon4 },
+    { label: 'Engine Oil', icon: icon5 },
+    { label: 'Tools', icon: icon6 },
+    { label: 'Brakes', icon: icon7 },
+    // { label: 'Car Accessories', icon: icon4 },
+    // { label: 'Engine Oil', icon: icon5 },
+    // { label: 'Tools', icon: icon6 },
+    // { label: 'Brakes', icon: icon7 },
+    // { label: 'Tools', icon: icon6 },
+    // { label: 'Brakes', icon: icon7 },
   ]
 
   const onSearch = (e: React.FormEvent) => {
@@ -218,9 +194,7 @@ export default function Header() {
                 aria-expanded={openIdx === i}
               >
                 {cat.icon && (
-                  <span aria-hidden="true" className="inline-flex items-center justify-center">
-                    {cat.icon}
-                  </span>
+                  <img src={cat.icon} alt="" />
                 )}
                 <span>{cat.label}</span>
                 {cat.caret && (

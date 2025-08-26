@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import brand1 from '../assets/brand1.png'
 import brand2 from '../assets/brand2.png'
@@ -6,7 +6,11 @@ import brand3 from '../assets/brand3.png'
 import brand4 from '../assets/brand4.png'
 import brand5 from '../assets/brand5.png'
 import brand6 from '../assets/brand6.png'
-import tyreImg from '../assets/top.png'
+import tyreImg from '../assets/tyre.png'
+import tyres from '../assets/tyres.png'
+import tyre1 from '../assets/tyre1.png'
+import tyre2 from '../assets/tyre2.png'
+import tyre3 from '../assets/tyre3.png'
 
 function Step({ n }: { n: number }) {
   return (
@@ -41,7 +45,7 @@ export default function Tyres() {
     price: 40000,
     rating: 4.7,
     reviews: 126771,
-    image: tyreImg,
+    image: tyres,
   }))
 
   return (
@@ -235,7 +239,7 @@ export default function Tyres() {
         <div className="mt-6 rounded-2xl bg-[#F6F3FB] p-4 sm:p-6">
           <div className="grid gap-4 md:grid-cols-[minmax(280px,1fr)_1fr]">
             <div className="overflow-hidden rounded-lg bg-white">
-              <img src={tyreImg} alt="Winter Tyres" className="h-56 w-full object-cover" />
+              <img src={tyre1} alt="Winter Tyres" className="h-56 w-full object-cover" />
               <div className="p-4">
                 <div className="text-[14px] font-semibold text-gray-900">Winter Car Tyres</div>
                 <div className="text-[22px]">❄️</div>
@@ -248,9 +252,12 @@ export default function Tyres() {
             </div>
           </div>
           <div className="mt-4 grid gap-4 md:grid-cols-2">
-            {[['Summer Car Tyres','☀️'],['All Weather Tyres','🌤️']].map(([t,icon]) => (
+            { [
+              { t: 'Summer Car Tyres', icon: '☀️', img: tyre2 },
+              { t: 'All Weather Tyres', icon: '🌤️', img: tyre3 },
+            ].map(({ t, icon, img }) => (
               <div key={t} className="overflow-hidden rounded-lg bg-white">
-                <img src={tyreImg} alt={t} className="h-48 w-full object-cover" />
+                <img src={img} alt={t} className="h-48 w-full object-cover" />
                 <div className="p-4">
                   <div className="text-[14px] font-semibold text-gray-900">{t}</div>
                   <div className="text-[22px]">{icon}</div>
