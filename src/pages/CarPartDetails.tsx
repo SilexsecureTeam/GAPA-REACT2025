@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import brand1 from '../assets/brand1.png'
 import brand2 from '../assets/brand2.png'
 import brand3 from '../assets/brand3.png'
@@ -10,6 +10,7 @@ import faxle from '../assets/f-axle.png'
 import baxle from '../assets/b-axle.png'
 import ridex from '../assets/ridex.jpg'
 import brDisk from '../assets/br-disk.png'
+import { liveSearch } from '../services/api'
 
 // Sample brands
 const BRANDS = [
@@ -59,7 +60,7 @@ const SAMPLE_RESULTS: ResultItem[] = Array.from({ length: 6 }).map((_, i) => ({
     { label: 'Centering Diameter(mm)', value: '79' },
     { label: 'Number of Holes :', value: '5/6' },
     { label: 'Wheel Bolt Bore Diameter (mm)', value: '14.6' },
-    { label: 'Bolt Hole circle Ø (mm):', value: '120' },
+    { label: 'Bolt Hole circle \u00d8 (mm):', value: '120' },
     { label: 'Supplementary Article/ Supplementary info 2', value: 'Without Bolt/ Screws' },
   ],
 }))
@@ -185,10 +186,34 @@ function FiltersSidebar() {
 
 function ResultCard({ item }: { item: ResultItem }) {
   const [qty, setQty] = useState(2)
+  const [busy, setBusy] = useState(false)
   const inc = () => setQty((v) => Math.min(v + 1, 99))
   const dec = () => setQty((v) => Math.max(v - 1, 1))
   const slug = toSlug(`${item.brand}-${item.name}-${item.articleNo}`)
-  const to = `/parts/product/${slug}`
+  const navigate = useNavigate()
+
+  const handleShopNow = async () => {
+    if (busy) return
+    setBusy(true)
+    try {
+      // Use liveSearch to validate that something exists for this part name
+      const term = item.name.replace(/ridex\d*/i, '').trim() || item.name
+      const res = await liveSearch(term)
+      const list = (res as any)?.data ?? res
+      if (!Array.isArray(list) || list.length === 0) {
+        navigate('/search-error', { state: { reason: 'no_results', query: slug, brand: toSlug(item.brand), part: toSlug(term) } })
+        return
+      }
+      const brand = toSlug(item.brand)
+      const part = toSlug(term) || 'brake-discs'
+      navigate(`/parts/${brand}/${part}`)
+    } catch (e) {
+      navigate('/search-error', { state: { reason: 'error', query: slug } })
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
     <div className="rounded-xl bg-white ring-1 ring-black/10">
       <div className="grid grid-cols-[1fr_auto] items-stretch">
@@ -205,11 +230,11 @@ function ResultCard({ item }: { item: ResultItem }) {
             </div>
           </div>
           <div className="mt-2 grid grid-cols-[110px_1fr] gap-3 pr-4 md:grid-cols-[140px_1fr]">
-            <Link to={to} className="flex items-center justify-center rounded-lg bg-[#F6F5FA]">
+            <button onClick={handleShopNow} disabled={busy} className="flex items-center justify-center rounded-lg bg-[#F6F5FA] disabled:opacity-60">
               <img src={item.image} alt={item.name} className="h-28 w-auto object-contain md:h-32" />
-            </Link>
+            </button>
             <div>
-              <Link to={to} className="font-semibold text-gray-900 hover:underline">{item.name}</Link>
+              <button onClick={handleShopNow} disabled={busy} className="font-semibold text-left text-gray-900 underline-offset-2 hover:underline disabled:opacity-60">{item.name}</button>
               <div className="mt-3 grid grid-cols-1 gap-1">
                 {item.specs.map((s) => (
                   <div key={s.label + s.value} className="grid grid-cols-[260px_1fr] text-[13px]">
@@ -232,9 +257,9 @@ function ResultCard({ item }: { item: ResultItem }) {
             <div className="inline-flex h-7 items-center justify-center rounded-md border border-black/10 px-2 text-[12px]">{qty}</div>
             <button aria-label="Increase" onClick={inc} className="inline-flex h-7 w-7 items-center justify-center rounded-md ring-1 ring-black/10 text-gray-700">›</button>
           </div>
-          <button className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-md bg-[#F7CD3A] text-[14px] font-semibold text-gray-900 ring-1 ring-black/10 hover:bg-[#f9d658]">
+          <button onClick={handleShopNow} disabled={busy} className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-md bg-[#F7CD3A] text-[14px] font-semibold text-gray-900 ring-1 ring-black/10 hover:bg-[#f9d658] disabled:opacity-60">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="21" r="1" /><circle cx="20" cy="21" r="1" /><path d="M1 1h4l2.68 12.39a2 2 0 0 0 2 1.61h7.72a2 2 0 0 0 2-1.61L23 6H6" /></svg>
-            Add to cart
+            {busy ? 'Checking…' : 'Shop now'}
           </button>
           <div className="mt-1 text-[12px] text-purple-700">{item.inStock ? 'In Stock' : 'Out of stock'}</div>
         </aside>

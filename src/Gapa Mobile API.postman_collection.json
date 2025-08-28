@@ -1,0 +1,1891 @@
+{
+	"info": {
+		"_postman_id": "54ed18ec-6c05-4a68-ab58-cba0e4712266",
+		"name": "Gapa Mobile API",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "29974319"
+	},
+	"item": [
+		{
+			"name": "User",
+			"item": [
+				{
+					"name": "User Registration",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "urlencoded",
+							"urlencoded": [
+								{
+									"key": "name",
+									"value": "Meyor",
+									"type": "text"
+								},
+								{
+									"key": "email",
+									"value": "meyorpops@gmail.com",
+									"type": "text"
+								},
+								{
+									"key": "phone",
+									"value": "09074694221",
+									"type": "text"
+								},
+								{
+									"key": "address",
+									"value": "Jabi",
+									"type": "text"
+								},
+								{
+									"key": "password",
+									"value": "1234567890",
+									"type": "text"
+								},
+								{
+									"key": "comfirm_password",
+									"value": "1234567890",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{gapa}}/register",
+							"host": [
+								"{{gapa}}"
+							],
+							"path": [
+								"register"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "User Login",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "\n{\n    // use emaill or phone number\n    \"email_phone\":\"meyorpop@gmail.com\",\n    // \"email_phone\":\"09074694222\",\n    \"password\":\"1234567890\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{gapa}}/login",
+							"host": [
+								"{{gapa}}"
+							],
+							"path": [
+								"login"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Change Password",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "3042|9p0IsCcrLpOHTCoipcFjgiX86x0m6p5vrpX8HBav",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"old_password\":\"1234567890\",\n    \"new_password\":\"1234567890\",\n    \"id\":\"1\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{gapa}}/changePassword",
+							"host": [
+								"{{gapa}}"
+							],
+							"path": [
+								"changePassword"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "otp",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "3044|489mAqdUYFMeWXszxduSRLBqK8Znf7lrcxjkfo8R",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\":\"meyorpop@gmail.com\",\n    \"token\":\"604098\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{gapa}}/otp",
+							"host": [
+								"{{gapa}}"
+							],
+							"path": [
+								"otp"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Verify Account",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\":\"meyorpop@gmail.com\",\n    \"token\":\"604098\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{gapa}}/verify-account",
+							"host": [
+								"{{gapa}}"
+							],
+							"path": [
+								"verify-account"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get User Profile",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "urlencoded",
+							"urlencoded": []
+						},
+						"url": {
+							"raw": "{{gapa}}/getUserProfile/1",
+							"host": [
+								"{{gapa}}"
+							],
+							"path": [
+								"getUserProfile",
+								"1"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Profile",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "urlencoded",
+							"urlencoded": [
+								{
+									"key": "name",
+									"value": "Meyor Pop",
+									"type": "text"
+								},
+								{
+									"key": "address",
+									"value": "Jabis ",
+									"type": "text"
+								},
+								{
+									"key": "phone",
+									"value": "09000000002",
+									"type": "text"
+								},
+								{
+									"key": "user_id",
+									"value": "112",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{based_url}}/updateUserProfile",
+							"host": [
+								"{{based_url}}"
+							],
+							"path": [
+								"updateUserProfile"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Upload Profile Picture",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "user_id",
+									"value": "112",
+									"type": "text"
+								},
+								{
+									"key": "img_url",
+									"type": "file",
+									"src": "/Users/user/Downloads/1701205179274.jpg"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{based_url}}/updateProfileProfile",
+							"host": [
+								"{{based_url}}"
+							],
+							"path": [
+								"updateProfileProfile"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "resendotp",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{based_url}}/resendotp?email=meyorpop@gmail.com",
+							"host": [
+								"{{based_url}}"
+							],
+							"path": [
+								"resendotp"
+							],
+							"query": [
+								{
+									"key": "email",
+									"value": "meyorpop@gmail.com"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "delete user",
+					"request": {
+						"auth": {
+							"type": "bearer"
+						},
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{gapa}}/delete-user/2",
+							"host": [
+								"{{gapa}}"
+							],
+							"path": [
+								"delete-user",
+								"2"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "ResetPassword",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "email",
+									"value": "meyorpop@gmail.com",
+									"type": "text"
+								},
+								{
+									"key": "otp",
+									"value": "204286",
+									"type": "text"
+								},
+								{
+									"key": "password",
+									"value": "1234567890",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{based_url}}/password/reset",
+							"host": [
+								"{{based_url}}"
+							],
+							"path": [
+								"password",
+								"reset"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "ForgetPassword",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "email",
+									"value": "meyorpop@gmail.com",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{based_url}}/password/forget",
+							"host": [
+								"{{based_url}}"
+							],
+							"path": [
+								"password",
+								"forget"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "User Carts",
+			"item": [
+				{
+					"name": "Add Product to cart",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "urlencoded",
+							"urlencoded": [
+								{
+									"key": "user_id",
+									"value": "13",
+									"type": "text"
+								},
+								{
+									"key": "product_id",
+									"value": "02522a2b2726fb0a03bb19f2d8d9524dd",
+									"type": "text"
+								},
+								{
+									"key": "quantity",
+									"value": "2",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{based_url}}/product/add-to-cart",
+							"host": [
+								"{{based_url}}"
+							],
+							"path": [
+								"product",
+								"add-to-cart"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Increase cart Quantity",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "urlencoded",
+							"urlencoded": [
+								{
+									"key": "product_id",
+									"value": "02522a2b2726fb0a03bb19f2d8d9524ddd",
+									"type": "text"
+								},
+								{
+									"key": "user_id",
+									"value": "25",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{based_url}}/product/increase_cart",
+							"host": [
+								"{{based_url}}"
+							],
+							"path": [
+								"product",
+								"increase_cart"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Product Reviews",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{based_url}}/product/getAllProductReview/00411460f7c92d2124a67ea0f4cb5f85",
+							"host": [
+								"{{based_url}}"
+							],
+							"path": [
+								"product",
+								"getAllProductReview",
+								"00411460f7c92d2124a67ea0f4cb5f85"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Cart Quantity",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "urlencoded",
+							"urlencoded": [
+								{
+									"key": "cart_id",
+									"value": "3",
+									"type": "text"
+								},
+								{
+									"key": "user_id",
+									"value": "26",
+									"type": "text"
+								},
+								{
+									"key": "quantity",
+									"value": "10",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{based_url}}/product/update_cart_quantity",
+							"host": [
+								"{{based_url}}"
+							],
+							"path": [
+								"product",
+								"update_cart_quantity"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Cat",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "urlencoded",
+							"urlencoded": [
+								{
+									"key": "user_id",
+									"value": "25",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{based_url}}/product/getAllcart/15",
+							"host": [
+								"{{based_url}}"
+							],
+							"path": [
+								"product",
+								"getAllcart",
+								"15"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Remove product from cart",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "urlencoded",
+							"urlencoded": []
+						},
+						"url": {
+							"raw": "{{based_url}}/product/removeProductFromCart?product_id=02522a2b2726fb0a03bb19f2d8d9524dd&user_id=25",
+							"host": [
+								"{{based_url}}"
+							],
+							"path": [
+								"product",
+								"removeProductFromCart"
+							],
+							"query": [
+								{
+									"key": "product_id",
+									"value": "02522a2b2726fb0a03bb19f2d8d9524dd"
+								},
+								{
+									"key": "user_id",
+									"value": "25"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Checkout",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "518|1ZoTUq5hTJdXKASvvWavFvhY0b19yI51j3JlFZBN",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "urlencoded",
+							"urlencoded": []
+						},
+						"url": {
+							"raw": "{{based_url}}/checkout",
+							"host": [
+								"{{based_url}}"
+							],
+							"path": [
+								"checkout"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete product from cart",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "urlencoded",
+							"urlencoded": [
+								{
+									"key": "cart_id",
+									"value": "78",
+									"type": "text"
+								},
+								{
+									"key": "user_id",
+									"value": "15",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{based_url}}/product/delete_product_cart",
+							"host": [
+								"{{based_url}}"
+							],
+							"path": [
+								"product",
+								"delete_product_cart"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get total Cart",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{based_url}}/getTotalCart/26",
+							"host": [
+								"{{based_url}}"
+							],
+							"path": [
+								"getTotalCart",
+								"26"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get All States",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "urlencoded",
+							"urlencoded": []
+						},
+						"url": {
+							"raw": "{{based_url}}/getAllStates",
+							"host": [
+								"{{based_url}}"
+							],
+							"path": [
+								"getAllStates"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get State Logistics company",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "urlencoded",
+							"urlencoded": []
+						},
+						"url": {
+							"raw": "{{based_url}}/getStateLogisticsCompany/1",
+							"host": [
+								"{{based_url}}"
+							],
+							"path": [
+								"getStateLogisticsCompany",
+								"1"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get door step price",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "urlencoded",
+							"urlencoded": []
+						},
+						"url": {
+							"raw": "{{based_url}}/doorStepPrice",
+							"host": [
+								"{{based_url}}"
+							],
+							"path": [
+								"doorStepPrice"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Submit Review",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "user_id",
+									"value": "1",
+									"type": "text"
+								},
+								{
+									"key": "product_id",
+									"value": "00411010f7c92d2124a67eea0f4cb5f85",
+									"type": "text"
+								},
+								{
+									"key": "review",
+									"value": "This product is a nice one",
+									"type": "text"
+								},
+								{
+									"key": "rating",
+									"value": "3",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{based_url}}/submit_review",
+							"host": [
+								"{{based_url}}"
+							],
+							"path": [
+								"submit_review"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Delivery Address",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "urlencoded",
+							"urlencoded": [
+								{
+									"key": "address",
+									"value": "njhvbhu",
+									"type": "text"
+								},
+								{
+									"key": "user_id",
+									"value": "1",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{based_url}}/updateAddress",
+							"host": [
+								"{{based_url}}"
+							],
+							"path": [
+								"updateAddress"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get User Orders",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{based_url}}/product/getUserOrders/1",
+							"host": [
+								"{{based_url}}"
+							],
+							"path": [
+								"product",
+								"getUserOrders",
+								"1"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get User Order Iteams",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "urlencoded",
+							"urlencoded": []
+						},
+						"url": {
+							"raw": "{{based_url}}/product/getUserOrdersIteams/1591800S6011490",
+							"host": [
+								"{{based_url}}"
+							],
+							"path": [
+								"product",
+								"getUserOrdersIteams",
+								"1591800S6011490"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Processorder",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "shipping_cost",
+									"value": "200",
+									"type": "text"
+								},
+								{
+									"key": "pickup_location_id",
+									"value": "",
+									"type": "text"
+								},
+								{
+									"key": "address",
+									"value": "",
+									"type": "text"
+								},
+								{
+									"key": "userId",
+									"value": "22",
+									"type": "text"
+								},
+								{
+									"key": "txn_id",
+									"value": "",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{based_url}}/product/paymentsuccessfull",
+							"host": [
+								"{{based_url}}"
+							],
+							"path": [
+								"product",
+								"paymentsuccessfull"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "delivery-rate",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{based_url}}/delivery-rate",
+							"host": [
+								"{{based_url}}"
+							],
+							"path": [
+								"delivery-rate"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "get price by states",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{gapa_live}}/get-price/38",
+							"host": [
+								"{{gapa_live}}"
+							],
+							"path": [
+								"get-price",
+								"38"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Get All Products",
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "F6c7bj0KRC13mTshu0IHhhVSwpep7s8buuJPTKPp",
+							"type": "string"
+						}
+					]
+				},
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "https://stockmgt.gapaautoparts.com/api/product/all-products",
+					"protocol": "https",
+					"host": [
+						"stockmgt",
+						"gapaautoparts",
+						"com"
+					],
+					"path": [
+						"api",
+						"product",
+						"all-products"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Get Product By ID",
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "F6c7bj0KRC13mTshu0IHhhVSwpep7s8buuJPTKPp",
+							"type": "string"
+						}
+					]
+				},
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{based_url}}/product/product/00411460f7c92d2124a67ea0f4cb5f85",
+					"host": [
+						"{{based_url}}"
+					],
+					"path": [
+						"product",
+						"product",
+						"00411460f7c92d2124a67ea0f4cb5f85"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "GIG login",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n  \"username\": \"charles.c@gapaautoparts.com\",\r\n  \"password\": \"afc423\"\r\n//   \"sessionObj\": \"string\"\r\n}\r\n",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "https://prod-agilitythirdpartyapi.theagilitysystems.com/api/login",
+					"protocol": "https",
+					"host": [
+						"prod-agilitythirdpartyapi",
+						"theagilitysystems",
+						"com"
+					],
+					"path": [
+						"api",
+						"login"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Get Top Product",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{based_url}}/product/top-products",
+					"host": [
+						"{{based_url}}"
+					],
+					"path": [
+						"product",
+						"top-products"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Get Featured Products",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{based_url}}/product/featured-products",
+					"host": [
+						"{{based_url}}"
+					],
+					"path": [
+						"product",
+						"featured-products"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Get All brands",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{gapa}}/brand/all-brand",
+					"host": [
+						"{{gapa}}"
+					],
+					"path": [
+						"brand",
+						"all-brand"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Get All brands Copy",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{gapa}}/car/all-car",
+					"host": [
+						"{{gapa}}"
+					],
+					"path": [
+						"car",
+						"all-car"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Get All Model",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{gapa}}/car/all-car",
+					"host": [
+						"{{gapa}}"
+					],
+					"path": [
+						"car",
+						"all-car"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Get Single Model",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{based_url}}/product/show-model/1",
+					"host": [
+						"{{based_url}}"
+					],
+					"path": [
+						"product",
+						"show-model",
+						"1"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Get Single Category",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{based_url}}/category/show-category/2",
+					"host": [
+						"{{based_url}}"
+					],
+					"path": [
+						"category",
+						"show-category",
+						"2"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Get All Categories",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{based_url}}/category/all-category",
+					"host": [
+						"{{based_url}}"
+					],
+					"path": [
+						"category",
+						"all-category"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Get Product By Category Id",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{based_url}}/product/show-product-by-category/1",
+					"host": [
+						"{{based_url}}"
+					],
+					"path": [
+						"product",
+						"show-product-by-category",
+						"1"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Get Product Properties",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{based_url}}/product/getProductProperties/c4ca4238a0b923820dcc509a6f75849b",
+					"host": [
+						"{{based_url}}"
+					],
+					"path": [
+						"product",
+						"getProductProperties",
+						"c4ca4238a0b923820dcc509a6f75849b"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Get Product OEM",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{based_url}}/product/getProductOEM/c4ca4238a0b923820dcc509a6f75849b",
+					"host": [
+						"{{based_url}}"
+					],
+					"path": [
+						"product",
+						"getProductOEM",
+						"c4ca4238a0b923820dcc509a6f75849b"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Get Product Review",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{based_url}}/product/getProductReview/c4ca4238a0b923820dcc509a6f75849b",
+					"host": [
+						"{{based_url}}"
+					],
+					"path": [
+						"product",
+						"getProductReview",
+						"c4ca4238a0b923820dcc509a6f75849b"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Get Related Products",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{based_url}}/product/getRelatedProduct/c4ca4238a0b923820dcc509a6f75849b",
+					"host": [
+						"{{based_url}}"
+					],
+					"path": [
+						"product",
+						"getRelatedProduct",
+						"c4ca4238a0b923820dcc509a6f75849b"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Get Partners",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{based_url}}/getPartners",
+					"host": [
+						"{{based_url}}"
+					],
+					"path": [
+						"getPartners"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Get Slider",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{based_url}}/getSlider",
+					"host": [
+						"{{based_url}}"
+					],
+					"path": [
+						"getSlider"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Live Search Product",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "formdata",
+					"formdata": [
+						{
+							"key": "search",
+							"value": "br",
+							"type": "text"
+						}
+					]
+				},
+				"url": {
+					"raw": "{{based_url}}/SearchProduct",
+					"host": [
+						"{{based_url}}"
+					],
+					"path": [
+						"SearchProduct"
+					],
+					"query": [
+						{
+							"key": "search",
+							"value": "br",
+							"disabled": true
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Live Search Product Copy",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n\r\n// \"category_id\": \"4\",\r\n// \"sub_category_id\": \"14\",\r\n// \"maker_id\": \"3\",\r\n// \"brand_id\": \"8c4f493f-e9e7-4c7d-9f0d-afdf8a2e875b\"\r\n\"model_id\": \"d3d9446802a44259755d38e6d163e820\"    \r\n\r\n}\r\n\r\n\r\n",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{gapa}}/live-Search",
+					"host": [
+						"{{gapa}}"
+					],
+					"path": [
+						"live-Search"
+					],
+					"query": [
+						{
+							"key": "search",
+							"value": "br",
+							"disabled": true
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Search Product by Saler",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{based_url}}/product/show-product-by-saler/1",
+					"host": [
+						"{{based_url}}"
+					],
+					"path": [
+						"product",
+						"show-product-by-saler",
+						"1"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Get product by Brand",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							""
+						],
+						"type": "text/javascript",
+						"packages": {}
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{gapa}}/product/show-product-by-brand/05019d0ff37954bf18f25c2e932bca8e",
+					"host": [
+						"{{gapa}}"
+					],
+					"path": [
+						"product",
+						"show-product-by-brand",
+						"05019d0ff37954bf18f25c2e932bca8e"
+					]
+				}
+			},
+			"response": [
+				{
+					"name": "Get product by Brand",
+					"originalRequest": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{gapa}}/product/show-product-by-brand/05019d0ff37954bf18f25c2e932bca8e",
+							"host": [
+								"{{gapa}}"
+							],
+							"path": [
+								"product",
+								"show-product-by-brand",
+								"05019d0ff37954bf18f25c2e932bca8e"
+							]
+						}
+					},
+					"status": "OK",
+					"code": 200,
+					"_postman_previewlanguage": "json",
+					"header": [
+						{
+							"key": "Host",
+							"value": "127.0.0.1:8000"
+						},
+						{
+							"key": "Connection",
+							"value": "close"
+						},
+						{
+							"key": "X-Powered-By",
+							"value": "PHP/8.2.12"
+						},
+						{
+							"key": "Cache-Control",
+							"value": "no-cache, private"
+						},
+						{
+							"key": "Date",
+							"value": "Tue, 21 Jan 2025 09:38:21 GMT"
+						},
+						{
+							"key": "Content-Type",
+							"value": "application/json"
+						},
+						{
+							"key": "X-RateLimit-Limit",
+							"value": "60"
+						},
+						{
+							"key": "X-RateLimit-Remaining",
+							"value": "59"
+						},
+						{
+							"key": "Access-Control-Allow-Origin",
+							"value": "*"
+						}
+					],
+					"cookie": [],
+					"body": "{\n    \"part\": {\n        \"current_page\": 1,\n        \"data\": [\n            {\n                \"id\": 1,\n                \"product_id\": \"149e9677a5989fd342ae44213df68868\",\n                \"brand\": \"05019d0ff37954bf18f25c2e932bca8e\",\n                \"model\": \"a8cdac75cb542b781aa610a07836e056\",\n                \"sub_model\": 837,\n                \"sub_sub_model\": 0,\n                \"createdAt\": \"2023-01-09 14:42:50\",\n                \"modifyAt\": \"2023-11-10 11:55:03\",\n                \"status\": \"1\",\n                \"name\": \"Ridex\",\n                \"pairs\": \"No\",\n                \"article_number\": \"298W0245\",\n                \"live_status\": 1,\n                \"EAN\": \"4059191612512\",\n                \"weight_in_kg\": \"0.238\",\n                \"description\": \"650mm Front, Hybrid Wiper Blade\",\n                \"img_url\": \"1669803714LEXUS GX 460  WIPER BLADE FRONT 1.png\",\n                \"img_url_1\": \"1669803714LEXUS GX 460  WIPER BLADE FRONT 2.png\",\n                \"img_url_2\": \"1669803714WIPER BLADE FRONT 5.png\",\n                \"price\": 15500,\n                \"code\": null,\n                \"property_id\": 97,\n                \"category\": \"4\",\n                \"sub_category\": 14,\n                \"sub_sub_category\": 25,\n                \"maker_id_\": 3,\n                \"discount\": 0,\n                \"compatibility\": \"LEXUS\\r\\n•\\t LEXUS CT (ZWA10_) (YEAR OF CONSTRUCTION 12.2010 - ..., 99 - 136 PS, PETROL/ELECTRO)\\r\\n•\\t LEXUS ES (_V6_) (YEAR OF CONSTRUCTION 06.2012 - 06.2018, 160 - 277 PS, PETROL, PETROL/ELECTRO)\\r\\n•\\t LEXUS ES VII (XZ10) (YEAR OF CONSTRUCTION 10.2018 - ..., 150 - 249 PS, PETROL)\\r\\n•\\t LEXUS GS (GRL1_, GWL1_) (YEAR OF CONSTRUCTION 01.2012 - ..., 181 - 477 PS, PETROL, PETROL/ELECTRO)\\r\\n•\\t LEXUS GX II (J150) (YEAR OF CONSTRUCTION 11.2009 - ..., 296 - 306 PS, PETROL)\\r\\n•\\t LEXUS RX (GYL1_, GGL15, AGL10) (YEAR OF CONSTRUCTION 12.2008 - 10.2015, 249 - 299 PS, PETROL, PETROL/ELECTRO)\\r\\n•\\t LEXUS RX (_L2_) (YEAR OF CONSTRUCTION 11.2015 - ..., 262 PS, PETROL/ELECTRO)\",\n                \"saler_id\": 1,\n                \"updatedAt\": \"2023-12-13 16:41:00\",\n                \"image\": \"1674064047Ridex.png\",\n                \"part_name\": \"Wiper Blade\"\n            },\n            {\n                \"id\": 1,\n                \"product_id\": \"149e9677a5989fd342ae44213df68868\",\n                \"brand\": \"05019d0ff37954bf18f25c2e932bca8e\",\n                \"model\": \"a9410867a028f4368f57933fdecf173f\",\n                \"sub_model\": 831,\n                \"sub_sub_model\": 0,\n                \"createdAt\": \"2023-01-09 14:42:50\",\n                \"modifyAt\": \"2023-11-10 11:55:23\",\n                \"status\": \"1\",\n                \"name\": \"Ridex\",\n                \"pairs\": \"No\",\n                \"article_number\": \"298W0245\",\n                \"live_status\": 1,\n                \"EAN\": \"4059191612512\",\n                \"weight_in_kg\": \"0.238\",\n                \"description\": \"650mm Front, Hybrid Wiper Blade\",\n                \"img_url\": \"1669803714LEXUS GX 460  WIPER BLADE FRONT 1.png\",\n                \"img_url_1\": \"1669803714LEXUS GX 460  WIPER BLADE FRONT 2.png\",\n                \"img_url_2\": \"1669803714WIPER BLADE FRONT 5.png\",\n                \"price\": 15500,\n                \"code\": null,\n                \"property_id\": 97,\n                \"category\": \"4\",\n                \"sub_category\": 14,\n                \"sub_sub_category\": 25,\n                \"maker_id_\": 3,\n                \"discount\": 0,\n                \"compatibility\": \"LEXUS\\r\\n•\\t LEXUS CT (ZWA10_) (YEAR OF CONSTRUCTION 12.2010 - ..., 99 - 136 PS, PETROL/ELECTRO)\\r\\n•\\t LEXUS ES (_V6_) (YEAR OF CONSTRUCTION 06.2012 - 06.2018, 160 - 277 PS, PETROL, PETROL/ELECTRO)\\r\\n•\\t LEXUS ES VII (XZ10) (YEAR OF CONSTRUCTION 10.2018 - ..., 150 - 249 PS, PETROL)\\r\\n•\\t LEXUS GS (GRL1_, GWL1_) (YEAR OF CONSTRUCTION 01.2012 - ..., 181 - 477 PS, PETROL, PETROL/ELECTRO)\\r\\n•\\t LEXUS GX II (J150) (YEAR OF CONSTRUCTION 11.2009 - ..., 296 - 306 PS, PETROL)\\r\\n•\\t LEXUS RX (GYL1_, GGL15, AGL10) (YEAR OF CONSTRUCTION 12.2008 - 10.2015, 249 - 299 PS, PETROL, PETROL/ELECTRO)\\r\\n•\\t LEXUS RX (_L2_) (YEAR OF CONSTRUCTION 11.2015 - ..., 262 PS, PETROL/ELECTRO)\",\n                \"saler_id\": 1,\n                \"updatedAt\": \"2023-12-13 16:41:00\",\n                \"image\": \"1674064047Ridex.png\",\n                \"part_name\": \"Wiper Blade\"\n            },\n            {\n                \"id\": 1,\n                \"product_id\": \"138bb0696595b338afbab333c555292a\",\n                \"brand\": \"05019d0ff37954bf18f25c2e932bca8e\",\n                \"model\": \"624d3078077229a7ab1fefffffc273fb\",\n                \"sub_model\": 844,\n                \"sub_sub_model\": 0,\n                \"createdAt\": \"2023-01-09 14:42:50\",\n                \"modifyAt\": \"2023-11-10 13:25:15\",\n                \"status\": \"1\",\n                \"name\": \"Ridex\",\n                \"pairs\": \"No\",\n                \"article_number\": \"298W0227\",\n                \"live_status\": 1,\n                \"EAN\": \"4059191611973\",\n                \"weight_in_kg\": \"0.392\",\n                \"description\": \"650/ 480mm Front, 26/ 19 Inch, Beam\",\n                \"img_url\": \"1669633056WIPER BLADE 1.jpg\",\n                \"img_url_1\": \"1669633056WIPER BLADE 2.jpg\",\n                \"img_url_2\": \"1669633056WIPER BLADE 3.jpg\",\n                \"price\": 27000,\n                \"code\": null,\n                \"property_id\": 65,\n                \"category\": \"4\",\n                \"sub_category\": 14,\n                \"sub_sub_category\": 25,\n                \"maker_id_\": 3,\n                \"discount\": 0,\n                \"compatibility\": \"BMW\\r\\n\\r\\n·         BMW 2 ACTIVE TOURER (F45) (YEAR OF CONSTRUCTION 11.2013 - ..., 95 - 231 PS, DIESEL, PETROL, PETROL/ELECTRO)\\r\\n\\r\\n·         BMW 2 ACTIVE TOURER VAN (F45) (YEAR OF CONSTRUCTION 07.2014 - ..., 140 - 190 PS, DIESEL, PETROL)\\r\\n\\r\\n·         BMW 2 GRAN TOURER (F46) (YEAR OF CONSTRUCTION 07.2014 - ..., 95 - 192 PS, DIESEL, PETROL)\\r\\n\\r\\n·         BMW 2 GRAN TOURER VAN (F46) (YEAR OF CONSTRUCTION 07.2014 - ..., 140 - 190 PS, DIESEL, PETROL)\\r\\n\\r\\n·         BMW 5 SALOON (G30, F90) (YEAR OF CONSTRUCTION 09.2016 - ..., 136 - 625 PS, DIESEL, DIESEL/ELECTRO, PETROL, PETROL/ELECTRIC, PETROL/ELECTRO)\\r\\n\\r\\n·         BMW 5 TOURING (G31) (YEAR OF CONSTRUCTION 03.2017 - ..., 136 - 400 PS, DIESEL, DIESEL/ELECTRO, PETROL)\\r\\n\\r\\n·         BMW 5 TOURING VAN (G31) (YEAR OF CONSTRUCTION 03.2017 - ..., 184 - 340 PS, DIESEL, PETROL)\\r\\n\\r\\n·         BMW 7 (G11, G12) (YEAR OF CONSTRUCTION 09.2015 - ..., 211 - 610 PS, DIESEL, PETROL, PETROL/ELECTRO)\\r\\n\\r\\n·         LAND ROVER\\r\\n\\r\\n·         LAND ROVER RANGE ROVER VELAR (L560) (YEAR OF CONSTRUCTION 03.2017 - ..., 180 - 551 PS, DIESEL, PETROL)\",\n                \"saler_id\": 1,\n                \"updatedAt\": \"2023-12-13 16:44:14\",\n                \"image\": \"1674064047Ridex.png\",\n                \"part_name\": \"Wiper Blade\"\n            },\n            {\n                \"id\": 1,\n                \"product_id\": \"01161aaa0b6d1345dd8fe4e481144d84\",\n                \"brand\": \"05019d0ff37954bf18f25c2e932bca8e\",\n                \"model\": \"a8cdac75cb542b781aa610a07836e056\",\n                \"sub_model\": 837,\n                \"sub_sub_model\": 0,\n                \"createdAt\": \"2023-01-09 14:42:50\",\n                \"modifyAt\": \"2023-11-16 18:11:04\",\n                \"status\": \"1\",\n                \"name\": \"Ridex\",\n                \"pairs\": \"No\",\n                \"article_number\": \"2232W0027\",\n                \"live_status\": 1,\n                \"EAN\": \"4059191738823\",\n                \"weight_in_kg\": \"0.058\",\n                \"description\": \"433MHz\",\n                \"img_url\": \"1691147621thumb (4).png\",\n                \"img_url_1\": \"16911476211669635074TPMS 2232W0027 1.png\",\n                \"img_url_2\": \"16911476211669635074TPMS 2232W0027 3.png\",\n                \"price\": 77400,\n                \"code\": null,\n                \"property_id\": 59,\n                \"category\": \"5\",\n                \"sub_category\": 7,\n                \"sub_sub_category\": 34,\n                \"maker_id_\": 3,\n                \"discount\": 0,\n                \"compatibility\": \"AUDI\\r\\n\\r\\n·         AUDI A4 AVANT (8ED, B7) (YEAR OF CONSTRUCTION 11.2004 - 06.2008, 102 - 420 PS, DIESEL, PETROL)\\r\\n\\r\\n·         AUDI A4 CONVERTIBLE (8H7, B6, 8HE, B7) (YEAR OF CONSTRUCTION 04.2002 - 03.2009, 130 - 420 PS, DIESEL, PETROL)\\r\\n\\r\\n·         AUDI A4 SALOON (8EC, B7) (YEAR OF CONSTRUCTION 11.2004 - 06.2008, 102 - 420 PS, DIESEL, PETROL)\\r\\n\\r\\n·         AUDI A6 ALLROAD (4FH, C6) (YEAR OF CONSTRUCTION 05.2006 - 08.2011, 163 - 350 PS, DIESEL, PETROL)\\r\\n\\r\\n·         AUDI A6 AVANT (4F5, C6) (YEAR OF CONSTRUCTION 03.2005 - 08.2011, 121 - 580 PS, DIESEL, PETROL)\\r\\n\\r\\n·         AUDI A6 AVANT (4G5, 4GD, C7) (YEAR OF CONSTRUCTION 01.2013 - 09.2018, 560 - 605 PS, PETROL)\\r\\n\\r\\n·         AUDI A6 SALOON (4F2, C6) (YEAR OF CONSTRUCTION 05.2004 - 03.2011, 121 - 580 PS, DIESEL, PETROL)\\r\\n\\r\\n·         AUDI A7 SPORTBACK (4GA, 4GF) (YEAR OF CONSTRUCTION 10.2013 - 04.2018, 560 - 605 PS, PETROL)\\r\\n\\r\\n·         AUDI A8 (4H2, 4H8, 4HC, 4HL) (YEAR OF CONSTRUCTION 11.2009 - 01.2018, 204 - 605 PS, DIESEL, PETROL, PETROL/ELECTRO)\\r\\n\\r\\n·         AUDI Q7 (4LB) (YEAR OF CONSTRUCTION 03.2006 - 08.2015, 204 - 500 PS, DIESEL, PETROL)\\r\\n\\r\\n·         AUDI R8 COUPE (422, 423) (YEAR OF CONSTRUCTION 04.2007 - 07.2015, 420 - 570 PS, PETROL)\\r\\n\\r\\n·         AUDI R8 SPYDER (427, 429) (YEAR OF CONSTRUCTION 02.2010 - 07.2015, 430 - 560 PS, PETROL)\\r\\n\\r\\n·         AUDI R8 SPYDER (4S9, 4SR) (YEAR OF CONSTRUCTION 05.2016 - ..., 540 PS, PETROL)\\r\\n\\r\\n \\r\\n\\r\\n BMW\\r\\n\\r\\n·         BMW 3 TOURING (E91) (YEAR OF CONSTRUCTION 12.2004 - 06.2012, 116 - 306 PS, DIESEL, PETROL)\\r\\n\\r\\n·         BMW 5 SALOON (E60) (YEAR OF CONSTRUCTION 12.2001 - 03.2010, 150 - 507 PS, DIESEL, PETROL)\\r\\n\\r\\n·         BMW 5 TOURING (E61) (YEAR OF CONSTRUCTION 03.2004 - 12.2010, 150 - 507 PS, DIESEL, PETROL)\\r\\n\\r\\n·         BMW 6 CONVERTIBLE (E64) (YEAR OF CONSTRUCTION 03.2004 - 08.2010, 258 - 507 PS, DIESEL, PETROL)\\r\\n\\r\\n·         BMW 6 COUPE (E63) (YEAR OF CONSTRUCTION 01.2004 - 08.2010, 258 - 507 PS, DIESEL, PETROL)\\r\\n\\r\\n·         BMW 7 (E65, E66, E67) (YEAR OF CONSTRUCTION 11.2001 - 12.2009, 204 - 445 PS, DIESEL, PETROL)\\r\\n\\r\\n·         BMW X5 (E70) (YEAR OF CONSTRUCTION 09.2008 - 06.2013, 286 - 555 PS, DIESEL, PETROL)\\r\\n\\r\\n·         BMW X6 (E71, E72) (YEAR OF CONSTRUCTION 06.2007 - 06.2014, 306 - 555 PS, DIESEL, PETROL)\\r\\n\\r\\n \\r\\n\\r\\n VW\\r\\n\\r\\n·         VW PHAETON (3D1, 3D2, 3D3, 3D4, 3D6, 3D7, 3D8, 3D9) (YEAR OF CONSTRUCTION 04.2002 - 03.2016, 224 - 450 PS, DIESEL, PETROL)\\r\\n\\r\\n·         VW TOUAREG (7LA, 7L6, 7L7) (YEAR OF CONSTRUCTION 10.2002 - 05.2010, 163 - 450 PS, DIESEL, PETROL)\\r\\n\\r\\n·         VW TOUAREG (7P5, 7P6) (YEAR OF CONSTRUCTION 01.2010 - 03.2018, 204 - 360 PS, DIESEL, PETROL, PETROL/ELECTRO)\",\n                \"saler_id\": 1,\n                \"updatedAt\": \"2023-12-14 09:57:17\",\n                \"image\": \"1674064047Ridex.png\",\n                \"part_name\": \"Wheel Sensor, Tyre Pressure Control System\"\n            },\n            {\n                \"id\": 1,\n                \"product_id\": \"01161aaa0b6d1345dd8fe4e481144d84\",\n                \"brand\": \"05019d0ff37954bf18f25c2e932bca8e\",\n                \"model\": \"a9410867a028f4368f57933fdecf173f\",\n                \"sub_model\": 831,\n                \"sub_sub_model\": 0,\n                \"createdAt\": \"2023-01-09 14:42:50\",\n                \"modifyAt\": \"2023-11-16 18:11:27\",\n                \"status\": \"1\",\n                \"name\": \"Ridex\",\n                \"pairs\": \"No\",\n                \"article_number\": \"2232W0027\",\n                \"live_status\": 1,\n                \"EAN\": \"4059191738823\",\n                \"weight_in_kg\": \"0.058\",\n                \"description\": \"433MHz\",\n                \"img_url\": \"1691147621thumb (4).png\",\n                \"img_url_1\": \"16911476211669635074TPMS 2232W0027 1.png\",\n                \"img_url_2\": \"16911476211669635074TPMS 2232W0027 3.png\",\n                \"price\": 77400,\n                \"code\": null,\n                \"property_id\": 59,\n                \"category\": \"5\",\n                \"sub_category\": 7,\n                \"sub_sub_category\": 34,\n                \"maker_id_\": 3,\n                \"discount\": 0,\n                \"compatibility\": \"AUDI\\r\\n\\r\\n·         AUDI A4 AVANT (8ED, B7) (YEAR OF CONSTRUCTION 11.2004 - 06.2008, 102 - 420 PS, DIESEL, PETROL)\\r\\n\\r\\n·         AUDI A4 CONVERTIBLE (8H7, B6, 8HE, B7) (YEAR OF CONSTRUCTION 04.2002 - 03.2009, 130 - 420 PS, DIESEL, PETROL)\\r\\n\\r\\n·         AUDI A4 SALOON (8EC, B7) (YEAR OF CONSTRUCTION 11.2004 - 06.2008, 102 - 420 PS, DIESEL, PETROL)\\r\\n\\r\\n·         AUDI A6 ALLROAD (4FH, C6) (YEAR OF CONSTRUCTION 05.2006 - 08.2011, 163 - 350 PS, DIESEL, PETROL)\\r\\n\\r\\n·         AUDI A6 AVANT (4F5, C6) (YEAR OF CONSTRUCTION 03.2005 - 08.2011, 121 - 580 PS, DIESEL, PETROL)\\r\\n\\r\\n·         AUDI A6 AVANT (4G5, 4GD, C7) (YEAR OF CONSTRUCTION 01.2013 - 09.2018, 560 - 605 PS, PETROL)\\r\\n\\r\\n·         AUDI A6 SALOON (4F2, C6) (YEAR OF CONSTRUCTION 05.2004 - 03.2011, 121 - 580 PS, DIESEL, PETROL)\\r\\n\\r\\n·         AUDI A7 SPORTBACK (4GA, 4GF) (YEAR OF CONSTRUCTION 10.2013 - 04.2018, 560 - 605 PS, PETROL)\\r\\n\\r\\n·         AUDI A8 (4H2, 4H8, 4HC, 4HL) (YEAR OF CONSTRUCTION 11.2009 - 01.2018, 204 - 605 PS, DIESEL, PETROL, PETROL/ELECTRO)\\r\\n\\r\\n·         AUDI Q7 (4LB) (YEAR OF CONSTRUCTION 03.2006 - 08.2015, 204 - 500 PS, DIESEL, PETROL)\\r\\n\\r\\n·         AUDI R8 COUPE (422, 423) (YEAR OF CONSTRUCTION 04.2007 - 07.2015, 420 - 570 PS, PETROL)\\r\\n\\r\\n·         AUDI R8 SPYDER (427, 429) (YEAR OF CONSTRUCTION 02.2010 - 07.2015, 430 - 560 PS, PETROL)\\r\\n\\r\\n·         AUDI R8 SPYDER (4S9, 4SR) (YEAR OF CONSTRUCTION 05.2016 - ..., 540 PS, PETROL)\\r\\n\\r\\n \\r\\n\\r\\n BMW\\r\\n\\r\\n·         BMW 3 TOURING (E91) (YEAR OF CONSTRUCTION 12.2004 - 06.2012, 116 - 306 PS, DIESEL, PETROL)\\r\\n\\r\\n·         BMW 5 SALOON (E60) (YEAR OF CONSTRUCTION 12.2001 - 03.2010, 150 - 507 PS, DIESEL, PETROL)\\r\\n\\r\\n·         BMW 5 TOURING (E61) (YEAR OF CONSTRUCTION 03.2004 - 12.2010, 150 - 507 PS, DIESEL, PETROL)\\r\\n\\r\\n·         BMW 6 CONVERTIBLE (E64) (YEAR OF CONSTRUCTION 03.2004 - 08.2010, 258 - 507 PS, DIESEL, PETROL)\\r\\n\\r\\n·         BMW 6 COUPE (E63) (YEAR OF CONSTRUCTION 01.2004 - 08.2010, 258 - 507 PS, DIESEL, PETROL)\\r\\n\\r\\n·         BMW 7 (E65, E66, E67) (YEAR OF CONSTRUCTION 11.2001 - 12.2009, 204 - 445 PS, DIESEL, PETROL)\\r\\n\\r\\n·         BMW X5 (E70) (YEAR OF CONSTRUCTION 09.2008 - 06.2013, 286 - 555 PS, DIESEL, PETROL)\\r\\n\\r\\n·         BMW X6 (E71, E72) (YEAR OF CONSTRUCTION 06.2007 - 06.2014, 306 - 555 PS, DIESEL, PETROL)\\r\\n\\r\\n \\r\\n\\r\\n VW\\r\\n\\r\\n·         VW PHAETON (3D1, 3D2, 3D3, 3D4, 3D6, 3D7, 3D8, 3D9) (YEAR OF CONSTRUCTION 04.2002 - 03.2016, 224 - 450 PS, DIESEL, PETROL)\\r\\n\\r\\n·         VW TOUAREG (7LA, 7L6, 7L7) (YEAR OF CONSTRUCTION 10.2002 - 05.2010, 163 - 450 PS, DIESEL, PETROL)\\r\\n\\r\\n·         VW TOUAREG (7P5, 7P6) (YEAR OF CONSTRUCTION 01.2010 - 03.2018, 204 - 360 PS, DIESEL, PETROL, PETROL/ELECTRO)\",\n                \"saler_id\": 1,\n                \"updatedAt\": \"2023-12-14 09:57:17\",\n                \"image\": \"1674064047Ridex.png\",\n                \"part_name\": \"Wheel Sensor, Tyre Pressure Control System\"\n            },\n            {\n                \"id\": 1,\n                \"product_id\": \"01161aaa0b6d1345dd8fe4e481144d84\",\n                \"brand\": \"05019d0ff37954bf18f25c2e932bca8e\",\n                \"model\": \"e90895c95a4d46700639cc0da623228f\",\n                \"sub_model\": 834,\n                \"sub_sub_model\": 0,\n                \"createdAt\": \"2023-01-09 14:42:50\",\n                \"modifyAt\": \"2023-11-16 18:11:48\",\n                \"status\": \"1\",\n                \"name\": \"Ridex\",\n                \"pairs\": \"No\",\n                \"article_number\": \"2232W0027\",\n                \"live_status\": 1,\n                \"EAN\": \"4059191738823\",\n                \"weight_in_kg\": \"0.058\",\n                \"description\": \"433MHz\",\n                \"img_url\": \"1691147621thumb (4).png\",\n                \"img_url_1\": \"16911476211669635074TPMS 2232W0027 1.png\",\n                \"img_url_2\": \"16911476211669635074TPMS 2232W0027 3.png\",\n                \"price\": 77400,\n                \"code\": null,\n                \"property_id\": 59,\n                \"category\": \"5\",\n                \"sub_category\": 7,\n                \"sub_sub_category\": 34,\n                \"maker_id_\": 3,\n                \"discount\": 0,\n                \"compatibility\": \"AUDI\\r\\n\\r\\n·         AUDI A4 AVANT (8ED, B7) (YEAR OF CONSTRUCTION 11.2004 - 06.2008, 102 - 420 PS, DIESEL, PETROL)\\r\\n\\r\\n·         AUDI A4 CONVERTIBLE (8H7, B6, 8HE, B7) (YEAR OF CONSTRUCTION 04.2002 - 03.2009, 130 - 420 PS, DIESEL, PETROL)\\r\\n\\r\\n·         AUDI A4 SALOON (8EC, B7) (YEAR OF CONSTRUCTION 11.2004 - 06.2008, 102 - 420 PS, DIESEL, PETROL)\\r\\n\\r\\n·         AUDI A6 ALLROAD (4FH, C6) (YEAR OF CONSTRUCTION 05.2006 - 08.2011, 163 - 350 PS, DIESEL, PETROL)\\r\\n\\r\\n·         AUDI A6 AVANT (4F5, C6) (YEAR OF CONSTRUCTION 03.2005 - 08.2011, 121 - 580 PS, DIESEL, PETROL)\\r\\n\\r\\n·         AUDI A6 AVANT (4G5, 4GD, C7) (YEAR OF CONSTRUCTION 01.2013 - 09.2018, 560 - 605 PS, PETROL)\\r\\n\\r\\n·         AUDI A6 SALOON (4F2, C6) (YEAR OF CONSTRUCTION 05.2004 - 03.2011, 121 - 580 PS, DIESEL, PETROL)\\r\\n\\r\\n·         AUDI A7 SPORTBACK (4GA, 4GF) (YEAR OF CONSTRUCTION 10.2013 - 04.2018, 560 - 605 PS, PETROL)\\r\\n\\r\\n·         AUDI A8 (4H2, 4H8, 4HC, 4HL) (YEAR OF CONSTRUCTION 11.2009 - 01.2018, 204 - 605 PS, DIESEL, PETROL, PETROL/ELECTRO)\\r\\n\\r\\n·         AUDI Q7 (4LB) (YEAR OF CONSTRUCTION 03.2006 - 08.2015, 204 - 500 PS, DIESEL, PETROL)\\r\\n\\r\\n·         AUDI R8 COUPE (422, 423) (YEAR OF CONSTRUCTION 04.2007 - 07.2015, 420 - 570 PS, PETROL)\\r\\n\\r\\n·         AUDI R8 SPYDER (427, 429) (YEAR OF CONSTRUCTION 02.2010 - 07.2015, 430 - 560 PS, PETROL)\\r\\n\\r\\n·         AUDI R8 SPYDER (4S9, 4SR) (YEAR OF CONSTRUCTION 05.2016 - ..., 540 PS, PETROL)\\r\\n\\r\\n \\r\\n\\r\\n BMW\\r\\n\\r\\n·         BMW 3 TOURING (E91) (YEAR OF CONSTRUCTION 12.2004 - 06.2012, 116 - 306 PS, DIESEL, PETROL)\\r\\n\\r\\n·         BMW 5 SALOON (E60) (YEAR OF CONSTRUCTION 12.2001 - 03.2010, 150 - 507 PS, DIESEL, PETROL)\\r\\n\\r\\n·         BMW 5 TOURING (E61) (YEAR OF CONSTRUCTION 03.2004 - 12.2010, 150 - 507 PS, DIESEL, PETROL)\\r\\n\\r\\n·         BMW 6 CONVERTIBLE (E64) (YEAR OF CONSTRUCTION 03.2004 - 08.2010, 258 - 507 PS, DIESEL, PETROL)\\r\\n\\r\\n·         BMW 6 COUPE (E63) (YEAR OF CONSTRUCTION 01.2004 - 08.2010, 258 - 507 PS, DIESEL, PETROL)\\r\\n\\r\\n·         BMW 7 (E65, E66, E67) (YEAR OF CONSTRUCTION 11.2001 - 12.2009, 204 - 445 PS, DIESEL, PETROL)\\r\\n\\r\\n·         BMW X5 (E70) (YEAR OF CONSTRUCTION 09.2008 - 06.2013, 286 - 555 PS, DIESEL, PETROL)\\r\\n\\r\\n·         BMW X6 (E71, E72) (YEAR OF CONSTRUCTION 06.2007 - 06.2014, 306 - 555 PS, DIESEL, PETROL)\\r\\n\\r\\n \\r\\n\\r\\n VW\\r\\n\\r\\n·         VW PHAETON (3D1, 3D2, 3D3, 3D4, 3D6, 3D7, 3D8, 3D9) (YEAR OF CONSTRUCTION 04.2002 - 03.2016, 224 - 450 PS, DIESEL, PETROL)\\r\\n\\r\\n·         VW TOUAREG (7LA, 7L6, 7L7) (YEAR OF CONSTRUCTION 10.2002 - 05.2010, 163 - 450 PS, DIESEL, PETROL)\\r\\n\\r\\n·         VW TOUAREG (7P5, 7P6) (YEAR OF CONSTRUCTION 01.2010 - 03.2018, 204 - 360 PS, DIESEL, PETROL, PETROL/ELECTRO)\",\n                \"saler_id\": 1,\n                \"updatedAt\": \"2023-12-14 09:57:17\",\n                \"image\": \"1674064047Ridex.png\",\n                \"part_name\": \"Wheel Sensor, Tyre Pressure Control System\"\n            },\n            {\n                \"id\": 1,\n                \"product_id\": \"01161aaa0b6d1345dd8fe4e481144d84\",\n                \"brand\": \"05019d0ff37954bf18f25c2e932bca8e\",\n                \"model\": \"e90895c95a4d46700639cc0da623228f\",\n                \"sub_model\": 836,\n                \"sub_sub_model\": 0,\n                \"createdAt\": \"2023-01-09 14:42:50\",\n                \"modifyAt\": \"2023-11-16 18:12:31\",\n                \"status\": \"1\",\n                \"name\": \"Ridex\",\n                \"pairs\": \"No\",\n                \"article_number\": \"2232W0027\",\n                \"live_status\": 1,\n                \"EAN\": \"4059191738823\",\n                \"weight_in_kg\": \"0.058\",\n                \"description\": \"433MHz\",\n                \"img_url\": \"1691147621thumb (4).png\",\n                \"img_url_1\": \"16911476211669635074TPMS 2232W0027 1.png\",\n                \"img_url_2\": \"16911476211669635074TPMS 2232W0027 3.png\",\n                \"price\": 77400,\n                \"code\": null,\n                \"property_id\": 59,\n                \"category\": \"5\",\n                \"sub_category\": 7,\n                \"sub_sub_category\": 34,\n                \"maker_id_\": 3,\n                \"discount\": 0,\n                \"compatibility\": \"AUDI\\r\\n\\r\\n·         AUDI A4 AVANT (8ED, B7) (YEAR OF CONSTRUCTION 11.2004 - 06.2008, 102 - 420 PS, DIESEL, PETROL)\\r\\n\\r\\n·         AUDI A4 CONVERTIBLE (8H7, B6, 8HE, B7) (YEAR OF CONSTRUCTION 04.2002 - 03.2009, 130 - 420 PS, DIESEL, PETROL)\\r\\n\\r\\n·         AUDI A4 SALOON (8EC, B7) (YEAR OF CONSTRUCTION 11.2004 - 06.2008, 102 - 420 PS, DIESEL, PETROL)\\r\\n\\r\\n·         AUDI A6 ALLROAD (4FH, C6) (YEAR OF CONSTRUCTION 05.2006 - 08.2011, 163 - 350 PS, DIESEL, PETROL)\\r\\n\\r\\n·         AUDI A6 AVANT (4F5, C6) (YEAR OF CONSTRUCTION 03.2005 - 08.2011, 121 - 580 PS, DIESEL, PETROL)\\r\\n\\r\\n·         AUDI A6 AVANT (4G5, 4GD, C7) (YEAR OF CONSTRUCTION 01.2013 - 09.2018, 560 - 605 PS, PETROL)\\r\\n\\r\\n·         AUDI A6 SALOON (4F2, C6) (YEAR OF CONSTRUCTION 05.2004 - 03.2011, 121 - 580 PS, DIESEL, PETROL)\\r\\n\\r\\n·         AUDI A7 SPORTBACK (4GA, 4GF) (YEAR OF CONSTRUCTION 10.2013 - 04.2018, 560 - 605 PS, PETROL)\\r\\n\\r\\n·         AUDI A8 (4H2, 4H8, 4HC, 4HL) (YEAR OF CONSTRUCTION 11.2009 - 01.2018, 204 - 605 PS, DIESEL, PETROL, PETROL/ELECTRO)\\r\\n\\r\\n·         AUDI Q7 (4LB) (YEAR OF CONSTRUCTION 03.2006 - 08.2015, 204 - 500 PS, DIESEL, PETROL)\\r\\n\\r\\n·         AUDI R8 COUPE (422, 423) (YEAR OF CONSTRUCTION 04.2007 - 07.2015, 420 - 570 PS, PETROL)\\r\\n\\r\\n·         AUDI R8 SPYDER (427, 429) (YEAR OF CONSTRUCTION 02.2010 - 07.2015, 430 - 560 PS, PETROL)\\r\\n\\r\\n·         AUDI R8 SPYDER (4S9, 4SR) (YEAR OF CONSTRUCTION 05.2016 - ..., 540 PS, PETROL)\\r\\n\\r\\n \\r\\n\\r\\n BMW\\r\\n\\r\\n·         BMW 3 TOURING (E91) (YEAR OF CONSTRUCTION 12.2004 - 06.2012, 116 - 306 PS, DIESEL, PETROL)\\r\\n\\r\\n·         BMW 5 SALOON (E60) (YEAR OF CONSTRUCTION 12.2001 - 03.2010, 150 - 507 PS, DIESEL, PETROL)\\r\\n\\r\\n·         BMW 5 TOURING (E61) (YEAR OF CONSTRUCTION 03.2004 - 12.2010, 150 - 507 PS, DIESEL, PETROL)\\r\\n\\r\\n·         BMW 6 CONVERTIBLE (E64) (YEAR OF CONSTRUCTION 03.2004 - 08.2010, 258 - 507 PS, DIESEL, PETROL)\\r\\n\\r\\n·         BMW 6 COUPE (E63) (YEAR OF CONSTRUCTION 01.2004 - 08.2010, 258 - 507 PS, DIESEL, PETROL)\\r\\n\\r\\n·         BMW 7 (E65, E66, E67) (YEAR OF CONSTRUCTION 11.2001 - 12.2009, 204 - 445 PS, DIESEL, PETROL)\\r\\n\\r\\n·         BMW X5 (E70) (YEAR OF CONSTRUCTION 09.2008 - 06.2013, 286 - 555 PS, DIESEL, PETROL)\\r\\n\\r\\n·         BMW X6 (E71, E72) (YEAR OF CONSTRUCTION 06.2007 - 06.2014, 306 - 555 PS, DIESEL, PETROL)\\r\\n\\r\\n \\r\\n\\r\\n VW\\r\\n\\r\\n·         VW PHAETON (3D1, 3D2, 3D3, 3D4, 3D6, 3D7, 3D8, 3D9) (YEAR OF CONSTRUCTION 04.2002 - 03.2016, 224 - 450 PS, DIESEL, PETROL)\\r\\n\\r\\n·         VW TOUAREG (7LA, 7L6, 7L7) (YEAR OF CONSTRUCTION 10.2002 - 05.2010, 163 - 450 PS, DIESEL, PETROL)\\r\\n\\r\\n·         VW TOUAREG (7P5, 7P6) (YEAR OF CONSTRUCTION 01.2010 - 03.2018, 204 - 360 PS, DIESEL, PETROL, PETROL/ELECTRO)\",\n                \"saler_id\": 1,\n                \"updatedAt\": \"2023-12-14 09:57:17\",\n                \"image\": \"1674064047Ridex.png\",\n                \"part_name\": \"Wheel Sensor, Tyre Pressure Control System\"\n            },\n            {\n                \"id\": 1,\n                \"product_id\": \"01161aaa0b6d1345dd8fe4e481144d84\",\n                \"brand\": \"05019d0ff37954bf18f25c2e932bca8e\",\n                \"model\": \"f85ecfee166e416cc57547ea1764bb12\",\n                \"sub_model\": 843,\n                \"sub_sub_model\": 0,\n                \"createdAt\": \"2023-01-09 14:42:50\",\n                \"modifyAt\": \"2023-11-16 18:12:56\",\n                \"status\": \"1\",\n                \"name\": \"Ridex\",\n                \"pairs\": \"No\",\n                \"article_number\": \"2232W0027\",\n                \"live_status\": 1,\n                \"EAN\": \"4059191738823\",\n                \"weight_in_kg\": \"0.058\",\n                \"description\": \"433MHz\",\n                \"img_url\": \"1691147621thumb (4).png\",\n                \"img_url_1\": \"16911476211669635074TPMS 2232W0027 1.png\",\n                \"img_url_2\": \"16911476211669635074TPMS 2232W0027 3.png\",\n                \"price\": 77400,\n                \"code\": null,\n                \"property_id\": 59,\n                \"category\": \"5\",\n                \"sub_category\": 7,\n                \"sub_sub_category\": 34,\n                \"maker_id_\": 3,\n                \"discount\": 0,\n                \"compatibility\": \"AUDI\\r\\n\\r\\n·         AUDI A4 AVANT (8ED, B7) (YEAR OF CONSTRUCTION 11.2004 - 06.2008, 102 - 420 PS, DIESEL, PETROL)\\r\\n\\r\\n·         AUDI A4 CONVERTIBLE (8H7, B6, 8HE, B7) (YEAR OF CONSTRUCTION 04.2002 - 03.2009, 130 - 420 PS, DIESEL, PETROL)\\r\\n\\r\\n·         AUDI A4 SALOON (8EC, B7) (YEAR OF CONSTRUCTION 11.2004 - 06.2008, 102 - 420 PS, DIESEL, PETROL)\\r\\n\\r\\n·         AUDI A6 ALLROAD (4FH, C6) (YEAR OF CONSTRUCTION 05.2006 - 08.2011, 163 - 350 PS, DIESEL, PETROL)\\r\\n\\r\\n·         AUDI A6 AVANT (4F5, C6) (YEAR OF CONSTRUCTION 03.2005 - 08.2011, 121 - 580 PS, DIESEL, PETROL)\\r\\n\\r\\n·         AUDI A6 AVANT (4G5, 4GD, C7) (YEAR OF CONSTRUCTION 01.2013 - 09.2018, 560 - 605 PS, PETROL)\\r\\n\\r\\n·         AUDI A6 SALOON (4F2, C6) (YEAR OF CONSTRUCTION 05.2004 - 03.2011, 121 - 580 PS, DIESEL, PETROL)\\r\\n\\r\\n·         AUDI A7 SPORTBACK (4GA, 4GF) (YEAR OF CONSTRUCTION 10.2013 - 04.2018, 560 - 605 PS, PETROL)\\r\\n\\r\\n·         AUDI A8 (4H2, 4H8, 4HC, 4HL) (YEAR OF CONSTRUCTION 11.2009 - 01.2018, 204 - 605 PS, DIESEL, PETROL, PETROL/ELECTRO)\\r\\n\\r\\n·         AUDI Q7 (4LB) (YEAR OF CONSTRUCTION 03.2006 - 08.2015, 204 - 500 PS, DIESEL, PETROL)\\r\\n\\r\\n·         AUDI R8 COUPE (422, 423) (YEAR OF CONSTRUCTION 04.2007 - 07.2015, 420 - 570 PS, PETROL)\\r\\n\\r\\n·         AUDI R8 SPYDER (427, 429) (YEAR OF CONSTRUCTION 02.2010 - 07.2015, 430 - 560 PS, PETROL)\\r\\n\\r\\n·         AUDI R8 SPYDER (4S9, 4SR) (YEAR OF CONSTRUCTION 05.2016 - ..., 540 PS, PETROL)\\r\\n\\r\\n \\r\\n\\r\\n BMW\\r\\n\\r\\n·         BMW 3 TOURING (E91) (YEAR OF CONSTRUCTION 12.2004 - 06.2012, 116 - 306 PS, DIESEL, PETROL)\\r\\n\\r\\n·         BMW 5 SALOON (E60) (YEAR OF CONSTRUCTION 12.2001 - 03.2010, 150 - 507 PS, DIESEL, PETROL)\\r\\n\\r\\n·         BMW 5 TOURING (E61) (YEAR OF CONSTRUCTION 03.2004 - 12.2010, 150 - 507 PS, DIESEL, PETROL)\\r\\n\\r\\n·         BMW 6 CONVERTIBLE (E64) (YEAR OF CONSTRUCTION 03.2004 - 08.2010, 258 - 507 PS, DIESEL, PETROL)\\r\\n\\r\\n·         BMW 6 COUPE (E63) (YEAR OF CONSTRUCTION 01.2004 - 08.2010, 258 - 507 PS, DIESEL, PETROL)\\r\\n\\r\\n·         BMW 7 (E65, E66, E67) (YEAR OF CONSTRUCTION 11.2001 - 12.2009, 204 - 445 PS, DIESEL, PETROL)\\r\\n\\r\\n·         BMW X5 (E70) (YEAR OF CONSTRUCTION 09.2008 - 06.2013, 286 - 555 PS, DIESEL, PETROL)\\r\\n\\r\\n·         BMW X6 (E71, E72) (YEAR OF CONSTRUCTION 06.2007 - 06.2014, 306 - 555 PS, DIESEL, PETROL)\\r\\n\\r\\n \\r\\n\\r\\n VW\\r\\n\\r\\n·         VW PHAETON (3D1, 3D2, 3D3, 3D4, 3D6, 3D7, 3D8, 3D9) (YEAR OF CONSTRUCTION 04.2002 - 03.2016, 224 - 450 PS, DIESEL, PETROL)\\r\\n\\r\\n·         VW TOUAREG (7LA, 7L6, 7L7) (YEAR OF CONSTRUCTION 10.2002 - 05.2010, 163 - 450 PS, DIESEL, PETROL)\\r\\n\\r\\n·         VW TOUAREG (7P5, 7P6) (YEAR OF CONSTRUCTION 01.2010 - 03.2018, 204 - 360 PS, DIESEL, PETROL, PETROL/ELECTRO)\",\n                \"saler_id\": 1,\n                \"updatedAt\": \"2023-12-14 09:57:17\",\n                \"image\": \"1674064047Ridex.png\",\n                \"part_name\": \"Wheel Sensor, Tyre Pressure Control System\"\n            },\n            {\n                \"id\": 1,\n                \"product_id\": \"3fa6a66e25ccf45aed9fe47a009f2886\",\n                \"brand\": \"05019d0ff37954bf18f25c2e932bca8e\",\n                \"model\": \"45ff7e8c69d51a601feaecc5daf8cba1\",\n                \"sub_model\": 348,\n                \"sub_sub_model\": 0,\n                \"createdAt\": \"2023-01-09 14:42:50\",\n                \"modifyAt\": \"2023-09-07 13:10:41\",\n                \"status\": \"1\",\n                \"name\": \"Ridex\",\n                \"pairs\": \"No\",\n                \"article_number\": \"4G1223\",\n                \"live_status\": 1,\n                \"EAN\": \"4064138280297\",\n                \"weight_in_kg\": \"5.906\",\n                \"description\": \"12V 150A\",\n                \"img_url\": \"16940884204G1223 1.jpg\",\n                \"img_url_1\": \"16940884204G1223 2.jpg\",\n                \"img_url_2\": \"16940884204G1223 3.jpg\",\n                \"price\": 341000,\n                \"code\": null,\n                \"property_id\": 270,\n                \"category\": \"5\",\n                \"sub_category\": 13,\n                \"sub_sub_category\": 32,\n                \"maker_id_\": null,\n                \"discount\": null,\n                \"compatibility\": \"FERRARI\\r\\n•\\tFERRARI (YEAR OF CONSTRUCTION 03.2008 - 12.2009, 486 PS, PETROL)\\r\\n•\\tFERRARI 599 GTB/GTO (YEAR OF CONSTRUCTION 04.2010 - ..., 670 PS, PETROL)\\r\\n•\\tFERRARI ENZO FERRARI (YEAR OF CONSTRUCTION 10.2002 - 12.2003, 660 PS, PETROL)\\r\\n•\\tFERRARI F430 COUPE (YEAR OF CONSTRUCTION 03.2008 - 12.2009, 486 PS, PETROL)\\r\\n\\t\\r\\n MASERATI\\r\\n•\\tMASERATI 4200 GT SPYDER CONVERTIBLE (YEAR OF CONSTRUCTION 10.2001 - ..., 390 PS, PETROL)\\r\\n•\\tMASERATI GRAN TURISMO COUPE (YEAR OF CONSTRUCTION 08.2008 - ..., 405 - 460 PS, PETROL)\\r\\n•\\tMASERATI GRANCABRIO CONVERTIBLE (YEAR OF CONSTRUCTION 03.2010 - ..., 439 - 460 PS, PETROL)\\r\\n•\\tMASERATI GRANSPORT CONVERTIBLE (YEAR OF CONSTRUCTION 10.2004 - ..., 400 PS, PETROL)\\r\\n•\\tMASERATI GRANSPORT COUPE (YEAR OF CONSTRUCTION 06.2004 - 11.2007, 400 PS, PETROL)\\r\\n•\\tMASERATI QUATTROPORTE V (M139) (YEAR OF CONSTRUCTION 03.2004 - ..., 400 - 450 PS, PETROL)\",\n                \"saler_id\": 1,\n                \"updatedAt\": \"2023-12-14 12:28:09\",\n                \"image\": \"1674064047Ridex.png\",\n                \"part_name\": \"Alternator\"\n            },\n            {\n                \"id\": 1,\n                \"product_id\": \"3fa6a66e25ccf45aed9fe47a009f2886\",\n                \"brand\": \"05019d0ff37954bf18f25c2e932bca8e\",\n                \"model\": \"ec1ba3b21c0e433270da53376843e15e\",\n                \"sub_model\": 826,\n                \"sub_sub_model\": 0,\n                \"createdAt\": \"2023-01-09 14:42:50\",\n                \"modifyAt\": \"2023-11-09 17:21:19\",\n                \"status\": \"1\",\n                \"name\": \"Ridex\",\n                \"pairs\": \"No\",\n                \"article_number\": \"4G1223\",\n                \"live_status\": 1,\n                \"EAN\": \"4064138280297\",\n                \"weight_in_kg\": \"5.906\",\n                \"description\": \"12V 150A\",\n                \"img_url\": \"16940884204G1223 1.jpg\",\n                \"img_url_1\": \"16940884204G1223 2.jpg\",\n                \"img_url_2\": \"16940884204G1223 3.jpg\",\n                \"price\": 341000,\n                \"code\": null,\n                \"property_id\": 270,\n                \"category\": \"5\",\n                \"sub_category\": 13,\n                \"sub_sub_category\": 32,\n                \"maker_id_\": null,\n                \"discount\": null,\n                \"compatibility\": \"FERRARI\\r\\n•\\tFERRARI (YEAR OF CONSTRUCTION 03.2008 - 12.2009, 486 PS, PETROL)\\r\\n•\\tFERRARI 599 GTB/GTO (YEAR OF CONSTRUCTION 04.2010 - ..., 670 PS, PETROL)\\r\\n•\\tFERRARI ENZO FERRARI (YEAR OF CONSTRUCTION 10.2002 - 12.2003, 660 PS, PETROL)\\r\\n•\\tFERRARI F430 COUPE (YEAR OF CONSTRUCTION 03.2008 - 12.2009, 486 PS, PETROL)\\r\\n\\t\\r\\n MASERATI\\r\\n•\\tMASERATI 4200 GT SPYDER CONVERTIBLE (YEAR OF CONSTRUCTION 10.2001 - ..., 390 PS, PETROL)\\r\\n•\\tMASERATI GRAN TURISMO COUPE (YEAR OF CONSTRUCTION 08.2008 - ..., 405 - 460 PS, PETROL)\\r\\n•\\tMASERATI GRANCABRIO CONVERTIBLE (YEAR OF CONSTRUCTION 03.2010 - ..., 439 - 460 PS, PETROL)\\r\\n•\\tMASERATI GRANSPORT CONVERTIBLE (YEAR OF CONSTRUCTION 10.2004 - ..., 400 PS, PETROL)\\r\\n•\\tMASERATI GRANSPORT COUPE (YEAR OF CONSTRUCTION 06.2004 - 11.2007, 400 PS, PETROL)\\r\\n•\\tMASERATI QUATTROPORTE V (M139) (YEAR OF CONSTRUCTION 03.2004 - ..., 400 - 450 PS, PETROL)\",\n                \"saler_id\": 1,\n                \"updatedAt\": \"2023-12-14 12:28:09\",\n                \"image\": \"1674064047Ridex.png\",\n                \"part_name\": \"Alternator\"\n            }\n        ],\n        \"first_page_url\": \"http://127.0.0.1:8000/api/product/show-product-by-brand/05019d0ff37954bf18f25c2e932bca8e?page=1\",\n        \"from\": 1,\n        \"last_page\": 1,\n        \"last_page_url\": \"http://127.0.0.1:8000/api/product/show-product-by-brand/05019d0ff37954bf18f25c2e932bca8e?page=1\",\n        \"links\": [\n            {\n                \"url\": null,\n                \"label\": \"&laquo; Previous\",\n                \"active\": false\n            },\n            {\n                \"url\": \"http://127.0.0.1:8000/api/product/show-product-by-brand/05019d0ff37954bf18f25c2e932bca8e?page=1\",\n                \"label\": \"1\",\n                \"active\": true\n            },\n            {\n                \"url\": null,\n                \"label\": \"Next &raquo;\",\n                \"active\": false\n            }\n        ],\n        \"next_page_url\": null,\n        \"path\": \"http://127.0.0.1:8000/api/product/show-product-by-brand/05019d0ff37954bf18f25c2e932bca8e\",\n        \"per_page\": 10,\n        \"prev_page_url\": null,\n        \"to\": 10,\n        \"total\": 9\n    }\n}"
+				}
+			]
+		},
+		{
+			"name": "product compatibility",
+			"protocolProfileBehavior": {
+				"disableBodyPruning": true
+			},
+			"request": {
+				"method": "GET",
+				"header": [],
+				"body": {
+					"mode": "urlencoded",
+					"urlencoded": [
+						{
+							"key": "product_id",
+							"value": "00411010f7c92d2124a67eea0f4cb5f85",
+							"type": "text"
+						},
+						{
+							"key": "brand_id",
+							"value": "250ab577-7e31-4604-b36a-b7716dfcaaaf",
+							"type": "text",
+							"disabled": true
+						},
+						{
+							"key": "model_id",
+							"value": "102ee832-ef01-4291-9aa8-9c10f740a2ed",
+							"type": "text",
+							"disabled": true
+						},
+						{
+							"key": "sub_model_id",
+							"value": "1",
+							"type": "text",
+							"disabled": true
+						}
+					]
+				},
+				"url": {
+					"raw": "{{based_url}}/checkCompatibility",
+					"host": [
+						"{{based_url}}"
+					],
+					"path": [
+						"checkCompatibility"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Get Model by Brand ID",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{gapa}}/getModelByBrandId?brand_id=c20ad4d76fe97759aa27a0c99bff6710",
+					"host": [
+						"{{gapa}}"
+					],
+					"path": [
+						"getModelByBrandId"
+					],
+					"query": [
+						{
+							"key": "brand_id",
+							"value": "c20ad4d76fe97759aa27a0c99bff6710"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Get Sub Model by Model ID",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{based_url}}/getSubModelByModelId?model_id=102ee832-ef01-4291-9aa8-9c10f740a2ed",
+					"host": [
+						"{{based_url}}"
+					],
+					"path": [
+						"getSubModelByModelId"
+					],
+					"query": [
+						{
+							"key": "model_id",
+							"value": "102ee832-ef01-4291-9aa8-9c10f740a2ed"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Get Sub Category",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{based_url}}/getSubCategory?cat_id=2",
+					"host": [
+						"{{based_url}}"
+					],
+					"path": [
+						"getSubCategory"
+					],
+					"query": [
+						{
+							"key": "cat_id",
+							"value": "2"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Get Sub Sub Category",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{based_url}}/getSubSubCategory?sub_cat_id=2",
+					"host": [
+						"{{based_url}}"
+					],
+					"path": [
+						"getSubSubCategory"
+					],
+					"query": [
+						{
+							"key": "sub_cat_id",
+							"value": "2"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "getSubSubCategoryProduct",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{based_url}}/getSubSubCategoryProduct?subsubcatID=10",
+					"host": [
+						"{{based_url}}"
+					],
+					"path": [
+						"getSubSubCategoryProduct"
+					],
+					"query": [
+						{
+							"key": "subsubcatID",
+							"value": "10"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "checkSuitability",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "formdata",
+					"formdata": [
+						{
+							"key": "product_id",
+							"value": "1ff1de774005f8da13f42943881c655f",
+							"type": "text"
+						}
+					]
+				},
+				"url": {
+					"raw": "{{gapa}}/checkSuitability/",
+					"host": [
+						"{{gapa}}"
+					],
+					"path": [
+						"checkSuitability",
+						""
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "SUb suitabilityModel",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "formdata",
+					"formdata": [
+						{
+							"key": "model_id",
+							"value": "2",
+							"type": "text"
+						}
+					]
+				},
+				"url": {
+					"raw": "{{gapa}}/suitabilityModel",
+					"host": [
+						"{{gapa}}"
+					],
+					"path": [
+						"suitabilityModel"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "sub-sub-suitabilityModel",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "formdata",
+					"formdata": [
+						{
+							"key": "sub_model_id",
+							"value": "2",
+							"type": "text"
+						}
+					]
+				},
+				"url": {
+					"raw": "{{gapa}}/sub-suitabilityModel",
+					"host": [
+						"{{gapa}}"
+					],
+					"path": [
+						"sub-suitabilityModel"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Manufacturers",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{gapa}}/manufacturers",
+					"host": [
+						"{{gapa}}"
+					],
+					"path": [
+						"manufacturers"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "manufacturers-cat",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"url": {
+					"raw": "{{gapa}}/manufacturers-cat?salers_id=6",
+					"host": [
+						"{{gapa}}"
+					],
+					"path": [
+						"manufacturers-cat"
+					],
+					"query": [
+						{
+							"key": "salers_id",
+							"value": "6"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "get states",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{gapa}}/get-states?location=gapa",
+					"host": [
+						"{{gapa}}"
+					],
+					"path": [
+						"get-states"
+					],
+					"query": [
+						{
+							"key": "location",
+							"value": "gapa"
+						}
+					]
+				}
+			},
+			"response": []
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"packages": {},
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"packages": {},
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "gapa",
+			"value": "https://stockmgt.gapaautoparts.com/api",
+			"type": "string"
+		},
+		{
+			"key": "token",
+			"value": "3453|Ms7KAq536sxbQ9QZV8YP5OeDmRa2sC2Os2mGzwbx",
+			"type": "string"
+		},
+		{
+			"key": "gapa",
+			"value": "http://127.0.0.1:8000/api",
+			"type": "string",
+			"disabled": true
+		},
+		{
+			"key": "token",
+			"value": "",
+			"type": "string",
+			"disabled": true
+		}
+	]
+}

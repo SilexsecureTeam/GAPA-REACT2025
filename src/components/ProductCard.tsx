@@ -2,6 +2,7 @@ import Rating from './Rating'
 import WishlistButton from './WishlistButton'
 import useWishlist from '../hooks/useWishlist'
 import { Link } from 'react-router-dom'
+import { normalizeApiImage } from '../services/images'
 
 export type Product = {
   id: string
@@ -18,7 +19,16 @@ export default function ProductCard({ product }: ProductCardProps) {
   const wishlist = useWishlist()
   const isFav = wishlist.has(product.id)
   const toSlug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
-  const to = `/parts/product/${toSlug(product.title)}`
+
+  // Derive brand slug from the title if it starts with a known brand; otherwise default to 'bmw'
+  const knownBrands = ['audi','bmw','toyota','honda','mercedes','mercedes-benz','hyundai','ford','kia','lexus','volkswagen','vw','peugeot','land rover']
+  const titleSlug = toSlug(product.title)
+  const derivedBrand = knownBrands.find(b => titleSlug.startsWith(b.replace(/\s+/g, '-')))?.replace(/\s+/g, '-') || 'bmw'
+  // Default part to a popular category until API wiring selects a concrete part
+  const partSlug = 'brake-discs'
+  const to = `/parts/${derivedBrand}/${partSlug}`
+
+  const imgSrc = normalizeApiImage(product.image) || '/gapa-logo.png'
 
   return (
     <div className="group relative rounded-md bg-[#F6F5FA] p-4 ring-1 ring-black/5 transition hover:bg-white hover:shadow-sm">
@@ -41,9 +51,9 @@ export default function ProductCard({ product }: ProductCardProps) {
 
       <Link to={to} className="mt-4 block aspect-[4/3] w-full overflow-hidden rounded-lg">
         <img
-          src={product.image}
+          src={imgSrc}
           alt={product.title}
-          onError={(e) => { (e.currentTarget as HTMLImageElement).src = 'https://dummyimage.com/600x450/f6f5fa/aaa.png&text=Part' }}
+          onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/gapa-logo.png' }}
           className="h-full w-full object-contain transition-transform duration-300 group-hover:scale-105"
         />
       </Link>

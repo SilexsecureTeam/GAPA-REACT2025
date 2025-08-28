@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
+import { Link } from 'react-router-dom'
 import logo from '../assets/gapa-logo.png'
 
 const BRAND = {
@@ -143,7 +144,10 @@ export default function Footer() {
         <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-4 py-6 text-sm  sm:flex-row sm:px-6">
           <p>Gapa, {new Date().getFullYear()} all rights reserved</p>
           <div className="flex items-center gap-4">
-            
+            <Link to="/login" className="text-gray-700 hover:text-brand">Sign in</Link>
+            <Link to="/signup" className="text-gray-700 hover:text-brand">Create account</Link>
+            <a href="#privacy" className="text-gray-700 hover:text-brand">Privacy</a>
+            <a href="#terms" className="text-gray-700 hover:text-brand">Terms</a>
           </div>
         </div>
       </div>

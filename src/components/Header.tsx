@@ -8,12 +8,13 @@ import icon4 from '../assets/h4.png'
 import icon5 from '../assets/h5.png'
 import icon6 from '../assets/h6.png'
 import icon7 from '../assets/h7.png'
+import { useAuth } from '../services/auth'
 
 type Category = {
   label: string;
   caret?: boolean;
   items?: string[];
-  icon?: string; // image source path
+  icon?: string;
 };
 
 export default function Header() {
@@ -29,6 +30,7 @@ export default function Header() {
   })
   const [query, setQuery] = useState('')
   const [openIdx, setOpenIdx] = useState<number | null>(null)
+  const { user } = useAuth()
 
   useEffect(() => {
     const id = setInterval(() => {
@@ -52,12 +54,6 @@ export default function Header() {
     { label: 'Engine Oil', icon: icon5 },
     { label: 'Tools', icon: icon6 },
     { label: 'Brakes', icon: icon7 },
-    // { label: 'Car Accessories', icon: icon4 },
-    // { label: 'Engine Oil', icon: icon5 },
-    // { label: 'Tools', icon: icon6 },
-    // { label: 'Brakes', icon: icon7 },
-    // { label: 'Tools', icon: icon6 },
-    // { label: 'Brakes', icon: icon7 },
   ]
 
   const onSearch = (e: React.FormEvent) => {
@@ -162,28 +158,41 @@ export default function Header() {
               <span className="font-medium">My Cart</span>
             </a>
 
-            {/* Sign In */}
-            <a
-              href="#sign-in"
-              className="inline-flex items-center gap-2 bg-white px-3 py-2 text-[14px] font-semibold text-gray-900 ring-1 ring-black/10 hover:bg-white/90"
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-700">
-                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                <circle cx="12" cy="7" r="4" />
-              </svg>
-              <span>Sign In</span>
-            </a>
+            {/* Auth */}
+            {user ? (
+              <Link to="/profile" className="inline-flex items-center gap-2 bg-white px-3 py-2 text-[14px] font-semibold text-gray-900 ring-1 ring-black/10 hover:bg-white/90">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-700">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                  <circle cx="12" cy="7" r="4" />
+                </svg>
+                <span className="truncate max-w-[120px]">{user.name || user.email}</span>
+              </Link>
+            ) : (
+              <div className="flex items-center gap-2">
+                <Link
+                  to="/login"
+                  className="inline-flex items-center gap-2 bg-white px-3 py-2 text-[14px] font-semibold text-gray-900 ring-1 ring-black/10 hover:bg-white/90"
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-700">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                    <circle cx="12" cy="7" r="4" />
+                  </svg>
+                  <span>Sign In</span>
+                </Link>
+                <Link to="/signup" className="text-[14px] font-medium text-white hover:underline">Create account</Link>
+              </div>
+            )}
           </div>
         </div>
       </div>
 
       {/* Category bar with dropdowns */}
-      <nav className="relative bg-brand text-white" onMouseLeave={() => setOpenIdx(null)} onKeyDown={(e) => { if (e.key === 'Escape') setOpenIdx(null) }}>
+      <nav className="relative bg-brand overflow-y-hidden text-white" onMouseLeave={() => setOpenIdx(null)} onKeyDown={(e) => { if (e.key === 'Escape') setOpenIdx(null) }}>
         <div
-          className="mx-auto flex h-12 max-w-7xl items-center justify-between gap-6 overflow-x-auto px-4 sm:px-6"
+          className="mx-auto flex h-12 overflow-y-hidden max-w-7xl items-center justify-between gap-6 overflow-x-auto px-4 sm:px-6"
         >
           {categories.map((cat, i) => (
-            <div key={cat.label} className="relative">
+            <div key={cat.label} className="relative overflow-y-hidden">
               <Link
                 to={cat.label === 'Car Parts' ? '/parts' : (cat.label === 'Tyres' ? '/tyres' : (cat.label === 'Engine Oil' ? '/engine-oil' : '/parts'))}
                 onMouseEnter={() => setOpenIdx(cat.items ? i : null)}
@@ -209,10 +218,10 @@ export default function Header() {
                 <div className="absolute left-0 top-full z-40 mt-2 w-screen max-w-md rounded-xl bg-white p-3 text-gray-900 shadow-lg ring-1 ring-black/10 sm:max-w-lg md:max-w-xl">
                   <div role="menu" aria-label={`${cat.label} menu`} className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                     {cat.items.map((item) => {
-                      const demoSlug = toSlug('RIDEX 402B0289 Brake pad set')
+                      const brandDefault = 'bmw'
                       const to = i === 0
                         ? `/parts/${toSlug(item)}/brake-discs`
-                        : (item.toLowerCase() === 'brake pad set' ? `/parts/product/${demoSlug}` : `/parts/${toSlug(item)}`)
+                        : `/parts/${brandDefault}/${toSlug(item)}`
                       return (
                         <Link
                           key={item}

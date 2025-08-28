@@ -204,7 +204,7 @@ export default function Tyres() {
                   <p className="mt-1 text-[12px] leading-5 text-gray-600">Lorem ipsum dolor sit amet consectetur. In orci amet nulla euismod amet. Odio cursus egestas viverra dictum varius.</p>
                 </div>
                 <div className="mt-3 flex items-center justify-between">
-                  <button className="inline-flex items-center gap-2 rounded-md bg-[#F7CD3A] px-3 py-2 text-[13px] font-semibold text-[#201A2B] ring-1 ring-black/10">
+                  <button className="inline-flex items-center gap-2 rounded-md bg-[#F7CD3A] px-1.5 py-2 text-[11px] font-semibold text-[#201A2B] ring-1 ring-black/10">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="21" r="1" /><circle cx="20" cy="21" r="1" /><path d="M1 1h4l2.68 12.39a2 2 0 0 0 2 1.61h7.72a2 2 0 0 0 2-1.61L23 6H6" /></svg>
                     ADD TO CARD
                   </button>
