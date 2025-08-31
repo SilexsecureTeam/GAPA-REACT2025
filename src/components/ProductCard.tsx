@@ -9,6 +9,9 @@ export type Product = {
   title: string
   image: string
   rating: number
+  // Optional slugs from API mapping for accurate routing
+  brandSlug?: string
+  partSlug?: string
 }
 
 export type ProductCardProps = {
@@ -20,13 +23,13 @@ export default function ProductCard({ product }: ProductCardProps) {
   const isFav = wishlist.has(product.id)
   const toSlug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
 
-  // Derive brand slug from the title if it starts with a known brand; otherwise default to 'bmw'
+  // Prefer provided slugs; fallback to heuristics
   const knownBrands = ['audi','bmw','toyota','honda','mercedes','mercedes-benz','hyundai','ford','kia','lexus','volkswagen','vw','peugeot','land rover']
   const titleSlug = toSlug(product.title)
-  const derivedBrand = knownBrands.find(b => titleSlug.startsWith(b.replace(/\s+/g, '-')))?.replace(/\s+/g, '-') || 'bmw'
-  // Default part to a popular category until API wiring selects a concrete part
-  const partSlug = 'brake-discs'
-  const to = `/parts/${derivedBrand}/${partSlug}`
+  const derivedBrand = product.brandSlug || knownBrands.find(b => titleSlug.startsWith(b.replace(/\s+/g, '-')))?.replace(/\s+/g, '-') || 'bmw'
+  const partSlug = product.partSlug || 'brake-discs'
+  const base = `/parts/${derivedBrand}/${partSlug}`
+  const to = `${base}?pid=${encodeURIComponent(product.id)}`
 
   const imgSrc = normalizeApiImage(product.image) || '/gapa-logo.png'
 

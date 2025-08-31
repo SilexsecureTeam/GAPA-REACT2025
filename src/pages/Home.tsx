@@ -3,39 +3,14 @@ import ProductCard, { type Product } from '../components/ProductCard'
 import Rating from '../components/Rating'
 import WishlistButton from '../components/WishlistButton'
 import useWishlist from '../hooks/useWishlist'
-import tcp1 from '../assets/tcp1.png'
-import tcp2 from '../assets/tcp2.png'
-import tcp3 from '../assets/tcp3.png'
-import sec1 from '../assets/sec1.png'
-import sec2 from '../assets/sec2.png'
-import sec3 from '../assets/sec3.png'
-import sec4 from '../assets/sec4.png'
-import sec5 from '../assets/sec5.png'
-import sec6 from '../assets/sec6.png'
-import sec7 from '../assets/sec7.png'
-import sec8 from '../assets/sec8.png'
-import specialImg from '../assets/special.png'
 import carShop from '../assets/car-shop.png'
 import FallbackLoader from '../components/FallbackLoader'
-import { getAllBrands, getAllCategories, getFeaturedProducts, getManufacturers, getPartners, type ApiBrand, type ApiCategory, type ApiManufacturer, type ApiPartner, type ApiProduct } from '../services/api'
-import { pickImage, normalizeApiImage } from '../services/images'
+import { getAllBrands, getAllCategories, getFeaturedProducts, getManufacturers, getPartners, type ApiBrand, type ApiCategory, type ApiManufacturer, type ApiPartner, type ApiProduct, liveSearch, getModelsByBrandId, getSubModelsByModelId } from '../services/api'
+import { pickImage, normalizeApiImage, productImageFrom, categoryImageFrom, brandImageFrom, partnerImageFrom } from '../services/images'
+import { useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 
-const MAKERS = ['Audi', 'BMW', 'Toyota', 'Honda', 'Mercedes', 'Hyundai']
-const MODELS: Record<string, string[]> = {
-  Audi: ['A1', 'A3', 'A4', 'Q5'],
-  BMW: ['3 Series', '5 Series', 'X5'],
-  Toyota: ['Corolla', 'Camry', 'RAV4'],
-  Honda: ['Civic', 'Accord', 'CR-V'],
-  Mercedes: ['C-Class', 'E-Class', 'GLA'],
-  Hyundai: ['Elantra', 'Sonata', 'Tucson'],
-}
-const ENGINES: Record<string, string[]> = {
-  A1: ['1.0 TFSI', '1.4 TFSI'],
-  A3: ['1.6 TDI', '2.0 TDI'],
-  Corolla: ['1.6', '1.8'],
-  Civic: ['1.5T', '2.0'],
-}
-
+// Remove static MAKERS/MODELS/ENGINES and derive from API drill-down (brands -> models -> engines)
 // Helpers to unwrap API shapes and map images safely
 function unwrap<T = any>(res: any): T[] {
   // Direct array
@@ -59,6 +34,17 @@ function unwrap<T = any>(res: any): T[] {
   return []
 }
 function imgOf(obj: any): string | undefined { return pickImage(obj) }
+
+// Name helpers for vehicle drill-down
+function brandNameOf(b: any): string {
+  return String(b?.name || b?.title || b?.brand_name || b?.brand || '').trim() || 'Brand'
+}
+function modelNameOf(m: any): string {
+  return String(m?.name || m?.model_name || m?.model || m?.title || '').trim() || 'Model'
+}
+function engineNameOf(e: any): string {
+  return String(e?.name || e?.engine || e?.trim || e?.sub_model_name || e?.submodel_name || e?.title || '').trim() || 'Engine'
+}
 
 // Special offers demo type reused by API mapping
 type Offer = Product & { price: number; reviews: number }
@@ -103,6 +89,7 @@ function StepBadge({ n }: { n: number }) {
 const TAB_LABELS: [string, string, string] = ['Top Car Parts', 'Top Manufacturers', 'Top Sellers']
 
 export default function Home() {
+  const navigate = useNavigate()
   // API state
   const [loading, setLoading] = useState(true)
   const [featured, setFeatured] = useState<ApiProduct[]>([])
@@ -110,6 +97,17 @@ export default function Home() {
   const [categories, setCategories] = useState<ApiCategory[]>([])
   const [manufacturers, setManufacturers] = useState<ApiManufacturer[]>([])
   const [partners, setPartners] = useState<ApiPartner[]>([])
+  // Vehicle drill-down state
+  const [models, setModels] = useState<any[]>([])
+  const [subModels, setSubModels] = useState<any[]>([])
+  const [brandId, setBrandId] = useState('')
+  const [modelId, setModelId] = useState('')
+  const [engineId, setEngineId] = useState('')
+  const [brandName, setBrandName] = useState('')
+  const [modelName, setModelName] = useState('')
+  const [engineName, setEngineName] = useState('')
+  // Tabs state
+  const [tab, setTab] = useState<0 | 1 | 2>(0)
 
   useEffect(() => {
     let alive = true
@@ -137,41 +135,141 @@ export default function Home() {
     return () => { alive = false }
   }, [])
 
+  // Fetch models when brand changes
+  useEffect(() => {
+    let alive = true
+    if (!brandId) { setModels([]); setSubModels([]); return }
+    ;(async () => {
+      try {
+        const res = await getModelsByBrandId(brandId)
+        if (!alive) return
+        setModels(unwrap<any>(res))
+      } catch (_) {
+        setModels([])
+      }
+    })()
+    return () => { alive = false }
+  }, [brandId])
+
+  // Fetch engines (sub-models) when model changes
+  useEffect(() => {
+    let alive = true
+    if (!modelId) { setSubModels([]); return }
+    ;(async () => {
+      try {
+        const res = await getSubModelsByModelId(modelId)
+        if (!alive) return
+        setSubModels(unwrap<any>(res))
+      } catch (_) {
+        setSubModels([])
+      }
+    })()
+    return () => { alive = false }
+  }, [modelId])
+
+  // Helper to slugify
+  const toSlug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
+
   // Derived UI models
-  const featuredAsProducts: Product[] = featured.slice(0, 10).map((it, i) => ({
-    id: String((it as any)?.id ?? (it as any)?.product_id ?? i),
-    title: (it as any)?.name || (it as any)?.title || (it as any)?.product_name || 'Car Part',
-    image: imgOf(it) || 'https://dummyimage.com/600x450/f6f5fa/aaa.png&text=Part',
-    rating: Number((it as any)?.rating || 4),
-  }))
+  const featuredAsProducts: Product[] = featured.slice(0, 10).map((it, i) => {
+    const brandNameLocal = String((it as any)?.brand?.name || (it as any)?.brand || (it as any)?.manufacturer || (it as any)?.maker || '')
+    const catName = typeof (it as any)?.category === 'string' ? (it as any)?.category : ((it as any)?.category?.name || (it as any)?.category?.title || (it as any)?.category_name || '')
+    return {
+      id: String((it as any)?.id ?? (it as any)?.product_id ?? i),
+      title: (it as any)?.name || (it as any)?.title || (it as any)?.product_name || 'Car Part',
+      image: productImageFrom(it) || normalizeApiImage(pickImage(it) || '') || '/gapa-logo.png',
+      rating: Number((it as any)?.rating || 4),
+      brandSlug: brandNameLocal ? toSlug(brandNameLocal) : undefined,
+      partSlug: catName ? toSlug(catName) : undefined,
+    }
+  })
 
   const offers: Offer[] = featured.slice(0, 8).map((it, i) => ({
     id: String((it as any)?.id ?? (it as any)?.product_id ?? i),
     title: (it as any)?.name || (it as any)?.title || (it as any)?.product_name || 'Car Part',
-    image: imgOf(it) || specialImg,
+    image: productImageFrom(it) || normalizeApiImage(pickImage(it) || '') || '/gapa-logo.png',
     rating: Number((it as any)?.rating || 4.2),
     price: Number((it as any)?.price || (it as any)?.selling_price || (it as any)?.amount || 40000),
     reviews: Number((it as any)?.reviews_count || (it as any)?.reviews || 0),
-  }))
+    // In offers we don't navigate, but include for consistency
+    brandSlug: undefined,
+    partSlug: undefined,
+  })) as Offer[]
 
-  // Form state
-  const [maker, setMaker] = useState<string>('')
-  const [model, setModel] = useState<string>('')
-  const [engine, setEngine] = useState<string>('')
-  const [reg, setReg] = useState('')
-  const [tab, setTab] = useState<0 | 1 | 2>(0)
+  // Form state and options using API drill-down
+  const brandOptions = useMemo(() => (
+    brands
+      .map((b) => ({ value: String((b as any)?.id ?? ''), label: brandNameOf(b) }))
+      .filter((o) => o.value && o.label)
+      .sort((a,b)=>a.label.localeCompare(b.label))
+  ), [brands])
 
-  const availableModels = useMemo(() => (maker ? MODELS[maker] ?? [] : []), [maker])
-  const availableEngines = useMemo(() => (model ? ENGINES[model] ?? ['Base', 'Sport'] : []), [model])
+  const modelOptions = useMemo(() => (
+    models
+      .map((m) => ({ value: String((m as any)?.id ?? (m as any)?.model_id ?? ''), label: modelNameOf(m) }))
+      .filter((o) => o.value && o.label)
+      .sort((a,b)=>a.label.localeCompare(b.label))
+  ), [models])
 
-  const onSearchParts = (e: React.FormEvent) => {
+  const engineOptions = useMemo(() => (
+    subModels
+      .map((e) => ({ value: String((e as any)?.id ?? (e as any)?.sub_model_id ?? ''), label: engineNameOf(e) }))
+      .filter((o) => o.value && o.label)
+      .sort((a,b)=>a.label.localeCompare(b.label))
+  ), [subModels])
+
+  // Lookup maps for labels by id
+  const brandLabelById = useMemo(() => {
+    const m = new Map<string,string>()
+    for (const o of brandOptions) m.set(o.value, o.label)
+    return (id: string) => m.get(id) || ''
+  }, [brandOptions])
+  const modelLabelById = useMemo(() => {
+    const m = new Map<string,string>()
+    for (const o of modelOptions) m.set(o.value, o.label)
+    return (id: string) => m.get(id) || ''
+  }, [modelOptions])
+  const engineLabelById = useMemo(() => {
+    const m = new Map<string,string>()
+    for (const o of engineOptions) m.set(o.value, o.label)
+    return (id: string) => m.get(id) || ''
+  }, [engineOptions])
+
+  const onSearchParts = async (e: React.FormEvent) => {
     e.preventDefault()
-    alert(`Search:\nMaker: ${maker || '-'}\nModel: ${model || '-'}\nEngine: ${engine || '-'}`)
+    const term = [brandName, modelName, engineName].filter(Boolean).join(' ').trim()
+    if (!term) return
+    const list = await liveSearch(term)
+    const arr = Array.isArray(list) ? list : (list as any)?.data
+    const items = Array.isArray(arr) ? arr : []
+    const brandSlug = (brandName || '').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'') || 'gapa'
+    const partSlug = (modelName || 'part').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'')
+    if (items.length === 0) {
+      // Cache a suggestion from featured for SearchError/inline use
+      const s = featuredAsProducts[0]
+      const suggest = s
+        ? { id: s.id, title: s.title, image: s.image, rating: s.rating, brandSlug: s.brandSlug, partSlug: s.partSlug }
+        : undefined
+      if (suggest) {
+        try { localStorage.setItem('gapa:last-suggest', JSON.stringify(suggest)) } catch {}
+      }
+      // Navigate to CarPartDetails to handle inline error and related suggestions
+      navigate(`/parts/${brandSlug}/${partSlug}?q=${encodeURIComponent(term)}`)
+      return
+    }
+    const first = items[0]
+    const pid = String(first?.id || first?.product_id || '')
+    const brand = String(first?.brand || first?.manufacturer || brandName || 'gapa')
+    const part = String(first?.name || first?.product_name || modelName || 'part')
+    navigate(`/parts/${brand.toLowerCase().replace(/[^a-z0-9]+/g,'-')}/${part.toLowerCase().replace(/[^a-z0-9]+/g,'-')}?pid=${encodeURIComponent(pid)}`)
   }
   const onSearchReg = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!reg.trim()) return
-    alert(`Searching parts for reg: ${reg}`)
+    // Placeholder: Registration search not yet defined in API
+    // Keep UX consistent
+    const term = [brandName, modelName, engineName].filter(Boolean).join(' ').trim()
+    if (!term) return
+    alert(`Searching parts for reg: ${term}`)
   }
 
   // Tabs a11y helpers
@@ -240,13 +338,13 @@ export default function Home() {
         <>
           {categories.slice(0, 4).map((c, idx) => {
             const name = (c as any)?.name || (c as any)?.title || 'Category'
-            const icon = [tcp1, tcp2, tcp3][idx % 3]
+            const icon = categoryImageFrom(c) || normalizeApiImage(pickImage(c) || '') || '/gapa-logo.png'
             const links = [name, 'Popular', 'New', 'Top Rated', 'Budget']
             return (
               <div key={`cat-${idx}`} className="rounded-xl bg-white p-4 ">
                 <div className="flex justify-center gap-4">
                   <div className="flex h-auto sm:w-40 ring-1 ring-black/10 p-4 items-center justify-center rounded-lg">
-                    <img src={icon} alt="" className="h-full w-full object-contain" />
+                    <img src={icon} alt={name} className="h-full w-full object-contain" onError={(e)=>{(e.currentTarget as HTMLImageElement).src='/gapa-logo.png'}} />
                   </div>
                   <div>
                     <h5 className="text-[14px] font-semibold text-gray-900">{name}</h5>
@@ -286,9 +384,9 @@ export default function Home() {
       ) : (
         <>
           {brands.slice(0, 6).map((b, idx) => {
-            const name = (b as any)?.name || (b as any)?.title || 'Brand'
+            const name = brandNameOf(b)
             return (
-              <div key={`brand-${idx}`} className="rounded-xl bg-white p-4 ring-1 ring-black/10">
+              <div key={`brand-${String((b as any)?.id ?? idx)}-${idx}`} className="rounded-xl bg-white p-4 ring-1 ring-black/10">
                 <div className="text-[14px] font-semibold text-gray-900">{name}</div>
                 <div className="mt-2 text-[12px] text-gray-600">Popular seller</div>
               </div>
@@ -330,37 +428,68 @@ export default function Home() {
                 {/* Rows */}
                 <div className="space-y-5 font-semibold">
                   {[
-                    { label: 'Select Maker', value: maker, set: setMaker, options: MAKERS },
-                    { label: 'Select Model', value: model, set: setModel, options: availableModels, disabled: !maker },
-                    { label: 'Select Engine', value: engine, set: setEngine, options: availableEngines, disabled: !model },
+                    {
+                      label: 'Select Maker',
+                      value: brandId,
+                      options: brandOptions,
+                      disabled: false,
+                      onChange: (val: string) => {
+                        setBrandId(val)
+                        setBrandName(brandLabelById(val))
+                        // Reset downstream selections
+                        setModelId(''); setModelName('')
+                        setEngineId(''); setEngineName('')
+                      }
+                    },
+                    {
+                      label: 'Select Model',
+                      value: modelId,
+                      options: modelOptions,
+                      disabled: !!(!brandId),
+                      onChange: (val: string) => {
+                        setModelId(val)
+                        setModelName(modelLabelById(val))
+                        setEngineId(''); setEngineName('')
+                      }
+                    },
+                    {
+                      label: 'Select Engine',
+                      value: engineId,
+                      options: engineOptions,
+                      disabled: !!(!modelId),
+                      onChange: (val: string) => {
+                        setEngineId(val)
+                        setEngineName(engineLabelById(val))
+                      }
+                    },
                   ].map((f, idx) => (
-                    <div key={idx} className="grid grid-cols-[20px_1fr] items-center gap-3">
-                      <div className="hidden sm:block z-20">
-                        <StepBadge n={idx + 1} />
+                      <div key={idx} className="grid grid-cols-[20px_1fr] items-center gap-3">
+                        <div className="hidden sm:block z-20">
+                          <StepBadge n={idx + 1} />
+                        </div>
+                        <div className="relative">
+                          <select
+                            aria-label={f.label}
+                            value={f.value}
+                            onChange={(e) => f.onChange((e.target as HTMLSelectElement).value)}
+                            disabled={f.disabled}
+                            className="h-12 w-full appearance-none rounded-md bg-gray-100 px-3 pr-9 text-sm text-gray-800 outline-none ring-1 ring-gray-200 focus:bg-white focus:ring-gray-300 disabled:opacity-60"
+                          >
+                            <option value="" disabled hidden>
+                              {f.label}
+                            </option>
+                            {f.options.map((o: any) => (
+                              <option key={`${f.label}-${o.value}`} value={o.value}>{o.label}</option>
+                            ))}
+                          </select>
+                          <span className="pointer-events-none absolute inset-y-0 right-3 inline-flex items-center text-gray-500">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="6 9 12 15 18 9" />
+                            </svg>
+                          </span>
+                        </div>
                       </div>
-                      <div className="relative">
-                        <select
-                          aria-label={f.label}
-                          value={f.value}
-                          onChange={(e) => f.set((e.target as HTMLSelectElement).value)}
-                          disabled={(f as any).disabled}
-                          className="h-12 w-full appearance-none rounded-md bg-gray-100 px-3 pr-9 text-sm text-gray-800 outline-none ring-1 ring-gray-200 focus:bg-white focus:ring-gray-300 disabled:opacity-60"
-                        >
-                          <option value="" disabled hidden>
-                            {f.label}
-                          </option>
-                          {f.options.map((o) => (
-                            <option key={o} value={o}>{o}</option>
-                          ))}
-                        </select>
-                        <span className="pointer-events-none absolute inset-y-0 right-3 inline-flex items-center text-gray-500">
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <polyline points="6 9 12 15 18 9" />
-                          </svg>
-                        </span>
-                      </div>
-                    </div>
-                  ))}
+                    ))}
                 </div>
               </div>
 
@@ -378,10 +507,11 @@ export default function Home() {
               <label className="mb-5 block text-xs font-semibold uppercase tracking-wide text-gray-700">Enter your registration below</label>
               <form onSubmit={onSearchReg} className="flex gap-2">
                 <input
-                  value={reg}
-                  onChange={(e) => setReg(e.target.value)}
+                  value={[brandName, modelName, engineName].filter(Boolean).join(' ')}
+                  onChange={() => { /* read-only from drill-down; keep UX simple */ }}
                   placeholder="Your Reg"
                   className="h-10 w-full rounded-md bg-gray-100 px-3 text-sm text-gray-800 outline-none ring-1 ring-gray-200 focus:bg-white focus:ring-gray-300"
+                  readOnly
                 />
                 <button type="submit" className="h-10 rounded-md bg-accent px-4 text-sm font-semibold text-[#201A2B] ring-1 ring-black/5">
                   Search
@@ -431,14 +561,15 @@ export default function Home() {
           <div className="mt-4 grid grid-cols-2 gap-10 md:grid-cols-4">
             {categories.slice(0, 8).map((c) => {
               const name = (c as any)?.name || (c as any)?.title || 'Category'
-              const img = normalizeApiImage(imgOf(c)) || [sec1, sec2, sec3, sec4, sec5, sec6, sec7, sec8][Math.floor(Math.random()*8)]
+              const img = categoryImageFrom(c) || normalizeApiImage(pickImage(c) || '') || '/gapa-logo.png'
+              const partSlug = String(name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
               return (
-                <a key={String((c as any)?.id || name)} href="#" className="group rounded-xl p-3 transition">
+                <Link key={String((c as any)?.id || name)} to={`/parts/${partSlug}`} className="group rounded-xl p-3 transition">
                   <div className="flex h-42 w-full ring-1 ring-black/10 py-2 items-center justify-center overflow-hidden rounded-lg">
                     <img src={img} alt={name} className="h-full w-full object-contain" onError={(e)=>{(e.currentTarget as HTMLImageElement).src='/gapa-logo.png'}} />
                   </div>
                   <p className="mt-3 text-center text-[12px] font-semibold uppercase tracking-wide text-gray-800">{name}</p>
-                </a>
+                </Link>
               )
             })}
           </div>
@@ -534,10 +665,10 @@ export default function Home() {
         ) : (
           <div className="mt-3 flex items-center justify-between gap-6 overflow-x-auto rounded-xl bg-white px-4 py-3 ring-1 ring-black/10">
             {brands.slice(0, 12).map((b, i) => {
-              const name = (b as any)?.name || (b as any)?.title || 'Brand'
-              const logo = imgOf(b)
+              const name = brandNameOf(b)
+              const logo = brandImageFrom(b) || imgOf(b)
               return (
-                <div key={String((b as any)?.id ?? i)} className="shrink-0">
+                <div key={`brand-logo-${String((b as any)?.id ?? i)}-${i}`} className="shrink-0">
                   {logo ? <img src={normalizeApiImage(logo) || '/gapa-logo.png'} alt={name} className="max-h-12 w-auto object-contain" onError={(e)=>{(e.currentTarget as HTMLImageElement).src='/gapa-logo.png'}} /> : <span className="text-[13px] font-medium">{name}</span>}
                 </div>
               )
@@ -614,10 +745,10 @@ export default function Home() {
         ) : (
           <div className="mt-3 flex items-center gap-6 overflow-x-auto rounded-xl bg-white px-4 py-3 ring-1 ring-black/10">
             {partners.slice(0, 12).map((p, i) => {
-              const name = (p as any)?.name || (p as any)?.title || 'Partner'
-              const logo = imgOf(p)
+              const name = String((p as any)?.name || (p as any)?.title || 'Partner')
+              const logo = partnerImageFrom(p) || imgOf(p)
               return (
-                <div key={String((p as any)?.id ?? i)} className="shrink-0">
+                <div key={`partner-logo-${String((p as any)?.id ?? i)}-${i}`} className="shrink-0">
                   {logo ? <img src={normalizeApiImage(logo) || '/gapa-logo.png'} alt={name} className="h-10 w-auto object-contain" onError={(e)=>{(e.currentTarget as HTMLImageElement).src='/gapa-logo.png'}} /> : <span className="text-[13px] font-medium">{name}</span>}
                 </div>
               )

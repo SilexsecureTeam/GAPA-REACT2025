@@ -1,24 +1,9 @@
-import React, { useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
-import Rating from '../components/Rating'
-import WishlistButton from '../components/WishlistButton'
-import useWishlist from '../hooks/useWishlist'
-import c1 from '../assets/c1.png'
-import c2 from '../assets/c2.png'
-import c3 from '../assets/c3.png'
-import c4 from '../assets/c4.png'
-import c5 from '../assets/c5.png'
-import c6 from '../assets/c6.png'
-import c7 from '../assets/c7.png'
-import c8 from '../assets/c8.png'
-import c9 from '../assets/c9.png'
-import topImg from '../assets/top.png'
-import brand1 from '../assets/brand1.png'
-import brand2 from '../assets/brand2.png'
-import brand3 from '../assets/brand3.png'
-import brand4 from '../assets/brand4.png'
-import brand5 from '../assets/brand5.png'
-import brand6 from '../assets/brand6.png'
+import { useEffect, useMemo, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import FallbackLoader from '../components/FallbackLoader'
+// import ProductCard, { type Product as UiProduct } from '../components/ProductCard'
+import { getAllBrands, getAllCategories, getAllProducts, type ApiBrand, type ApiCategory, type ApiProduct } from '../services/api'
+import { normalizeApiImage, pickImage, productImageFrom, categoryImageFrom } from '../services/images'
 
 function Crumb() {
   return (
@@ -28,294 +13,160 @@ function Crumb() {
           <Link to="/parts" className="hover:underline text-gray-700">Parts Catalogue</Link>
         </li>
         <li aria-hidden className='text-[24px] -mt-1.5'>›</li>
-        <li className="font-semibold text-brand">Car Accessories</li>
+        <li className="font-semibold text-brand">All Parts</li>
       </ol>
     </nav>
   )
 }
 
-type Section = { title: string; img: string; links: string[] }
+// Map API product into UI product for ProductCard
+function toUiProduct(p: any, i: number) {
+  // prepare brand and category names and their slugs
+  const brandName = String(p?.brand?.name || p?.brand || p?.manufacturer || p?.maker || '')
+  const categoryName = typeof p?.category === 'string' ? p.category : (p?.category?.name || p?.category?.title || p?.category_name || '')
+  const toSlug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
+  const brandSlug = brandName ? toSlug(brandName) : undefined
+  const partSlug = categoryName ? toSlug(categoryName) : undefined
 
-const SECTIONS: Section[] = [
-  {
-    title: 'Car cleaning & detailing accessories',
-    img: c1,
-    links: [
-      'Car air freshener',
-      'Car dehumidifier',
-      'Car sponge',
-      'Car washing brushes',
-      'Cleaning brushes',
-      'Cleaning wipes',
-      'Hand cleaner',
-      'Hand sanitizer',
-      'Microfiber cloths',
-      'Polisher heads',
-      'Polishing pads',
-      'Pressure washers',
-      'Wheel brushes',
-    ],
-  },
-  {
-    title: 'Road Emergencies and First Aid',
-    img: c2,
-    links: [
-      'Car de-icing spray',
-      'Car emergency kit',
-      'Warning triangle',
-      'Reflective vests',
-      'Tow rope',
-      'Jump cables',
-      'Spare bulbs',
-      'Paper towels',
-      'Work gloves',
-      'First aid kit',
-    ],
-  },
-  {
-    title: 'Winter car accessories',
-    img: c3,
-    links: [
-      'Ice scraper',
-      'Jump starter',
-      'Parking heater',
-      'Roof box',
-      'Ski bag',
-      'Snow chains',
-      'Universal car mats',
-      'Window cleaner',
-    ],
-  },
-  {
-    title: 'Car interior Accessories',
-    img: c4,
-    links: [
-      'Car armrest',
-      'Car boot mats & liners',
-      'Car boot hanger',
-      'Car seat covers',
-      'Car seat protectors',
-      'Car vacuum cleaner',
-      'Cool box',
-      'Cooler bag',
-      'Organizer bags',
-      'Gear stick gaiter',
-      'Car seat gap cover',
-      'Headrest or seat cover',
-      'Non-slip dashboard mat',
-    ],
-  },
-  {
-    title: 'PPE & disinfection products',
-    img: c5,
-    links: [
-      'Face masks',
-      'Disinfectant',
-      'Hand sanitizer',
-      'Paper towels',
-      'Gloves',
-    ],
-  },
-  {
-    title: 'Camping accessories',
-    img: c6,
-    links: [
-      'Camping stove',
-      '12V fridge',
-      'Portable heater',
-      'Roof box',
-      'Sleeping bag',
-      'Universal car mats',
-      'Window cleaner',
-    ],
-  },
-  {
-    title: 'Wheel & tyre accessories',
-    img: c7,
-    links: [
-      'Car jack',
-      'Foot pumps',
-      'Tyre inflators',
-      'Tyre pressure gauges',
-      'Tyre repair kits',
-      'Valve caps',
-      'Wheel nuts caps',
-      'Valve cores',
-      'Wheel / tyre bags',
-    ],
-  },
-  {
-    title: 'Car phone accessories',
-    img: c8,
-    links: [
-      'Car inverter',
-      'Car phone charger',
-      'Car phone holder',
-      'Dash camera',
-    ],
-  },
-  {
-    title: 'In-car entertainment',
-    img: c9,
-    links: [
-      'Amp wiring kit',
-      'Car amplifiers',
-      'Car audio accessories',
-      'Car audio speakers',
-      'Car multimedia systems',
-      'Car subwoofers',
-      'Car tweeters',
-      'FM transmitter',
-      'Sound deadening mats',
-    ],
-  },
-]
-
-function Tile({ s }: { s: Section }) {
-  const getLinkHref = (label: string) => {
-    const l = label.toLowerCase()
-    if (l.includes('car air freshener') || l.includes('air freshner') || l.includes('freshener')) return '/parts/air-fresheners'
-    return '#'
+  return {
+    id: String(p?.id ?? p?.product_id ?? i),
+    title: String(p?.name || p?.title || p?.product_name || 'Car Part'),
+    image: productImageFrom(p) || normalizeApiImage(pickImage(p) || '') || '/gapa-logo.png',
+    rating: Number(p?.rating || 4),
+    brandSlug,
+    partSlug,
   }
-  return (
-    <div className="rounded-2xl bg-white p-4 ring-1 ring-black/10 md:p-5">
-      <div className="grid grid-cols-[140px_1fr] items-start gap-4">
-        <div className="overflow-hidden rounded-lg">
-          <img src={s.img} alt="" className="h-24 w-full object-contain md:h-28" />
-        </div>
-        <div>
-          <h4 className="text-[13px] font-semibold text-gray-900 md:text-[14px]">{s.title}</h4>
-          <ul className="mt-2 grid grid-cols-1 gap-1 text-[12px] text-gray-700">
-            {s.links.map((l) => (
-              <li key={l}><Link to={getLinkHref(l)} className="hover:underline">{l}</Link></li>
-            ))}
-          </ul>
-        </div>
-      </div>
-    </div>
-  )
 }
 
-// Accessories (demo data for the carousel)
-type Accessory = { id: string; title: string; image: string; rating: number; reviews: number; price: number; badge?: string }
-const ACCESSORIES: Accessory[] = Array.from({ length: 10 }).map((_, i) => ({
-  id: `acc-${i + 1}`,
-  title: ['Seat Organizer', 'Phone Mount', 'All-weather Mats', 'Dash Cam', 'LED Bulb'][i % 5],
-  image: topImg,
-  rating: 3.8 + ((i % 4) * 0.3),
-  reviews: 500 + i * 37,
-  price: 12000 + i * 1500,
-  badge: i % 3 === 0 ? 'Best Seller' : i % 3 === 1 ? 'New' : undefined,
-}))
-
-const TOP_BRANDS: { name: string; logo: string }[] = [
-  { name: 'BMW', logo: brand1 },
-  { name: 'Vaxhaul', logo: brand2 },
-  { name: 'Audi', logo: brand3 },
-  { name: 'Ford', logo: brand4 },
-  { name: 'Mercedes-Benz', logo: brand5 },
-  { name: 'Toyota', logo: brand6 },
-]
-
-function formatNaira(n: number) {
-  return `₦${n.toLocaleString('en-NG')}`
+// Extract brand/category name heuristically from API product
+function brandOf(p: any): string {
+  return String(p?.brand || p?.manufacturer || p?.maker || p?.brand_name || 'Unknown')
 }
-
-function AccessoryCard({ a }: { a: Accessory }) {
-  const wishlist = useWishlist()
-  const isFav = wishlist.has(a.id)
-  const [qty, setQty] = useState(2)
-  const inc = () => setQty((v) => Math.min(99, v + 1))
-  const dec = () => setQty((v) => Math.max(1, v - 1))
-  return (
-    <div className="relative overflow-hidden rounded-xl bg-white ring-1 ring-black/10">
-      {/* Header: brand + badges */}
-      <div className="flex items-center justify-between border-b border-black/10 px-4 py-2.5">
-        <div className="flex items-center gap-2">
-          <span className="inline-flex h-6 w-6 items-center justify-center rounded bg-[#E31C25] text-white">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="7" width="18" height="10" rx="2"/><path d="M7 7V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v2"/></svg>
-          </span>
-          <span className="text-[13px] font-extrabold tracking-wide text-gray-900">TOYOTA</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="rounded-full border border-accent/60 bg-white px-2 py-[2px] text-[10px] font-bold uppercase tracking-wide text-accent">FREE DELIVERY</span>
-          <div className="-mr-1"><WishlistButton active={isFav} onToggle={() => wishlist.toggle(a.id)} ariaLabel="Add to wishlist" /></div>
-        </div>
-      </div>
-
-      <div className="px-4 pb-4 pt-3">
-        {/* Meta */}
-        <div className="space-y-0.5 text-[11px] leading-tight text-gray-600">
-          <div>Article No: 600123</div>
-          <div className="uppercase">TOYOTA Parking Sensors Kit</div>
-        </div>
-
-        {/* Image */}
-        <Link to={`/product/${a.id}`} className="mt-2 block">
-          <div className="flex h-40 items-center justify-center overflow-hidden rounded-lg bg-white">
-            <img src={a.image} alt={a.title} className="h-[80%] w-auto object-contain" />
-          </div>
-        </Link>
-
-        {/* Rating + title + price */}
-        <div className="mt-3 space-y-1">
-          <div className="flex items-center gap-1 text-[12px] text-gray-600">
-            <Rating value={a.rating} size={12} />
-            <span className="text-gray-500">({a.reviews.toLocaleString()})</span>
-          </div>
-          <Link to={`/product/${a.id}`} className="block text-[14px] font-semibold text-gray-900 hover:underline">{a.title}</Link>
-          <div className="text-[16px] font-extrabold text-brand">{formatNaira(a.price)}</div>
-          <button type="button" className="text-left text-[11px] leading-3 text-gray-600 underline">Incl. 20% VAT</button>
-        </div>
-
-        {/* Controls */}
-        <div className="mt-3 flex items-center justify-between">
-          <div className="inline-flex overflow-hidden rounded-md ring-1 ring-black/10">
-            <button aria-label="Prev" onClick={dec} className="h-8 w-8 text-gray-700 hover:bg-gray-50">‹</button>
-            <div className="grid h-8 w-8 place-content-center text-[12px] font-semibold text-gray-800">{qty}</div>
-            <button aria-label="Next" onClick={inc} className="h-8 w-8 text-gray-700 hover:bg-gray-50">›</button>
-          </div>
-          <button type="button" aria-label="Add to cart" className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-[#F7CD3A] ring-1 ring-black/10 hover:brightness-105">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="21" r="1" /><circle cx="20" cy="21" r="1" /><path d="M1 1h4l2.68 12.39a2 2 0 0 0 2 1.61h7.72a2 2 0 0 0 2-1.61L23 6H6" /></svg>
-          </button>
-        </div>
-      </div>
-    </div>
-  )
+function categoryOf(p: any): string {
+  const c = (p as any)?.category
+  if (typeof c === 'string') return c
+  return String(c?.name || c?.title || (p as any)?.category_name || 'General')
 }
 
 export default function CarParts() {
-  const accRef = useRef<HTMLDivElement | null>(null)
-  const [canPrev, setCanPrev] = useState(false)
-  const [canNext, setCanNext] = useState(true)
+  const navigate = useNavigate()
+  const [loading, setLoading] = useState(true)
+  const [products, setProducts] = useState<ApiProduct[]>([])
+  const [brands, setBrands] = useState<ApiBrand[]>([])
+  const [categories, setCategories] = useState<ApiCategory[]>([])
 
-  const updateButtons = () => {
-    const el = accRef.current
-    if (!el) return
-    const { scrollLeft, scrollWidth, clientWidth } = el
-    setCanPrev(scrollLeft > 0)
-    setCanNext(scrollLeft + clientWidth < scrollWidth - 1)
-  }
+  // Filters
+  const [selectedBrand, setSelectedBrand] = useState<string>('')
+  const [selectedCategory, setSelectedCategory] = useState<string>('')
+
+  // Per-category expand state (replaces global pagination)
+  const INITIAL_VISIBLE = 10
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
-    updateButtons()
-    const el = accRef.current
-    if (!el) return
-    const onScroll = () => updateButtons()
-    el.addEventListener('scroll', onScroll, { passive: true })
-    const onResize = () => updateButtons()
-    window.addEventListener('resize', onResize)
-    return () => {
-      el.removeEventListener('scroll', onScroll)
-      window.removeEventListener('resize', onResize)
+    let alive = true
+    async function load() {
+      try {
+        setLoading(true)
+        const [prods, b, c] = await Promise.all([
+          getAllProducts(),
+          getAllBrands(),
+          getAllCategories(),
+        ])
+        if (!alive) return
+        setProducts(Array.isArray(prods) ? prods : [])
+        setBrands(Array.isArray(b) ? b : [])
+        setCategories(Array.isArray(c) ? c : [])
+      } catch (_) {
+        if (!alive) return
+        setProducts([])
+      } finally {
+        if (alive) setLoading(false)
+      }
     }
+    load()
+    return () => { alive = false }
   }, [])
 
-  const scrollByAmount = (dir: -1 | 1) => {
-    const el = accRef.current
-    if (!el) return
-    const amount = el.clientWidth * 0.9 * dir
-    el.scrollBy({ left: amount, behavior: 'smooth' })
+  // Derived filtered products
+  const filtered = useMemo(() => {
+    return products.filter((p) => {
+      const b = brandOf(p)
+      const cat = categoryOf(p)
+      const okBrand = selectedBrand ? b.toLowerCase() === selectedBrand.toLowerCase() : true
+      const okCat = selectedCategory ? cat.toLowerCase() === selectedCategory.toLowerCase() : true
+      return okBrand && okCat
+    })
+  }, [products, selectedBrand, selectedCategory])
+
+  // Navigate to SearchError if filters yield no results
+  useEffect(() => {
+    if (!loading && filtered.length === 0) {
+      const suggestSrc = Array.isArray(products) && products.length > 0 ? products[0] : null
+      const suggest = suggestSrc ? toUiProduct(suggestSrc, 0) : undefined
+      // persist suggestion for SearchError fallback
+      if (suggest) localStorage.setItem('gapa:last-suggest', JSON.stringify(suggest))
+      navigate('/search-error', { state: { reason: 'no_results', brand: selectedBrand || undefined, part: selectedCategory || undefined, suggest }, replace: false })
+    }
+  }, [filtered.length, loading])
+
+  // Option lists for filters (unique names)
+  const brandOptions = useMemo(() => {
+    const fromApi = brands
+      .map((b) => String((b as any)?.name || (b as any)?.title))
+      .filter(Boolean)
+    // also add any brands found on products if API brands list is sparse
+    const fromProducts = Array.from(new Set(products.map(brandOf)))
+    return Array.from(new Set([...fromApi, ...fromProducts])).sort((a, b) => a.localeCompare(b))
+  }, [brands, products])
+
+  const categoryOptions = useMemo(() => {
+    const fromApi = categories
+      .map((c) => String((c as any)?.name || (c as any)?.title))
+      .filter(Boolean)
+    const fromProducts = Array.from(new Set(products.map(categoryOf)))
+    return Array.from(new Set([...fromApi, ...fromProducts])).sort((a, b) => a.localeCompare(b))
+  }, [categories, products])
+
+  // Group by category (all filtered items)
+  const grouped = useMemo(() => {
+    const map = new Map<string, ApiProduct[]>()
+    for (const p of filtered) {
+      const key = categoryOf(p)
+      const list = map.get(key) || []
+      list.push(p)
+      map.set(key, list)
+    }
+    return Array.from(map.entries())
+  }, [filtered])
+
+  // Resolve category image using API categories when available (by id or name)
+  const catInfoFor = (sample: any) => {
+    const name = categoryOf(sample)
+    const c = sample?.category
+    let catObj: any | undefined
+    let catId: string | undefined
+    if (c && typeof c === 'object') {
+      catObj = c
+      catId = String(c?.id ?? c?.category_id ?? '')
+    } else if (typeof c === 'number' || (typeof c === 'string' && /^\d+$/.test(c))) {
+      catId = String(c)
+    }
+    if (!catObj && catId) {
+      catObj = (categories as any[]).find((x: any) => String(x?.id ?? x?.category_id ?? '') === catId)
+    }
+    if (!catObj && name) {
+      const nLower = name.toLowerCase()
+      catObj = (categories as any[]).find((x: any) => String(x?.name || x?.title || '').toLowerCase() === nLower)
+    }
+    let img: string | undefined
+    if (catObj) {
+      img = categoryImageFrom(catObj) || normalizeApiImage(pickImage(catObj) || '')
+    }
+    if (!img && c && typeof c === 'object') {
+      img = categoryImageFrom(c) || normalizeApiImage(pickImage(c) || '')
+    }
+    return { name: name || 'Category', image: img || '/gapa-logo.png' }
   }
 
   return (
@@ -324,72 +175,89 @@ export default function CarParts() {
         <h1 className="text-2xl font-medium text-gray-900 sm:text-[38px]">Browse Car Parts</h1>
         <Crumb />
 
-        <div className="mt-6 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {SECTIONS.map((s, i) => (
-            <React.Fragment key={s.title}>
-              <Tile s={s} />
-              {((i + 1) % 4 === 0) && (
-                <div className="col-span-full my-2 h-px bg-black/10" />
-              )}
-            </React.Fragment>
-          ))}
-        </div>
+        {/* Filters */}
+        {/* <div className="mt-6 grid gap-3 rounded-xl bg-white p-4 ring-1 ring-black/10 sm:grid-cols-3">
+          <div className="grid gap-1">
+            <label className="text-[11px] font-semibold uppercase tracking-wide text-gray-700">Brand</label>
+            <select value={selectedBrand} onChange={(e)=>setSelectedBrand(e.target.value)} className="h-10 rounded-md border border-black/10 bg-gray-50 px-3 text-sm text-gray-800">
+              <option value="">All brands</option>
+              {brandOptions.map((n)=> (<option key={n} value={n}>{n}</option>))}
+            </select>
+          </div>
+          <div className="grid gap-1">
+            <label className="text-[11px] font-semibold uppercase tracking-wide text-gray-700">Category</label>
+            <select value={selectedCategory} onChange={(e)=>setSelectedCategory(e.target.value)} className="h-10 rounded-md border border-black/10 bg-gray-50 px-3 text-sm text-gray-800">
+              <option value="">All categories</option>
+              {categoryOptions.map((n)=> (<option key={n} value={n}>{n}</option>))}
+            </select>
+          </div>
+          <div className="flex items-end gap-2">
+            <button onClick={()=>{setSelectedBrand(''); setSelectedCategory('')}} className="h-10 rounded-md bg-[#F7CD3A] px-4 text-sm font-semibold text-gray-900 ring-1 ring-black/10">Clear Filters</button>
+          </div>
+        </div> */}
 
-        {/* Top car accessories Categories (pill links) */}
-        <div className="mt-10">
-          <h3 className="text-[14px] font-semibold text-gray-900">Top car accessories Categories</h3>
-          <ul className="mt-3 grid grid-cols-1 gap-3 text-[12px] text-gray-800 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {[
-              'In-car phone chargers',
-              'Satnav',
-              'Dash camera',
-              'Universal car floor mats',
-              'Hubcaps',
-              'First aid kit',
-              'Car jacks',
-              'Tyre compressors',
-              'Car windscreen cover',
-              'Microfiber cleaning cloth',
-              'Car sponge',
-              'Number plate surrounds',
-            ].map((label) => (
-              <li key={label} className="flex items-center gap-2 rounded-2xl bg-white px-3 py-2 ring-1 ring-black/10">
-                <span className="inline-block h-3 w-3 rounded-full ring-1 ring-black/20" aria-hidden />
-                <a href="#" className="hover:underline">{label}</a>
-              </li>
-            ))}
-          </ul>
-        </div>
+        {/* Results */}
+        {loading ? (
+          <div className="mt-8"><FallbackLoader label="Loading parts…" /></div>
+        ) : (
+          <div className="mt-8 space-y-8">
+            {/* Category sections (no global pagination) */}
+            {grouped.length === 0 ? (
+              <div className="text-center text-sm text-gray-600">No products found.</div>
+            ) : grouped.map(([_, list]) => {
+              const sample = list[0]
+              const info = catInfoFor(sample as any)
+              const catName = info.name || 'Category'
+              const catImg = info.image
+              const isExpanded = !!expanded[catName]
+              const visible = isExpanded ? list : list.slice(0, INITIAL_VISIBLE)
+              return (
+                <section key={catName} className="rounded-xl bg-white p-4 ring-1 ring-black/10">
+                  <div className="grid gap-4 md:grid-cols-[260px_1fr] md:items-start">
+                    {/* Category card */}
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-lg bg-[#F6F5FA] ring-1 ring-black/10">
+                        <img src={catImg} alt={catName} className="h-full w-full object-contain" onError={(e)=>{(e.currentTarget as HTMLImageElement).src='/gapa-logo.png'}} />
+                      </div>
+                      <div>
+                        <h3 className="text-[16px] font-semibold text-gray-900">{catName}</h3>
+                        <div className="text-[12px] text-gray-600">{list.length} item{list.length===1?'':'s'}</div>
+                      </div>
+                    </div>
+
+                    {/* Product names list with per-category expand */}
+                    <div>
+                      <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                        {visible.map((p, i) => {
+                          const id = String((p as any)?.id ?? (p as any)?.product_id ?? i)
+                          const title = String((p as any)?.name || (p as any)?.title || (p as any)?.product_name || 'Car Part')
+                          return (
+                            <li key={`${catName}-${id}-${i}`} className="truncate">
+                              <Link to={`/product/${encodeURIComponent(id)}`} className="text-[14px] text-brand hover:underline">{title}</Link>
+                            </li>
+                          )
+                        })}
+                      </ul>
+                      {list.length > INITIAL_VISIBLE && (
+                        <div className="mt-3">
+                          <button
+                            onClick={() => setExpanded((s) => ({ ...s, [catName]: !isExpanded }))}
+                            className="text-[13px] font-semibold text-brand hover:underline"
+                          >
+                            {isExpanded ? 'View less' : `View more (${list.length - INITIAL_VISIBLE} more)`}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </section>
+              )
+            })}
+          </div>
+        )}
       </section>
 
-      {/* Accessories carousel */}
-      <section className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
-        <div className="flex items-center justify-between">
-          <h3 className="text-[18px] font-semibold text-gray-900 sm:text-[20px]">Top-quality car accessories at unbeatable prices</h3>
-          <div className="hidden items-center gap-2 sm:flex">
-            <button aria-label="Previous" className="inline-flex h-8 w-8 items-center justify-center rounded-full ring-1 ring-black/10 text-gray-600 hover:bg-gray-50 disabled:opacity-50" onClick={() => scrollByAmount(-1)} disabled={!canPrev}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
-            </button>
-            <button aria-label="Next" className="inline-flex h-8 w-8 items-center justify-center rounded-full ring-1 ring-black/10 text-gray-600 hover:bg-gray-50 disabled:opacity-50" onClick={() => scrollByAmount(1)} disabled={!canNext}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
-            </button>
-          </div>
-        </div>
-        <div
-          ref={accRef}
-          className="mt-4 overflow-x-auto scroll-smooth [scrollbar-width:none] [-ms-overflow-style:none]"
-          aria-label="Top accessories carousel"
-        >
-          <style>{`.no-scrollbar::-webkit-scrollbar{display:none}`}</style>
-          <div className="no-scrollbar grid auto-cols-[minmax(16rem,20rem)] grid-flow-col gap-3 sm:auto-cols-[minmax(18rem,22rem)] md:auto-cols-[minmax(20rem,24rem)]">
-            {ACCESSORIES.map((a) => (
-              <div key={a.id} className="shrink-0"><AccessoryCard a={a} /></div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Top brands */}
+      {/* Top brands from API */}
       <section className="mx-auto max-w-7xl px-4 pb-2 pt-2 sm:px-6">
         <div className="flex items-center justify-between">
           <h3 className="text-[14px] font-semibold text-gray-900 sm:text-[16px]">Top brands</h3>
@@ -401,16 +269,21 @@ export default function CarParts() {
           </a>
         </div>
         <div className="mt-3 flex items-center justify-between gap-6 overflow-x-auto rounded-xl bg-white px-4 py-3 ring-1 ring-black/10">
-          {TOP_BRANDS.map((b) => (
-            <div key={b.name} className="shrink-0">
-              <img src={b.logo} alt={b.name} className="h-12 w-auto object-contain" />
-            </div>
-          ))}
+          {(brands.length ? brands : []).slice(0, 12).map((b, i) => {
+            const name = (b as any)?.name || (b as any)?.title || 'Brand'
+            const logo = pickImage(b)
+            const key = `${String((b as any)?.id ?? name ?? i)}-${i}`
+            return (
+              <div key={key} className="shrink-0">
+                {logo ? <img src={normalizeApiImage(logo) || '/gapa-logo.png'} alt={name} className="h-12 w-auto object-contain" onError={(e)=>{(e.currentTarget as HTMLImageElement).src='/gapa-logo.png'}} /> : <span className="text-[13px] font-medium">{name}</span>}
+              </div>
+            )
+          })}
         </div>
       </section>
 
-      {/* Info section: Car Accessories Made Easy */}
-      <section aria-labelledby="acc-easy-title" className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-10">
+      {/* Info section remains */}
+      <section className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-10">
         <h2 id="acc-easy-title" className="text-center text-[22px] font-semibold text-gray-900 sm:text-[28px]">Car Accessories Made Easy with Gapa Naija</h2>
         <p className="mx-auto mt-2 max-w-3xl text-center text-[14px] leading-6 text-gray-600">
           Car accessories play a huge role in making your driving experience safer, more convenient, and more enjoyable. At Gapa Naija,
@@ -476,8 +349,6 @@ export default function CarParts() {
           </aside>
         </div>
       </section>
-
-     
     </div>
   )
 }

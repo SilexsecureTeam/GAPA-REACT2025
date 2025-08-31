@@ -140,6 +140,7 @@ export type ApiBrand = { id?: string | number; name?: string; title?: string; lo
 export type ApiCategory = { id?: string | number; name?: string; title?: string; image?: string; icon?: string } & Record<string, any>
 export type ApiManufacturer = { id?: string | number; name?: string; title?: string; logo?: string; image?: string } & Record<string, any>
 export type ApiPartner = { id?: string | number; name?: string; title?: string; logo?: string; image?: string; url?: string } & Record<string, any>
+export type ApiCar = { id?: string; name?: string; vin?: string | null; img_url?: string | null; brand_id?: string; suitability?: number; status?: string } & Record<string, any>
 
 // Raw endpoints for documentation/reference
 export const ENDPOINTS = {
@@ -151,7 +152,34 @@ export const ENDPOINTS = {
   manufacturers: '/manufacturers',
   partners: '/getPartners',
   liveSearch: '/SearchProduct',
+  cars: '/car/all-car',
+  // details
+  productById: (id: string) => `/product/product/${id}`,
+  productOEM: (id: string) => `/product/getProductOEM/${id}`,
+  relatedProducts: (id: string) => `/product/getRelatedProduct/${id}`,
+  // vehicle drill-down
+  modelsByBrandId: (brandId: string) => `/getModelByBrandId?brand_id=${encodeURIComponent(brandId)}`,
+  subModelsByModelId: (modelId: string) => `/getSubModelByModelId?model_id=${encodeURIComponent(modelId)}`,
 } as const
+
+// Generic unwrap for variable API array envelopes
+export function unwrapArray<T = any>(res: any): T[] {
+  if (Array.isArray(res)) return res
+  if (res?.data && Array.isArray(res.data)) return res.data
+  if (res?.data && typeof res.data === 'object') {
+    for (const k of Object.keys(res.data)) {
+      const v = (res.data as any)[k]
+      if (Array.isArray(v)) return v as T[]
+    }
+  }
+  if (res && typeof res === 'object') {
+    for (const k of Object.keys(res)) {
+      const v = (res as any)[k]
+      if (Array.isArray(v)) return v as T[]
+    }
+  }
+  return []
+}
 
 export async function getFeaturedProducts() {
   const res = await apiRequest<any>(ENDPOINTS.featuredProducts)
@@ -201,6 +229,14 @@ export async function getPartners() {
   if (res && typeof res === 'object') { for (const k of Object.keys(res)) { const v = (res as any)[k]; if (Array.isArray(v)) return v } }
   return []
 }
+export async function getAllCars() {
+  const res = await apiRequest<any>(ENDPOINTS.cars)
+  if (Array.isArray(res)) return res
+  if (res?.cars && Array.isArray(res.cars)) return res.cars
+  if (res?.data && Array.isArray(res.data)) return res.data
+  if (res && typeof res === 'object') { for (const k of Object.keys(res)) { const v = (res as any)[k]; if (Array.isArray(v)) return v } }
+  return []
+}
 
 export async function liveSearch(term: string) {
   const form = new FormData()
@@ -210,4 +246,35 @@ export async function liveSearch(term: string) {
   if (res?.data && Array.isArray(res.data)) return res.data
   if (res && typeof res === 'object') { for (const k of Object.keys(res)) { const v = (res as any)[k]; if (Array.isArray(v)) return v } }
   return []
+}
+
+// New: full product catalog and details
+export async function getAllProducts() {
+  const res = await apiRequest<any>(ENDPOINTS.allProducts)
+  return unwrapArray<ApiProduct>(res)
+}
+
+export async function getProductById(id: string) {
+  return apiRequest<ApiProduct>(ENDPOINTS.productById(id), { auth: true })
+}
+
+export async function getProductOEM(id: string) {
+  const res = await apiRequest<any>(ENDPOINTS.productOEM(id), { auth: true })
+  return unwrapArray<any>(res)
+}
+
+export async function getRelatedProducts(id: string) {
+  const res = await apiRequest<any>(ENDPOINTS.relatedProducts(id), { auth: true })
+  return unwrapArray<ApiProduct>(res)
+}
+
+// Vehicle drill-down helpers
+export async function getModelsByBrandId(brandId: string) {
+  const res = await apiRequest<any>(ENDPOINTS.modelsByBrandId(brandId))
+  return unwrapArray<any>(res)
+}
+
+export async function getSubModelsByModelId(modelId: string) {
+  const res = await apiRequest<any>(ENDPOINTS.subModelsByModelId(modelId))
+  return unwrapArray<any>(res)
 }

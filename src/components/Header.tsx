@@ -100,7 +100,7 @@ export default function Header() {
       <div className="bg-[#F7CD3A] py-2">
         <div className="mx-auto grid max-w-7xl grid-cols-1 items-center gap-4 px-4 py-3 sm:px-6 md:grid-cols-[auto_minmax(0,1fr)_auto]">
           {/* Logo */}
-          <Link to="/" className="flex items-center gap-2">
+          <Link to="/" className="flex items-center gap-2 brand-logo" aria-label="Gapa Naija home">
             <img
               src={logo}
               onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/gapa-logo.png' }}
@@ -192,13 +192,13 @@ export default function Header() {
           className="mx-auto flex h-12 overflow-y-hidden max-w-7xl items-center justify-between gap-6 overflow-x-auto px-4 sm:px-6"
         >
           {categories.map((cat, i) => (
-            <div key={cat.label} className="relative overflow-y-hidden">
+            <div key={cat.label} className="relative overflow-y-hidden overflow-x-hidden">
               <Link
                 to={cat.label === 'Car Parts' ? '/parts' : (cat.label === 'Tyres' ? '/tyres' : (cat.label === 'Engine Oil' ? '/engine-oil' : '/parts'))}
                 onMouseEnter={() => setOpenIdx(cat.items ? i : null)}
                 onFocus={() => setOpenIdx(cat.items ? i : null)}
                 onClick={() => setOpenIdx(null)}
-                className={`group inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-md px-2 py-1.5 text-[14px] font-medium ${openIdx===i ? 'bg-white/10 text-white' : 'text-white/90 hover:text-white hover:bg-white/10'}`}
+                className={`group inline-flex shrink-0 overflow-x-hidden items-center gap-2 whitespace-nowrap rounded-md px-2 py-1.5 text-[14px] font-medium ${openIdx===i ? 'bg-white/10 text-white' : 'text-white/90 hover:text-white hover:bg-white/10'}`}
                 aria-haspopup={!!cat.items}
                 aria-expanded={openIdx === i}
               >
@@ -218,10 +218,11 @@ export default function Header() {
                 <div className="absolute left-0 top-full z-40 mt-2 w-screen max-w-md rounded-xl bg-white p-3 text-gray-900 shadow-lg ring-1 ring-black/10 sm:max-w-lg md:max-w-xl">
                   <div role="menu" aria-label={`${cat.label} menu`} className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                     {cat.items.map((item) => {
-                      const brandDefault = 'bmw'
+                      // For Car Brands (index 0), navigate to brand + default part
+                      // For Car Parts (index 1), navigate to strict category-only route
                       const to = i === 0
                         ? `/parts/${toSlug(item)}/brake-discs`
-                        : `/parts/${brandDefault}/${toSlug(item)}`
+                        : `/parts/${toSlug(item)}`
                       return (
                         <Link
                           key={item}
