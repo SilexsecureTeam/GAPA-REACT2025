@@ -9,7 +9,6 @@ export default function Login() {
   const nav = useNavigate()
   const { setSession } = useAuth()
   const [email, setEmail] = useState('')
-  const [phone, setPhone] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -19,7 +18,7 @@ export default function Login() {
     setError(null)
     setLoading(true)
     try {
-      const res = await login({ email, phone, password })
+      const res = await login({ email, password })
       setSession(res.user, res.barear_token)
       toast.success('Signed in successfully')
       nav('/')
@@ -46,10 +45,6 @@ export default function Login() {
                 <label className="text-[12px] font-medium text-gray-900">Your email or Phone number*</label>
                 <input value={email} onChange={(e)=>setEmail(e.target.value)} placeholder="Please enter your email or phone" className="mt-1 h-10 w-full rounded-md bg-[#F3F1F6] px-3 text-sm outline-none ring-1 ring-black/10" />
               </div>
-              {/* <div>
-                <label className="text-[12px] font-medium text-gray-900">Phone number*</label>
-                <input value={phone} onChange={(e)=>setPhone(e.target.value)} placeholder="Please enter your email" className="mt-1 h-10 w-full rounded-md bg-[#F3F1F6] px-3 text-sm outline-none ring-1 ring-black/10" />
-              </div> */}
               <div>
                 <label className="text-[12px] font-medium text-gray-900">Password*</label>
                 <input type="password" value={password} onChange={(e)=>setPassword(e.target.value)} placeholder="Enter password" className="mt-1 h-10 w-full rounded-md bg-[#F3F1F6] px-3 text-sm outline-none ring-1 ring-black/10" />

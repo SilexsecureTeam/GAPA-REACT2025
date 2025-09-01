@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { getAllProducts, liveSearch, getRelatedProducts, type ApiProduct, getAllBrands, getModelsByBrandId, getSubModelsByModelId, getProductById, getAllCategories, type ApiCategory, getProductOEM } from '../services/api'
+import { getAllProducts, liveSearch, getRelatedProducts, type ApiProduct, getAllBrands, getModelsByBrandId, getSubModelsByModelId, getProductById, getAllCategories, type ApiCategory } from '../services/api'
 import { normalizeApiImage, pickImage, productImageFrom, categoryImageFrom } from '../services/images'
 
 // Helpers
@@ -43,7 +43,6 @@ function attrsFrom(p: any): Attr[] {
     EAN: (src as any)?.EAN,
     Weight: (src as any)?.weight_in_kg,
     Pairs: (src as any)?.pairs,
-    Compatibility: (src as any)?.compatibility || (src as any)?.compatible_with || (src as any)?.fit_for,
   }
   for (const [k, v] of Object.entries(extra)) {
     const val = String(v ?? '').trim()
@@ -276,7 +275,6 @@ export default function CarPartDetails() {
   const [selected, setSelected] = useState<ReturnType<typeof mapApiToUi> | null>(null)
   const [selectedRaw, setSelectedRaw] = useState<any | null>(null)
   const [categories, setCategories] = useState<ApiCategory[]>([])
-  const [fetchError, setFetchError] = useState('')
 
   // Load catalog + categories
   useEffect(() => {
@@ -410,7 +408,6 @@ export default function CarPartDetails() {
     let alive = true
     ;(async () => {
       try {
-        setFetchError('')
         if (!pid) { setSelected(null); setSelectedRaw(null); setRelated([]); return }
         const detail = await getProductById(pid)
         if (!alive) return
@@ -419,24 +416,13 @@ export default function CarPartDetails() {
         const rel = await getRelatedProducts(pid)
         if (!alive) return
         setRelated(Array.isArray(rel) ? rel : [])
-      } catch (err) {
+      } catch {
         if (!alive) return
-        // Build a friendly error and still try to surface related suggestions
-        const prod = products.find((p) => String((p as any)?.id ?? (p as any)?.product_id ?? '') === String(pid)) as any
-        const productName = String(prod?.name || prod?.title || prod?.product_name || q || pid || 'product')
-        setFetchError(`couldn't find product '${productName}'`)
-        try {
-          const rel = await getRelatedProducts(pid)
-          if (alive) setRelated(Array.isArray(rel) ? rel : [])
-        } catch {
-          setRelated([])
-        }
-        setSelected(null)
-        setSelectedRaw(null)
+        setRelated([])
       }
     })()
     return () => { alive = false }
-  }, [pid, products, q])
+  }, [pid])
 
   // Frontend-related suggestions when search fails or related API fails
   const frontendRelated = useMemo(() => {
@@ -530,32 +516,9 @@ export default function CarPartDetails() {
   const ProductPanel = ({ ui }: { ui: ReturnType<typeof mapApiToUi> }) => {
     const [qty, setQty] = useState(2)
     const [activeIdx, setActiveIdx] = useState(0)
-    const [oemCodes, setOemCodes] = useState<string[]>([])
     const inc = () => setQty((v) => Math.min(v + 1, 99))
     const dec = () => setQty((v) => Math.max(v - 1, 1))
     const mainImage = ui.gallery[activeIdx] || ui.image
-
-    // Fetch extra details (OEM codes) for each item panel
-    useEffect(() => {
-      let alive = true
-      ;(async () => {
-        try {
-          const res = await getProductOEM(ui.id)
-          if (!alive) return
-          const list = Array.isArray(res) ? res : []
-          const codes = list
-            .map((x: any) => String(x?.oem || x?.OEM || x?.code || x?.oem_code || x?.name || ''))
-            .map((s) => s.trim())
-            .filter(Boolean)
-          setOemCodes(Array.from(new Set(codes)))
-        } catch {
-          if (!alive) return
-          setOemCodes([])
-        }
-      })()
-      return () => { alive = false }
-    }, [ui.id])
-
     return (
       <div className="rounded-xl bg-white p-4 ring-1 ring-black/10">
         <div className="grid gap-6 lg:grid-cols-[360px_1fr_280px]">
@@ -587,12 +550,6 @@ export default function CarPartDetails() {
                   <div className="rounded-r-md bg-[#FBF5E9] px-3 py-1.5 text-gray-700">{a.value}</div>
                 </div>
               ))}
-              {oemCodes.length > 0 && (
-                <div className="grid grid-cols-[180px_1fr] text-[13px]">
-                  <div className="rounded-l-md bg-[#FBF5E9] px-3 py-1.5 font-medium text-gray-800">OEM Codes</div>
-                  <div className="rounded-r-md bg-[#FBF5E9] px-3 py-1.5 text-gray-700">{oemCodes.join(', ')}</div>
-                </div>
-              )}
               <div className="mt-2 text-[12px] text-orange-700">⚠ WARNING <button className="underline">More</button></div>
             </div>
             {ui.description && <div className="pt-2 text-[13px] text-gray-700">{ui.description}</div>}
@@ -681,17 +638,12 @@ export default function CarPartDetails() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 {categoryImage && (<img src={categoryImage} alt="Category" className="h-6 w-6 rounded bg-[#F6F5FA] object-contain ring-1 ring-black/10" onError={(e)=>{(e.currentTarget as HTMLImageElement).style.display='none'}} />)}
-                <h1 className="text-[18px] font-semibold text-gray-900">{part ? breadcrumbPartLabel : 'All Parts'} {brand ? `· ${titleCase(brand)}` : ''}</h1>
+                <h1 className="text-[18px] font-semibold text-gray-900">{part ? titleCase(part) : 'All Parts'} {brand ? `· ${titleCase(brand)}` : ''}</h1>
               </div>
               <div className="text-[12px] text-gray-600">{loading ? 'Loading…' : `${results.length} item${results.length===1?'':'s'}`}</div>
             </div>
 
-            {/* Error banners */}
-            {fetchError && (
-              <div className="rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-700">
-                {fetchError}. Showing related products instead.
-              </div>
-            )}
+            {/* Inline search error banner */}
             {(q && zeroResults) && (
               <div className="rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-700">
                 We couldn't find results for “{q}”. Showing related products instead.
@@ -734,65 +686,6 @@ export default function CarPartDetails() {
               </section>
             )}
           </div>
-        </div>
-      </section>
-
-      {/* Restored: Top car accessories categories */}
-      <section className="mx-auto max-w-7xl px-4 pb-2 pt-2 sm:px-6">
-        <div className="flex items-center justify-between">
-          <h3 className="text-[14px] font-semibold text-gray-900 sm:text-[16px]">Top Car Accessories Categories</h3>
-          <a href="#" className="inline-flex items-center gap-1 text-xs font-medium text-brand hover:underline">View all
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M5 12h14" />
-              <path d="M12 5l7 7-7 7" />
-            </svg>
-          </a>
-        </div>
-        <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4 md:grid-cols-6">
-          {(categories || []).slice(0, 12).map((c, i) => {
-            const name = String((c as any)?.name || (c as any)?.title || 'Category')
-            const slug = toSlug(name)
-            const img = categoryImageFrom(c) || normalizeApiImage(pickImage(c) || '') || '/gapa-logo.png'
-            const key = `${String((c as any)?.id ?? name ?? i)}-${i}`
-            return (
-              <Link to={`/parts/${encodeURIComponent(slug)}`} key={key} className="flex items-center gap-2 rounded-lg bg-white p-2 ring-1 ring-black/10 hover:shadow">
-                <span className="inline-flex h-10 w-10 items-center justify-center overflow-hidden rounded bg-[#F6F5FA] ring-1 ring-black/10">
-                  <img src={img} alt={name} className="h-full w-full object-contain" onError={(e)=>{(e.currentTarget as HTMLImageElement).src='/gapa-logo.png'}} />
-                </span>
-                <span className="truncate text-[13px] font-medium text-gray-900">{name}</span>
-              </Link>
-            )
-          })}
-        </div>
-      </section>
-
-      {/* Restored: Top quality car accessories */}
-      <section className="mx-auto max-w-7xl px-4 pb-8 pt-2 sm:px-6">
-        <div className="flex items-center justify-between">
-          <h3 className="text-[14px] font-semibold text-gray-900 sm:text-[16px]">Top Quality Car Accessories</h3>
-          <a href="#" className="inline-flex items-center gap-1 text-xs font-medium text-brand hover:underline">View all
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M5 12h14" />
-              <path d="M12 5l7 7-7 7" />
-            </svg>
-          </a>
-        </div>
-        <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
-          {(products || []).slice(0, 8).map((p, i) => {
-            const id = String((p as any)?.id ?? (p as any)?.product_id ?? i)
-            const title = String((p as any)?.name || (p as any)?.title || (p as any)?.product_name || 'Car Part')
-            const img = productImageFrom(p) || normalizeApiImage(pickImage(p) || '') || '/gapa-logo.png'
-            const price = Number((p as any)?.price || (p as any)?.selling_price || (p as any)?.amount || 0)
-            return (
-              <div key={id} className="rounded-lg bg-white p-3 ring-1 ring-black/10">
-                <div className="flex h-28 items-center justify-center overflow-hidden rounded bg-[#F6F5FA]">
-                  <img src={img} alt={title} className="h-full w-full object-contain" onError={(e)=>{(e.currentTarget as HTMLImageElement).src='/gapa-logo.png'}} />
-                </div>
-                <div className="mt-2 truncate text-[13px] font-semibold text-gray-900">{title}</div>
-                <div className="text-[12px] text-gray-700">{price ? `₦${price.toLocaleString('en-NG')}` : ''}</div>
-              </div>
-            )
-          })}
         </div>
       </section>
     </div>
