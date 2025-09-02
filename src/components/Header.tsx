@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import logo from '../assets/gapa-logo.png';
 import icon1 from '../assets/h1.png'
 import icon2 from '../assets/h2.png'
@@ -34,13 +34,13 @@ export default function Header() {
   const [openIdx, setOpenIdx] = useState<number | null>(null)
   const { user } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
 
   // Mega menu state for Car Parts
   const [carPartsOpen, setCarPartsOpen] = useState(false)
   const [catMenuLoading, setCatMenuLoading] = useState(false)
   const [catMenu, setCatMenu] = useState<Array<{ name: string; image: string; items: { id: string; title: string; image: string }[] }>>([])
   const [activeCatIdx, setActiveCatIdx] = useState(0)
-  const [apiCategories, setApiCategories] = useState<ApiCategory[]>([])
 
   // Dropdown state for Car Brands
   const [brandsOpen, setBrandsOpen] = useState(false)
@@ -89,34 +89,6 @@ export default function Header() {
     if (typeof c === 'string') return c
     return String(c?.name || c?.title || (p as any)?.category_name || 'General')
   }
-  const catInfoFor = (sample: any) => {
-    const name = categoryOf(sample)
-    const c = sample?.category
-    let catObj: any | undefined
-    let catId: string | undefined
-    if (c && typeof c === 'object') {
-      catObj = c
-      catId = String(c?.id ?? c?.category_id ?? '')
-    } else if (typeof c === 'number' || (typeof c === 'string' && /^\d+$/.test(c))) {
-      catId = String(c)
-    }
-    if (!catObj && catId) {
-      catObj = (apiCategories as any[]).find((x: any) => String(x?.id ?? x?.category_id ?? '') === catId)
-    }
-    if (!catObj && name) {
-      const nLower = name.toLowerCase()
-      catObj = (apiCategories as any[]).find((x: any) => String(x?.name || x?.title || '').toLowerCase() === nLower)
-    }
-    let img: string | undefined
-    if (catObj) {
-      img = categoryImageFrom(catObj) || normalizeApiImage(pickImage(catObj) || '')
-    }
-    if (!img && c && typeof c === 'object') {
-      img = categoryImageFrom(c) || normalizeApiImage(pickImage(c) || '')
-    }
-    const displayName = catObj ? String(catObj?.title || catObj?.name || name || 'Category') : (name || 'Category')
-    return { name: displayName, image: img || '/gapa-logo.png' }
-  }
 
   async function ensureCatMenuLoaded() {
     if (catMenu.length || catMenuLoading) return
@@ -126,19 +98,40 @@ export default function Header() {
         getAllProducts(),
         getAllCategories(),
       ])
-      setApiCategories(Array.isArray(cats) ? cats : [])
 
-      const grouped = new Map<string, ApiProduct[]>();
-      for (const p of (prods || [])) {
+      // Use the freshly fetched categories locally; state update may be async
+      const localCats = Array.isArray(cats) ? (cats as ApiCategory[]) : []
+
+      const grouped = new Map<string, ApiProduct[]>()
+      for (const p of (Array.isArray(prods) ? (prods as ApiProduct[]) : [])) {
         const key = categoryOf(p)
         const list = grouped.get(key) || []
         list.push(p)
         grouped.set(key, list)
       }
 
-      const menu = Array.from(grouped.entries()).map(([name, list]) => {
+      // Resolve category info using the local categories
+      const resolveCatInfo = (sample: any) => {
+        const c = sample?.category
+        const guessName = categoryOf(sample)
+        let catObj: any | undefined
+        if (c && typeof c === 'object') {
+          catObj = c
+        } else if (typeof c === 'number' || (typeof c === 'string' && /^\d+$/.test(c))) {
+          const idStr = String(c)
+          catObj = (localCats as any[]).find((x: any) => String(x?.id ?? x?.category_id ?? '') === idStr)
+        } else if (!catObj && guessName) {
+          const lower = String(guessName).toLowerCase()
+          catObj = (localCats as any[]).find((x: any) => String(x?.name || x?.title || '').toLowerCase() === lower)
+        }
+        const imgFromCat = catObj ? (categoryImageFrom(catObj) || normalizeApiImage(pickImage(catObj) || '')) : ''
+        const displayName = catObj ? String(catObj?.title || catObj?.name || guessName || 'Category') : (guessName || 'Category')
+        return { name: displayName, image: imgFromCat || '/gapa-logo.png' }
+      }
+
+      let menu = Array.from(grouped.entries()).map(([name, list]) => {
         const sample = list[0]
-        const info = catInfoFor(sample as any)
+        const info = resolveCatInfo(sample as any)
         return {
           name: info.name || name,
           image: info.image,
@@ -150,21 +143,35 @@ export default function Header() {
         }
       }).sort((a, b) => a.name.localeCompare(b.name))
 
+      // Final pass: if name looks like an ID (e.g., '1', '2'), replace with the category title from API
+      menu = menu.map((m) => {
+        if (/^\d+$/.test(m.name)) {
+          const match = (localCats as any[]).find((x: any) => String(x?.id ?? x?.category_id ?? '') === m.name)
+          if (match) {
+            const fixedName = String(match?.title || match?.name || m.name)
+            const fixedImg = categoryImageFrom(match) || normalizeApiImage(pickImage(match) || '') || m.image
+            return { ...m, name: fixedName, image: fixedImg }
+          }
+        }
+        return m
+      })
+
       setCatMenu(menu)
       setActiveCatIdx(0)
     } catch (_) {
-      // Soft-fail: keep menu empty
+      // ignore
     } finally {
       setCatMenuLoading(false)
     }
   }
 
+  // Load brands menu when needed
   async function ensureBrandsMenuLoaded() {
     if (brandsMenu.length || brandsLoading) return
     try {
       setBrandsLoading(true)
       const res = await getAllBrands()
-      const arr = Array.isArray(res) ? res as ApiBrand[] : []
+      const arr = Array.isArray(res) ? (res as ApiBrand[]) : []
       const menu = (arr || []).map((b, i) => {
         const id = String((b as any)?.id ?? i)
         const name = String((b as any)?.name || (b as any)?.title || 'Brand')
@@ -178,6 +185,26 @@ export default function Header() {
       setBrandsLoading(false)
     }
   }
+
+  useEffect(() => {
+    ensureCatMenuLoaded()
+  }, [])
+
+  useEffect(() => {
+    if (!brandsOpen) return
+    setTimeout(() => {
+      const el = document.getElementById('brands-menu')
+      el?.scrollTo({ top: 0, behavior: 'smooth' })
+    }, 50)
+  }, [brandsOpen])
+
+  // Close menus on route change using location instead of navigate.listen
+  useEffect(() => {
+    // Close menus when the pathname or hash changes
+    setOpenIdx(null)
+    setCarPartsOpen(false)
+    setBrandsOpen(false)
+  }, [location.pathname, location.hash])
 
   // Close all menus helper
   const closeMenus = () => { setOpenIdx(null); setCarPartsOpen(false); setBrandsOpen(false) }
@@ -471,7 +498,7 @@ export default function Header() {
           <div className="absolute inset-x-0 top-full z-40">
             <div className="mx-auto max-w-7xl px-2 sm:px-4">
               <div className="mt-2 overflow-hidden rounded-xl bg-white text-gray-900 shadow-2xl ring-1 ring-black/10">
-                <div className="p-4">
+                <div className="p-4" id="brands-menu">
                   {brandsLoading ? (
                     <div className="p-2 text-sm text-gray-600">Loading brands…</div>
                   ) : brandsMenu.length === 0 ? (
