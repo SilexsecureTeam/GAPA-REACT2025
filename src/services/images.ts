@@ -79,7 +79,9 @@ export function pickImage(obj: any): string | undefined {
 }
 
 // Explicit image URL builders per API spec
-const CDN_BASE = 'https://stockmgt.gapaautoparts.com'
+// Use page protocol to avoid mixed-content issues in dev/prod
+const CDN_HOST = 'stockmgt.gapaautoparts.com'
+const CDN_BASE = `${typeof window !== 'undefined' && window.location?.protocol === 'https:' ? 'https' : 'http'}://${CDN_HOST}`
 
 function absoluteOr(basePath: string, val?: string | null): string | undefined {
   if (!val) return undefined
@@ -89,6 +91,10 @@ function absoluteOr(basePath: string, val?: string | null): string | undefined {
   if (/^https?:\/\//i.test(s)) return s
   // Remove any leading slashes in value
   const clean = s.replace(/^\/+/, '')
+  // If the value already contains an uploads/* path, don't double-prefix the basePath
+  if (clean.startsWith('uploads/')) {
+    return `${CDN_BASE}/${clean}`
+  }
   return `${CDN_BASE}${basePath}/${clean}`
 }
 
@@ -101,7 +107,7 @@ function firstOf(obj: any, keys: string[]): string | undefined {
 }
 
 export function productImageFrom(obj: any): string | undefined {
-  const v = firstOf(obj, ['image', 'img_url', 'thumbnail', 'photo', 'picture', 'img'])
+  const v = firstOf(obj, ['image', 'img_url', 'thumbnail', 'photo', 'picture', 'img', 'product_image', 'image_url'])
   return absoluteOr('/uploads/product', v)
 }
 

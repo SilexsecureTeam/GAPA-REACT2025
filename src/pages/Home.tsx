@@ -377,7 +377,7 @@ export default function Home() {
               <br /> <span className='font-semibold'>WE'VE GOT YOU COVERED! </span>
             </h1>
             <p className="mt-3 font-semibold text-[16px] max-w-md text-white/90">
-              Over 20,000 genuine parts with free delivery above \u20a650,000
+              Over 20,000 genuine parts with free delivery above ₦50,000
             </p>
             <a href="#" className="mt-6 inline-flex h-11 items-center justify-center rounded-md bg-[#F7CD3A] px-6 text-sm font-semibold text-[#201A2B] shadow hover:brightness-105">
               START SHOPPING
