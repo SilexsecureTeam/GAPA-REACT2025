@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { getAllProducts, liveSearch, getRelatedProducts, type ApiProduct, getAllBrands, getModelsByBrandId, getSubModelsByModelId, getProductById, getAllCategories, type ApiCategory } from '../services/api'
+import { getAllProducts, liveSearch, getRelatedProducts, type ApiProduct, getAllBrands, getModelsByBrandId, getSubModelsByModelId, getProductById, getAllCategories, type ApiCategory, addToCartApi } from '../services/api'
 import { normalizeApiImage, pickImage, productImageFrom, categoryImageFrom } from '../services/images'
+import logoImg from '../assets/gapa-logo.png'
+import { useAuth } from '../services/auth'
+import { addGuestCartItem } from '../services/cart'
 
 // Helpers
 const toSlug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
@@ -56,11 +59,11 @@ function mapApiToUi(p: any) {
   const src = (p && typeof p === 'object' && 'part' in p) ? (p as any).part : p
   const id = String(src?.id ?? src?.product_id ?? '')
   const brandName = String(src?.brand?.name || src?.brand || src?.manufacturer || src?.maker || 'GAPA')
-  const brandLogo = normalizeApiImage(pickImage(src?.brand)) || normalizeApiImage(src?.brand_logo) || normalizeApiImage(pickImage(src)) || '/gapa-logo.png'
+  const brandLogo = normalizeApiImage(pickImage(src?.brand)) || normalizeApiImage(src?.brand_logo) || normalizeApiImage(pickImage(src)) || logoImg
   const name = String(src?.name || src?.title || src?.product_name || 'Car Part')
   const articleNo = String(src?.article_no || src?.article_number || src?.article || src?.sku || src?.code || 'N/A')
   const price = Number(src?.price || src?.selling_price || src?.amount || 0)
-  const image = productImageFrom(src) || normalizeApiImage(pickImage(src) || '') || '/gapa-logo.png'
+  const image = productImageFrom(src) || normalizeApiImage(pickImage(src) || '') || logoImg
   // Build gallery from known image fields and arrays
   const galleryFields = [src?.img_url, src?.img_url_1, src?.img_url_2].filter(Boolean) as string[]
   const galleryFromFields = galleryFields.map((s) => normalizeApiImage(s) || productImageFrom({ img_url: s }) || '').filter(Boolean)
@@ -75,7 +78,7 @@ function mapApiToUi(p: any) {
   const inStock = Boolean((src as any)?.in_stock ?? (src as any)?.live_status ?? true)
   const attributes = attrsFrom(src)
   const description = String(src?.description || src?.details || '')
-  return { id, brand: brandName, brandLogo: brandLogo || '/gapa-logo.png', name, articleNo, price, image, gallery: gallery.length ? gallery : [image], rating, reviews, inStock, attributes, description }
+  return { id, brand: brandName, brandLogo: brandLogo || logoImg, name, articleNo, price, image, gallery: gallery.length ? gallery : [image], rating, reviews, inStock, attributes, description }
 }
 
 // Vehicle filter using API drill-down (brands -> models -> engines) like Home hero
@@ -479,7 +482,7 @@ export default function CarPartDetails() {
   const results = useMemo(() => filtered.map((p, i) => ({
     id: String(p?.id ?? p?.product_id ?? i),
     title: String(p?.name || p?.title || p?.product_name || 'Car Part'),
-    image: productImageFrom(p) || normalizeApiImage(pickImage(p) || '') || '/gapa-logo.png',
+    image: productImageFrom(p) || normalizeApiImage(pickImage(p) || '') || logoImg,
     rating: Number(p?.rating || 4),
     price: Number(p?.price || p?.selling_price || p?.amount || 0),
     inStock: Boolean(p?.in_stock ?? true),
@@ -516,20 +519,47 @@ export default function CarPartDetails() {
   const ProductPanel = ({ ui }: { ui: ReturnType<typeof mapApiToUi> }) => {
     const [qty, setQty] = useState(2)
     const [activeIdx, setActiveIdx] = useState(0)
+    const { user } = useAuth()
+    const [adding, setAdding] = useState(false)
+    const [showPopup, setShowPopup] = useState(false)
+
     const inc = () => setQty((v) => Math.min(v + 1, 99))
     const dec = () => setQty((v) => Math.max(v - 1, 1))
     const mainImage = ui.gallery[activeIdx] || ui.image
+
+    const onAddToCart = async () => {
+      if (adding) return
+      setAdding(true)
+      try {
+        if (user && user.id) {
+          await addToCartApi({ user_id: user.id, product_id: ui.id, quantity: qty })
+        } else {
+          addGuestCartItem(ui.id, qty)
+        }
+        setShowPopup(true)
+        // Open global cart popup
+        navigate({ hash: '#cart' })
+        setTimeout(() => setShowPopup(false), 1200)
+      } catch (e) {
+        setShowPopup(true)
+        navigate({ hash: '#cart' })
+        setTimeout(() => setShowPopup(false), 1200)
+      } finally {
+        setAdding(false)
+      }
+    }
+
     return (
       <div className="rounded-xl bg-white p-4 ring-1 ring-black/10">
         <div className="grid gap-6 lg:grid-cols-[360px_1fr_280px]">
           <aside className="rounded-lg bg-white">
             <div className="flex items-center justify-center rounded-lg bg-[#F6F5FA] p-6">
-              <img src={mainImage} alt={ui.name} className="h-[320px] w-auto object-contain" onError={(e)=>{(e.currentTarget as HTMLImageElement).src='/gapa-logo.png'}} />
+              <img src={mainImage} alt={ui.name} className="h-[320px] w-auto object-contain" onError={(e)=>{(e.currentTarget as HTMLImageElement).src=logoImg}} />
             </div>
             <div className="mt-3 grid grid-cols-4 gap-2">
               {ui.gallery.map((g, i) => (
                 <button key={i} onClick={() => setActiveIdx(i)} className={`flex items-center justify-center rounded-lg bg-[#F6F5FA] p-2 ring-1 ring-black/10 ${i===activeIdx ? 'outline-2 outline-accent' : ''}`} aria-label={`Preview ${i+1}`}>
-                  <img src={g} alt={`Preview ${i+1}`} className="h-14 w-auto object-contain" onError={(e)=>{(e.currentTarget as HTMLImageElement).src='/gapa-logo.png'}} />
+                  <img src={g} alt={`Preview ${i+1}`} className="h-14 w-auto object-contain" onError={(e)=>{(e.currentTarget as HTMLImageElement).src=logoImg}} />
                 </button>
               ))}
             </div>
@@ -537,7 +567,7 @@ export default function CarPartDetails() {
 
           <div className="space-y-3">
             <div className="flex items-start gap-2">
-              <img src={ui.brandLogo} alt={ui.brand} className="h-6 w-auto" onError={(e)=>{(e.currentTarget as HTMLImageElement).src='/gapa-logo.png'}} />
+              <img src={ui.brandLogo} alt={ui.brand} className="h-6 w-auto" onError={(e)=>{(e.currentTarget as HTMLImageElement).src=logoImg}} />
               <div className="ml-auto text-right text-[12px] text-gray-500">
                 <div>Article No: {ui.articleNo}</div>
               </div>
@@ -565,13 +595,23 @@ export default function CarPartDetails() {
               <div className="inline-flex h-7 items-center justify-center rounded-md border border-black/10 px-2 text-[12px]">{qty}</div>
               <button aria-label="Increase" onClick={inc} className="inline-flex h-7 w-7 items-center justify-center rounded-md ring-1 ring-black/10 text-gray-700">›</button>
             </div>
-            <button className="mt-3 inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-[#F7CD3A] text-[14px] font-semibold text-gray-900 ring-1 ring-black/10 hover:bg-[#f9d658]">
+            <button onClick={onAddToCart} disabled={adding} className="mt-3 inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-[#F7CD3A] text-[14px] font-semibold text-gray-900 ring-1 ring-black/10 hover:bg-[#f9d658] disabled:opacity-60">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="21" r="1" /><circle cx="20" cy="21" r="1" /><path d="M1 1h4l2.68 12.39a2 2 0 0 0 2 1.61h7.72a2 2 0 0 0 2-1.61L23 6H6" /></svg>
-              Add to cart
+              {adding ? 'Adding…' : 'Add to cart'}
             </button>
             <div className="mt-2 text-center text-[12px] text-purple-700">{ui.inStock ? 'In Stock' : 'Out of stock'}</div>
           </aside>
         </div>
+
+        {/* Fixed popup confirmation */}
+        {showPopup && (
+          <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 transform rounded-lg bg-gray-900 px-4 py-3 text-white shadow-lg ring-1 ring-black/20">
+            <div className="flex items-center gap-2 text-[14px]">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
+              <span>Added to cart</span>
+            </div>
+          </div>
+        )}
       </div>
     )
   }

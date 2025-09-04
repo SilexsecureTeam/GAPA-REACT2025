@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import logo from '../assets/gapa-logo.png'
+import gigImg from '../assets/GIG.png'
 
 const BRAND = {
   primary: '#5A1E78',
@@ -104,37 +105,43 @@ export default function Footer() {
         </div>
 
         {/* Link columns */}
-        <div className="md:col-span-8 grid grid-cols-2 gap-8 sm:grid-cols-3">
+        <div className="md:col-span-8 grid grid-cols-2 gap-2 sm:grid-cols-4">
           <div>
-            <h4 className="text-sm font-bold tracking-wide ">Gapa Naija</h4>
+            <h4 className="text-sm font-bold tracking-wide ">My Account</h4>
             <ul className="mt-3 space-y-2 text-sm">
-              <li><a className="hover:text-white" href="#">Car Brands</a></li>
-              <li><a className="hover:text-white" href="#">Car Parts</a></li>
-              <li><a className="hover:text-white" href="#">Tyres</a></li>
-              <li><a className="hover:text-white" href="#">Accessories</a></li>
-              <li><a className="hover:text-white" href="#">Engine Oil</a></li>
+              <li><Link className="hover:text-white" to="/account-settings">Account Settings</Link></li>
+              <li><a className="hover:text-white" href="#">My Cart</a></li>
+              <li><a className="hover:text-white" href="#">Wishlist</a></li>
+              <li><a className="hover:text-white" href="#">Order History</a></li>
             </ul>
           </div>
           <div>
             <h4 className="text-sm font-bold tracking-wide">Services</h4>
             <ul className="mt-3 space-y-2 text-sm">
-              <li><a className="hover:text-white" href="#">Help Center</a></li>
-              <li><a className="hover:text-white" href="#">Returns & Refunds</a></li>
-              <li><a className="hover:text-white" href="#">Shipping</a></li>
-              <li><a className="hover:text-white" href="#">Contact</a></li>
-              <li><a className="hover:text-white" href="#">Privacy Policy</a></li>
-              <li><a className="hover:text-white" href="#">Terms of Service</a></li>
+              <li><a className="hover:text-white" href="#">Car Parts</a></li>
+              <li><a className="hover:text-white" href="#">Engine Oil</a></li>
+              <li><a className="hover:text-white" href="#">Car Care</a></li>
+              <li><a className="hover:text-white" href="#">Car Accessories</a></li>
             </ul>
           </div>
           <div>
             <h4 className="text-sm font-bold tracking-wide ">Company</h4>
             <ul className="mt-3 space-y-2 text-sm">
-              <li><a className="hover:text-white" href="#">About Us</a></li>
+              <li><Link className="hover:text-white" to="/about">About Us</Link></li>
               <li><a className="hover:text-white" href="#">Contact Us</a></li>
-              <li><a className="hover:text-white" href="#">Terms & Policies</a></li>
-              <li><a className="hover:text-white" href="#">How it Works</a></li>
+              <li><Link className="hover:text-white" to="/terms">Terms & Conditions</Link></li>
+              <li><Link className="hover:text-white" to="/privacy-policy">Privacy Policy</Link></li>
             </ul>
           </div>
+          <div>
+            <h4 className="text-sm font-bold tracking-wide ">Support</h4>
+            <ul className="mt-3 space-y-2 text-sm">
+              <li><a className="hover:text-white" href="#">Walk in Store: Gapa Naija (1st Floor,Sunset plaza, Ademola Adetokunbo Crescent, Wuse II, FCT-Abuja, Nigeria.)</a></li>
+              <li><a className="hover:text-white" href="#">Phone: +234 708 888 5268</a></li>
+              <li><a className="hover:text-white" href="#">Email: sales@gapaautoparts.com</a></li>
+            </ul>
+          </div>
+          <img src={gigImg} alt="" className='bg-black p-1' />
           
         </div>
       </div>
@@ -142,13 +149,8 @@ export default function Footer() {
       {/* Bottom bar */}
       <div className="border-t border-white/10 !text-[#503535]">
         <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-4 py-6 text-sm  sm:flex-row sm:px-6">
-          <p>Gapa, {new Date().getFullYear()} all rights reserved</p>
-          <div className="flex items-center gap-4">
-            <Link to="/login" className="text-gray-700 hover:text-brand">Sign in</Link>
-            <Link to="/signup" className="text-gray-700 hover:text-brand">Create account</Link>
-            <a href="#privacy" className="text-gray-700 hover:text-brand">Privacy</a>
-            <a href="#terms" className="text-gray-700 hover:text-brand">Terms</a>
-          </div>
+          <p>Gapa, 2025 all right reserved</p>
+          
         </div>
       </div>
     </footer>

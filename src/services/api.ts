@@ -134,6 +134,23 @@ export async function changePassword(payload: { old_password: string; new_passwo
   })
 }
 
+// Profile update helpers (from Postman)
+export async function updateUserProfile(payload: { user_id: string | number; name?: string; address?: string; phone?: string }) {
+  const form = new URLSearchParams()
+  form.set('user_id', String(payload.user_id))
+  if (payload.name !== undefined) form.set('name', payload.name)
+  if (payload.address !== undefined) form.set('address', payload.address)
+  if (payload.phone !== undefined) form.set('phone', payload.phone)
+  return apiRequest<{ message?: string; user?: Profile }>('/updateUserProfile', { method: 'POST', body: form, auth: true })
+}
+
+export async function updateProfilePhoto(payload: { user_id: string | number; file: File | Blob }) {
+  const form = new FormData()
+  form.set('user_id', String(payload.user_id))
+  form.set('img_url', payload.file)
+  return apiRequest<{ message?: string; user?: Profile }>('/updateProfileProfile', { method: 'POST', body: form, auth: true })
+}
+
 // ----- Catalog APIs (from Postman collection) -----
 export type ApiProduct = Record<string, any>
 export type ApiBrand = { id?: string | number; name?: string; title?: string; logo?: string; image?: string } & Record<string, any>
@@ -160,6 +177,23 @@ export const ENDPOINTS = {
   // vehicle drill-down
   modelsByBrandId: (brandId: string) => `/getModelByBrandId?brand_id=${encodeURIComponent(brandId)}`,
   subModelsByModelId: (modelId: string) => `/getSubModelByModelId?model_id=${encodeURIComponent(modelId)}`,
+} as const
+
+export const CART_ENDPOINTS = {
+  addToCart: '/product/add-to-cart',
+  increase: '/product/increase_cart',
+  updateQty: '/product/update_cart_quantity',
+  getAllForUser: (userId: string | number) => `/product/getAllcart/${userId}`,
+  removeByQuery: (userId: string | number, productId: string) => `/product/removeProductFromCart?product_id=${encodeURIComponent(productId)}&user_id=${encodeURIComponent(String(userId))}`,
+  deleteById: '/product/delete_product_cart',
+  total: '/product/get_total_cart',
+} as const
+
+// Address/Location endpoints from Postman
+export const ADDRESS_ENDPOINTS = {
+  updateAddress: '/updateAddress', // POST urlencoded: address, user_id
+  getAllStates: '/getAllStates',
+  getStatesByLocation: (location: string) => `/get-states?location=${encodeURIComponent(location)}`,
 } as const
 
 // Generic unwrap for variable API array envelopes
@@ -277,4 +311,75 @@ export async function getModelsByBrandId(brandId: string) {
 export async function getSubModelsByModelId(modelId: string) {
   const res = await apiRequest<any>(ENDPOINTS.subModelsByModelId(modelId))
   return unwrapArray<any>(res)
+}
+
+export async function addToCartApi(payload: { user_id: number | string; product_id: string; quantity: number }) {
+  const form = new URLSearchParams()
+  form.set('user_id', String(payload.user_id))
+  form.set('product_id', payload.product_id)
+  form.set('quantity', String(payload.quantity))
+  return apiRequest<any>(CART_ENDPOINTS.addToCart, { method: 'POST', body: form, auth: true })
+}
+
+export async function getUserCartTotal() {
+  try {
+    const res = await apiRequest<any>(CART_ENDPOINTS.total, { method: 'GET', auth: true })
+    return res
+  } catch (e) {
+    return null
+  }
+}
+
+// New: cart items retrieval
+export async function getCartForUser(userId: string | number) {
+  const res = await apiRequest<any>(CART_ENDPOINTS.getAllForUser(userId), { method: 'GET', auth: true })
+  // Attempt to unwrap arrays in various envelopes
+  if (Array.isArray(res)) return res
+  if (res?.data && Array.isArray(res.data)) return res.data
+  if (res && typeof res === 'object') {
+    for (const k of Object.keys(res)) {
+      const v = (res as any)[k]
+      if (Array.isArray(v)) return v
+    }
+  }
+  return []
+}
+
+export async function removeCartItem(userId: string | number, productId: string) {
+  return apiRequest<any>(CART_ENDPOINTS.removeByQuery(userId, productId), { method: 'GET', auth: true })
+}
+
+export async function updateCartQuantity(payload: { user_id: string | number; product_id: string; quantity: number }) {
+  const form = new URLSearchParams()
+  form.set('user_id', String(payload.user_id))
+  form.set('product_id', payload.product_id)
+  form.set('quantity', String(payload.quantity))
+  return apiRequest<any>(CART_ENDPOINTS.updateQty, { method: 'POST', body: form, auth: true })
+}
+
+export async function increaseCartItem(payload: { user_id: string | number; product_id: string }) {
+  const form = new URLSearchParams()
+  form.set('user_id', String(payload.user_id))
+  form.set('product_id', payload.product_id)
+  return apiRequest<any>(CART_ENDPOINTS.increase, { method: 'POST', body: form, auth: true })
+}
+
+// ----- Address helpers -----
+export type ApiState = { id?: string | number; name?: string; state?: string; title?: string } & Record<string, any>
+
+export async function getAllStatesApi() {
+  const res = await apiRequest<any>(ADDRESS_ENDPOINTS.getAllStates)
+  return unwrapArray<ApiState>(res)
+}
+
+export async function getStatesByLocation(location: string = 'gapa') {
+  const res = await apiRequest<any>(ADDRESS_ENDPOINTS.getStatesByLocation(location))
+  return unwrapArray<ApiState>(res)
+}
+
+export async function updateDeliveryAddress(payload: { user_id: string | number; address: string }) {
+  const form = new URLSearchParams()
+  form.set('user_id', String(payload.user_id))
+  form.set('address', payload.address)
+  return apiRequest<any>(ADDRESS_ENDPOINTS.updateAddress, { method: 'POST', body: form, auth: true })
 }

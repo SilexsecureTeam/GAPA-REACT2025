@@ -6,9 +6,10 @@ import useWishlist from '../hooks/useWishlist'
 import carShop from '../assets/car-shop.png'
 import FallbackLoader from '../components/FallbackLoader'
 import { getAllBrands, getAllCategories, getFeaturedProducts, getManufacturers, getPartners, type ApiBrand, type ApiCategory, type ApiManufacturer, type ApiPartner, type ApiProduct, liveSearch, getModelsByBrandId, getSubModelsByModelId } from '../services/api'
-import { pickImage, normalizeApiImage, productImageFrom, categoryImageFrom, brandImageFrom, partnerImageFrom } from '../services/images'
+import { pickImage, normalizeApiImage, productImageFrom, categoryImageFrom, partnerImageFrom } from '../services/images'
 import { useNavigate } from 'react-router-dom'
 import { Link } from 'react-router-dom'
+import TopBrands from '../components/TopBrands'
 
 // Remove static MAKERS/MODELS/ENGINES and derive from API drill-down (brands -> models -> engines)
 // Helpers to unwrap API shapes and map images safely
@@ -295,40 +296,6 @@ export default function Home() {
       setTab(2)
       tabRefs.current[2]?.focus()
     }
-  }
-
-  // Offers carousel state
-  const offersRef = useRef<HTMLDivElement | null>(null)
-  const [canPrev, setCanPrev] = useState(false)
-  const [canNext, setCanNext] = useState(true)
-
-  const updateOfferButtons = () => {
-    const el = offersRef.current
-    if (!el) return
-    const { scrollLeft, scrollWidth, clientWidth } = el
-    setCanPrev(scrollLeft > 0)
-    setCanNext(scrollLeft + clientWidth < scrollWidth - 1)
-  }
-
-  useEffect(() => {
-    updateOfferButtons()
-    const el = offersRef.current
-    if (!el) return
-    const onScroll = () => updateOfferButtons()
-    el.addEventListener('scroll', onScroll, { passive: true })
-    const onResize = () => updateOfferButtons()
-    window.addEventListener('resize', onResize)
-    return () => {
-      el.removeEventListener('scroll', onScroll)
-      window.removeEventListener('resize', onResize)
-    }
-  }, [])
-
-  const scrollByAmount = (dir: -1 | 1) => {
-    const el = offersRef.current
-    if (!el) return
-    const amount = el.clientWidth * 0.9 * dir
-    el.scrollBy({ left: amount, behavior: 'smooth' })
   }
 
   // Simplified renderer for tab panel content to avoid nested JSX/paren issues
@@ -650,51 +617,18 @@ export default function Home() {
       </section>
 
       {/* Top brands (from API) */}
-      <section className="mx-auto max-w-7xl px-4 pb-2 pt-2 sm:px-6">
-        <div className="flex items-center justify-between">
-          <h3 className="text-[14px] font-semibold text-gray-900 sm:text-[16px]">Top brands</h3>
-          <a href="#" className="inline-flex items-center gap-1 text-xs font-medium text-brand hover:underline">View all
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M5 12h14" />
-              <path d="M12 5l7 7-7 7" />
-            </svg>
-          </a>
-        </div>
-        {loading ? (
-          <FallbackLoader label="Loading brands…" />
-        ) : (
-          <div className="mt-3 flex items-center justify-between gap-6 overflow-x-auto rounded-xl bg-white px-4 py-3 ring-1 ring-black/10">
-            {brands.slice(0, 12).map((b, i) => {
-              const name = brandNameOf(b)
-              const logo = brandImageFrom(b) || imgOf(b)
-              return (
-                <div key={`brand-logo-${String((b as any)?.id ?? i)}-${i}`} className="shrink-0">
-                  {logo ? <img src={normalizeApiImage(logo) || '/gapa-logo.png'} alt={name} className="max-h-12 w-auto object-contain" onError={(e)=>{(e.currentTarget as HTMLImageElement).src='/gapa-logo.png'}} /> : <span className="text-[13px] font-medium">{name}</span>}
-                </div>
-              )
-            })}
-          </div>
-        )}
-      </section>
+      <TopBrands />
 
-      {/* Special Offers on Car Parts (use featured as offers) */}
+      {/* Special Offers on Car Parts (no buttons) */}
       <section className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
         <div className="flex items-center justify-between">
           <h3 className="text-[18px] font-semibold text-gray-900 sm:text-[20px]">Special Offers on Car Parts</h3>
-          <div className="hidden items-center gap-2 sm:flex">
-            <button aria-label="Previous" className="inline-flex h-8 w-8 items-center justify-center rounded-full ring-1 ring-black/10 text-gray-600 hover:bg-gray-50 disabled:opacity-50" onClick={() => scrollByAmount(-1)} disabled={!canPrev}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
-            </button>
-            <button aria-label="Next" className="inline-flex h-8 w-8 items-center justify-center rounded-full ring-1 ring-black/10 text-gray-600 hover:bg-gray-50 disabled:opacity-50" onClick={() => scrollByAmount(1)} disabled={!canNext}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
-            </button>
-          </div>
         </div>
         {/* Carousel */}
         {loading ? (
           <FallbackLoader label="Loading offers…" />
         ) : (
-          <div ref={offersRef} className="mt-4 py-4 pl-4 overflow-x-auto scroll-smooth [scrollbar-width:none] [-ms-overflow-style:none]" aria-label="Special offers carousel">
+          <div className="mt-4 py-4 pl-4 overflow-x-auto scroll-smooth [scrollbar-width:none] [-ms-overflow-style:none]" aria-label="Special offers carousel">
             <style>{`.no-scrollbar::-webkit-scrollbar{display:none}`}</style>
             <div className="no-scrollbar grid auto-cols-[minmax(16rem,20rem)] grid-flow-col gap-6 sm:auto-cols-[minmax(18rem,22rem)] md:auto-cols-[minmax(20rem,24rem)]">
               {offers.length === 0 ? (

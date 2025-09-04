@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, useEffect } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import airLogo from '../assets/air-freshner.png'
 import airImg from '../assets/air2.png'
@@ -59,37 +59,9 @@ const SAMPLE_PRODUCTS: AFProduct[] = Array.from({ length: 8 }).map((_, i) => ({
 }))
 
 function BrandCarousel() {
-  const ref = useRef<HTMLDivElement | null>(null)
-  const [canPrev, setCanPrev] = useState(false)
-  const [canNext, setCanNext] = useState(true)
-  const update = () => {
-    const el = ref.current
-    if (!el) return
-    setCanPrev(el.scrollLeft > 0)
-    setCanNext(el.scrollLeft + el.clientWidth < el.scrollWidth - 2)
-  }
-  useEffect(() => {
-    update()
-    const el = ref.current
-    if (!el) return
-    const onScroll = () => update()
-    el.addEventListener('scroll', onScroll, { passive: true })
-    window.addEventListener('resize', update)
-    return () => {
-      el.removeEventListener('scroll', onScroll)
-      window.removeEventListener('resize', update)
-    }
-  }, [])
   return (
     <div className="relative mt-3">
-      <div className="flex items-center justify-between">
-        <div className="flex-1" />
-        <div className="hidden items-center gap-2 sm:flex">
-          <button aria-label="Prev" onClick={() => ref.current?.scrollBy({ left: -280, behavior: 'smooth' })} disabled={!canPrev} className="inline-flex h-7 w-7 items-center justify-center rounded-full ring-1 ring-black/10 text-gray-700 disabled:opacity-50">◀</button>
-          <button aria-label="Next" onClick={() => ref.current?.scrollBy({ left: 280, behavior: 'smooth' })} disabled={!canNext} className="inline-flex h-7 w-7 items-center justify-center rounded-full ring-1 ring-black/10 text-gray-700 disabled:opacity-50">▶</button>
-        </div>
-      </div>
-      <div ref={ref} className="mt-2 flex items-center justify-between gap-6 overflow-x-auto rounded-xl bg-white px-4 py-3 ring-1 ring-black/10">
+      <div className="mt-2 flex items-center justify-between gap-6 overflow-x-auto rounded-xl bg-white px-4 py-3 ring-1 ring-black/10">
         {BRANDS.map((b) => (
           <div key={b.name} className="shrink-0">
             <img src={b.logo} alt={b.name} className="h-10 w-auto object-contain" />

@@ -1,4 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
+import logoImg from '../assets/gapa-logo.png'
 
 export default function SearchError() {
   const navigate = useNavigate()
@@ -52,7 +53,7 @@ export default function SearchError() {
                 <div className="p-4 pr-0">
                   <div className="mt-2 grid grid-cols-[110px_1fr] gap-3 pr-4 md:grid-cols-[140px_1fr]">
                     <a href={suggestHref} className="flex items-center justify-center rounded-lg bg-[#F6F5FA]">
-                      <img src={suggest.image || '/gapa-logo.png'} alt={suggest.title} className="h-28 w-auto object-contain md:h-32" onError={(e)=>{(e.currentTarget as HTMLImageElement).src='/gapa-logo.png'}} />
+                      <img src={suggest.image || logoImg} alt={suggest.title} className="h-28 w-auto object-contain md:h-32" onError={(e)=>{(e.currentTarget as HTMLImageElement).src=logoImg}} />
                     </a>
                     <div>
                       <a href={suggestHref} className="font-semibold text-left text-gray-900 underline-offset-2 hover:underline">{suggest.title}</a>

@@ -290,14 +290,14 @@ export default function Header() {
             </a>
 
             {/* Cart */}
-            <a href="#cart" className="hidden md:inline-flex items-center gap-2 text-[14px] text-gray-900">
+            <Link to={{ pathname: location.pathname, search: location.search, hash: '#cart' }} replace className="hidden md:inline-flex items-center gap-2 text-[14px] text-gray-900">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-700">
                 <circle cx="9" cy="21" r="1" />
                 <circle cx="20" cy="21" r="1" />
                 <path d="M1 1h4l2.68 12.39a2 2 0 0 0 2 1.61h7.72a2 2 0 0 0 2-1.61L23 6H6" />
               </svg>
               <span className="font-medium">My Cart</span>
-            </a>
+            </Link>
 
             {/* Auth */}
             {user ? (
@@ -320,7 +320,7 @@ export default function Header() {
                   </svg>
                   <span>Sign In</span>
                 </Link>
-                <Link to="/signup" className="text-[14px] font-medium text-white hover:underline">Create account</Link>
+                {/* <Link to="/signup" className="text-[14px] font-medium text-white hover:underline">Create account</Link> */}
               </div>
             )}
           </div>
@@ -362,6 +362,8 @@ export default function Header() {
                       // Navigate to mapped routes for non-car-parts/brands
                       if (cat.label === 'Tyres') navigate('/tyres')
                       else if (cat.label === 'Engine Oil') navigate('/engine-oil')
+                      else if (cat.label === 'Tools') navigate('/tools')
+                      else if (cat.label === 'Brakes') navigate('/brakes')
                       else navigate('/parts')
                     }
                   }}

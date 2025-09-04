@@ -5,6 +5,7 @@ import WishlistButton from '../components/WishlistButton'
 import useWishlist from '../hooks/useWishlist'
 import FallbackLoader from '../components/FallbackLoader'
 import { getProductById, getProductOEM } from '../services/api'
+import logoImg from '../assets/gapa-logo.png'
 import { normalizeApiImage, pickImage, productImageFrom } from '../services/images'
 
 type Attr = { label: string; value: string }
@@ -28,12 +29,12 @@ type UiProduct = {
 function mapApiToUi(p: any): UiProduct {
   const id = String(p?.id ?? p?.product_id ?? '')
   const brandName = String(p?.brand?.name || p?.brand || p?.manufacturer || p?.maker || 'GAPA')
-  const brandLogo = normalizeApiImage(pickImage(p?.brand)) || normalizeApiImage(p?.brand_logo) || normalizeApiImage(pickImage(p)) || '/gapa-logo.png'
+  const brandLogo = normalizeApiImage(pickImage(p?.brand)) || normalizeApiImage(p?.brand_logo) || normalizeApiImage(pickImage(p)) || logoImg
   const name = String(p?.name || p?.title || p?.product_name || 'Car Part')
   const articleNo = String(p?.article_no || p?.article || p?.sku || p?.code || 'N/A')
   const price = Number(p?.price || p?.selling_price || p?.amount || 0)
   // Use productImageFrom for proper CDN path
-  const image = productImageFrom(p) || normalizeApiImage(pickImage(p) || '') || '/gapa-logo.png'
+  const image = productImageFrom(p) || normalizeApiImage(pickImage(p) || '') || logoImg
   const rawImages: any[] = Array.isArray(p?.images) ? p.images : Array.isArray(p?.gallery) ? p.gallery : []
   // Build gallery using productImageFrom for objects, normalize for strings
   const builtGallery = rawImages.map((x) => {
@@ -59,7 +60,7 @@ function mapApiToUi(p: any): UiProduct {
     }
   }
   const description = String(p?.description || p?.details || '')
-  return { id, brand: brandName, brandLogo: brandLogo || '/gapa-logo.png', name, articleNo, price, image, gallery: gallery.length ? gallery : [image], rating, reviews, inStock, attributes, description }
+  return { id, brand: brandName, brandLogo: brandLogo || logoImg, name, articleNo, price, image, gallery: gallery.length ? gallery : [image], rating, reviews, inStock, attributes, description }
 }
 
 export default function ProductDetails() {
@@ -150,12 +151,12 @@ export default function ProductDetails() {
           {/* Gallery */}
           <aside className="rounded-xl bg-white p-4 ring-1 ring-black/10">
             <div className="flex items-center justify-center rounded-lg bg-[#F6F5FA] p-6">
-              <img src={mainImage} alt={prod.name} className="h-[360px] w-auto object-contain" onError={(e)=>{(e.currentTarget as HTMLImageElement).src='/gapa-logo.png'}} />
+              <img src={mainImage} alt={prod.name} className="h-[360px] w-auto object-contain" onError={(e)=>{(e.currentTarget as HTMLImageElement).src=logoImg}} />
             </div>
             <div className="mt-3 grid grid-cols-4 gap-2">
               {prod.gallery.map((g, i) => (
                 <button key={i} onClick={() => setActiveIdx(i)} className={`flex items-center justify-center rounded-lg bg-[#F6F5FA] p-2 ring-1 ring-black/10 ${i===activeIdx ? 'outline-2 outline-accent' : ''}`} aria-label={`Preview ${i+1}`}>
-                  <img src={g} alt={`Preview ${i+1}`} className="h-16 w-auto object-contain" onError={(e)=>{(e.currentTarget as HTMLImageElement).src='/gapa-logo.png'}} />
+                  <img src={g} alt={`Preview ${i+1}`} className="h-16 w-auto object-contain" onError={(e)=>{(e.currentTarget as HTMLImageElement).src=logoImg}} />
                 </button>
               ))}
             </div>
@@ -164,7 +165,7 @@ export default function ProductDetails() {
           {/* Details */}
           <div className="space-y-3">
             <div className="flex items-start gap-2">
-              <img src={prod.brandLogo} alt={prod.brand} className="h-6 w-auto" onError={(e)=>{(e.currentTarget as HTMLImageElement).src='/gapa-logo.png'}} />
+              <img src={prod.brandLogo} alt={prod.brand} className="h-6 w-auto" onError={(e)=>{(e.currentTarget as HTMLImageElement).src=logoImg}} />
               <div className="ml-auto text-right text-[12px] text-gray-500">
                 <div>Article No: {prod.articleNo}</div>
                 {oem.length > 0 && (

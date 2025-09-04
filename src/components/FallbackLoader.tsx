@@ -1,5 +1,5 @@
 export default function FallbackLoader({ label = 'Loading…' }: { label?: string }) {
-  const logo = '/gapa-logo.png'
+  const logo = '../assets/gapa-logo.png' // Fallback for dev environment without env variables
   return (
     <div className="grid min-h-[220px] place-content-center py-12">
       <div className="flex flex-col items-center gap-5">
