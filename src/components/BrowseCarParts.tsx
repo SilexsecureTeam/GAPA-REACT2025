@@ -3,6 +3,7 @@ import ProductCard, { type Product } from './ProductCard'
 import FallbackLoader from './FallbackLoader'
 import { getFeaturedProducts, type ApiProduct } from '../services/api'
 import { pickImage, normalizeApiImage, productImageFrom } from '../services/images'
+import logoImg from '../assets/gapa-logo.png'
 
 export type BrowseCarPartsProps = {
   title?: string
@@ -57,7 +58,7 @@ export default function BrowseCarParts({ title = 'Browse Car Parts', className =
       return {
         id: String((it as any)?.id ?? (it as any)?.product_id ?? i),
         title: (it as any)?.name || (it as any)?.title || (it as any)?.product_name || 'Car Part',
-        image: productImageFrom(it) || normalizeApiImage(pickImage(it) || '') || '/gapa-logo.png',
+        image: productImageFrom(it) || normalizeApiImage(pickImage(it) || '') || logoImg,
         rating: Number((it as any)?.rating || 4),
         brandSlug: brandNameLocal ? toSlug(brandNameLocal) : undefined,
         partSlug: catName ? toSlug(catName) : undefined,

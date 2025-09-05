@@ -13,6 +13,46 @@ export default function Footer() {
   const [email, setEmail] = useState('')
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
 
+  // Social links config
+  const socials = [
+    {
+      label: 'Facebook',
+      href: '#',
+      icon: (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+          <path d="M22 12a10 10 0 1 0-11.5 9.9v-7h-2v-3h2v-2.3c0-2 1.2-3.1 3-3.1.9 0 1.8.1 1.8.1v2h-1c-1 0-1.3.6-1.3 1.2V12h2.3l-.4 3h-1.9v7A10 10 0 0 0 22 12"/>
+        </svg>
+      ),
+    },
+    {
+      label: 'Twitter',
+      href: '#',
+      icon: (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+          <path d="M22 5.9c-.7.3-1.5.5-2.3.6a4 4 0 0 0 1.7-2.2 8.1 8.1 0 0 1-2.5 1 4 4 0 0 0-6.9 3.6A11.4 11.4 0 0 1 3 4.8a4 4 0 0 0 1.2 5.3c-.6 0-1.2-.2-1.7-.5a4 4 0 0 0 3.2 3.9 4 4 0 0 1-1.7.1 4 4 0 0 0 3.7 2.8A8 8 0 0 1 2 18.6a11.4 11.4 0 0 0 6.2 1.8c7.5 0 11.7-6.3 11.7-11.7v-.5c.8-.5 1.5-1.2 2.1-2z"/>
+        </svg>
+      ),
+    },
+    {
+      label: 'Instagram',
+      href: '#',
+      icon: (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+          <path d="M7 2h10a5 5 0 0 1 5 5v10a5 5 0 0 1-5 5H7a5 5 0 0 1-5-5V7a5 5 0 0 1 5-5zm5 6.5A4.5 4.5 0 1 0 16.5 13 4.5 4.5 0 0 0 12 8.5zM18 6.2a1.2 1.2 0 1 0 1.2 1.2A1.2 1.2 0 0 0 18 6.2z"/>
+        </svg>
+      ),
+    },
+    {
+      label: 'LinkedIn',
+      href: '#',
+      icon: (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+          <path d="M6.94 6.94A2.06 2.06 0 1 1 4.88 4.9a2.06 2.06 0 0 1 2.06 2.05zM4.75 8.75h4.25v10.5H4.75zM14 8.75a5.25 5.25 0 0 1 5.25 5.25v5.25H15v-5.25a1.25 1.25 0 0 0-2.5 0v5.25H8.75V8.75H12c.7 0 1.34.32 1.75.83.69-.52 1.54-.83 2.25-.83z"/>
+        </svg>
+      ),
+    },
+  ]
+
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault()
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -77,27 +117,23 @@ export default function Footer() {
         {/* Brand and blurb */}
         <div className="md:col-span-4">
           <div className="flex items-center gap-2 max-w-50">
-            <img src={logo} alt="" />
+            <img src={logo} alt="Gapa Naija" />
           </div>
           <p className="mt-4 max-w-sm text-sm ">
             Your trusted destination for genuine car parts, expert service, and seamless auto-care. Fast delivery across Nigeria.
           </p>
           <div className="mt-6 flex items-center gap-3">
-            {[
-              { label: 'Facebook', href: '#', icon: (
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" ><path d="M22 12a10 10 0 1 0-11.5 9.9v-7h-2v-3h2v-2.3c0-2 1.2-3.1 3-3.1.9 0 1.8.1 1.8.1v2h-1c-1 0-1.3.6-1.3 1.2V12h2.3l-.4 3h-1.9v7A10 10 0 0 0 22 12"/></svg>
-              )},
-              { label: 'Twitter', href: '#', icon: (
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" ><path d="M22 5.9c-.7.3-1.5.5-2.3.6a4 4 0 0 0 1.7-2.2 8.1 8.1 0 0 1-2.5 1 4 4 0 0 0-6.9 3.6A11.4 11.4 0 0 1 3 4.8a4 4 0 0 0 1.2 5.3c-.6 0-1.2-.2-1.7-.5a4 4 0 0 0 3.2 3.9 4 4 0 0 1-1.7.1 4 4 0 0 0 3.7 2.8A8 8 0 0 1 2 18.6a11.4 11.4 0 0 0 6.2 1.8c7.5 0 11.7-6.3 11.7-11.7v-.5c.8-.5 1.5-1.2 2.1-2z"/></svg>
-              )},
-              { label: 'Instagram', href: '#', icon: (
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" ><path d="M7 2h10a5 5 0 0 1 5 5v10a5 5 0 0 1-5 5H7a5 5 0 0 1-5-5V7a5 5 0 0 1 5-5zm5 6.5A4.5 4.5 0 1 0 16.5 13 4.5 4.5 0 0 0 12 8.5zM18 6.2a1.2 1.2 0 1 0 1.2 1.2A1.2 1.2 0 0 0 18 6.2z"/></svg>
-              )},
-              { label: 'LinkedIn', href: '#', icon: (
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" ><path d="M6.94 6.94A2.06 2.06 0 1 1 4.88 4.9a2.06 2.06 0 0 1 2.06 2.05zM4.75 8.75h4.25v10.5H4.75zM14 8.75a5.25 5.25 0 0 1 5.25 5.25v5.25H15v-5.25a1.25 1.25 0 0 0-2.5 0v5.25H8.75V8.75H12c.7 0 1.34.32 1.75.83.69-.52 1.54-.83 2.25-.83z"/></svg>
-              )},
-            ].map((s) => (
-              <a key={s.label} aria-label={s.label} href={s.href} className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/5 ring-1 ring-white/10 transition hover:bg-white/10">
+            {/* Social links */}
+            {socials.map((s) => (
+              <a
+                key={s.label}
+                href={s.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20"
+                aria-label={s.label}
+                title={s.label}
+              >
                 {s.icon}
               </a>
             ))}
@@ -128,7 +164,7 @@ export default function Footer() {
             <h4 className="text-sm font-bold tracking-wide ">Company</h4>
             <ul className="mt-3 space-y-2 text-sm">
               <li><Link className="hover:text-white" to="/about">About Us</Link></li>
-              <li><a className="hover:text-white" href="#">Contact Us</a></li>
+              <li><Link className="hover:text-white" to="/contact">Contact Us</Link></li>
               <li><Link className="hover:text-white" to="/terms">Terms & Conditions</Link></li>
               <li><Link className="hover:text-white" to="/privacy-policy">Privacy Policy</Link></li>
             </ul>
@@ -141,7 +177,7 @@ export default function Footer() {
               <li><a className="hover:text-white" href="#">Email: sales@gapaautoparts.com</a></li>
             </ul>
           </div>
-          <img src={gigImg} alt="" className='bg-black p-1' />
+          <img src={gigImg} alt="GIG Logistics" className='bg-black p-1' />
           
         </div>
       </div>

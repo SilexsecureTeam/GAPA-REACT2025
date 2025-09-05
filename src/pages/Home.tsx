@@ -10,6 +10,7 @@ import { pickImage, normalizeApiImage, productImageFrom, categoryImageFrom, part
 import { useNavigate } from 'react-router-dom'
 import { Link } from 'react-router-dom'
 import TopBrands from '../components/TopBrands'
+import logoImg from '../assets/gapa-logo.png'
 
 // Remove static MAKERS/MODELS/ENGINES and derive from API drill-down (brands -> models -> engines)
 // Helpers to unwrap API shapes and map images safely
@@ -62,7 +63,7 @@ function OfferCard({ offer }: { offer: Offer }) {
       </div>
       <div className="p-4">
         <div className="flex h-40 items-center justify-center overflow-hidden rounded-lg ">
-          <img src={normalizeApiImage(offer.image) || '/gapa-logo.png'} alt={offer.title} className="h-full w-full object-contain" onError={(e)=>{(e.currentTarget as HTMLImageElement).src='/gapa-logo.png'}} />
+          <img src={normalizeApiImage(offer.image) || logoImg} alt={offer.title} className="h-full w-full object-contain" onError={(e)=>{(e.currentTarget as HTMLImageElement).src=logoImg}} />
         </div>
         <div className="mt-3 space-y-1">
           <div className="flex items-center gap-1 text-[12px] text-gray-600">
@@ -178,7 +179,7 @@ export default function Home() {
     return {
       id: String((it as any)?.id ?? (it as any)?.product_id ?? i),
       title: (it as any)?.name || (it as any)?.title || (it as any)?.product_name || 'Car Part',
-      image: productImageFrom(it) || normalizeApiImage(pickImage(it) || '') || '/gapa-logo.png',
+      image: productImageFrom(it) || normalizeApiImage(pickImage(it) || '') || logoImg,
       rating: Number((it as any)?.rating || 4),
       brandSlug: brandNameLocal ? toSlug(brandNameLocal) : undefined,
       partSlug: catName ? toSlug(catName) : undefined,
@@ -188,7 +189,7 @@ export default function Home() {
   const offers: Offer[] = featured.slice(0, 8).map((it, i) => ({
     id: String((it as any)?.id ?? (it as any)?.product_id ?? i),
     title: (it as any)?.name || (it as any)?.title || (it as any)?.product_name || 'Car Part',
-    image: productImageFrom(it) || normalizeApiImage(pickImage(it) || '') || '/gapa-logo.png',
+    image: productImageFrom(it) || normalizeApiImage(pickImage(it) || '') || logoImg,
     rating: Number((it as any)?.rating || 4.2),
     price: Number((it as any)?.price || (it as any)?.selling_price || (it as any)?.amount || 40000),
     reviews: Number((it as any)?.reviews_count || (it as any)?.reviews || 0),
@@ -305,13 +306,13 @@ export default function Home() {
         <>
           {categories.slice(0, 4).map((c, idx) => {
             const name = (c as any)?.name || (c as any)?.title || 'Category'
-            const icon = categoryImageFrom(c) || normalizeApiImage(pickImage(c) || '') || '/gapa-logo.png'
+            const icon = categoryImageFrom(c) || normalizeApiImage(pickImage(c) || '') || logoImg
             const links = [name, 'Popular', 'New', 'Top Rated', 'Budget']
             return (
               <div key={`cat-${idx}`} className="rounded-xl bg-white p-4 ">
                 <div className="flex justify-center gap-4">
                   <div className="flex h-auto sm:w-40 ring-1 ring-black/10 p-4 items-center justify-center rounded-lg">
-                    <img src={icon} alt={name} className="h-full w-full object-contain" onError={(e)=>{(e.currentTarget as HTMLImageElement).src='/gapa-logo.png'}} />
+                    <img src={icon} alt={name} className="h-full w-full object-contain" onError={(e)=>{(e.currentTarget as HTMLImageElement).src=logoImg}} />
                   </div>
                   <div>
                     <h5 className="text-[14px] font-semibold text-gray-900">{name}</h5>
@@ -528,12 +529,12 @@ export default function Home() {
           <div className="mt-4 grid grid-cols-2 gap-10 md:grid-cols-4">
             {categories.slice(0, 8).map((c) => {
               const name = (c as any)?.name || (c as any)?.title || 'Category'
-              const img = categoryImageFrom(c) || normalizeApiImage(pickImage(c) || '') || '/gapa-logo.png'
+              const img = categoryImageFrom(c) || normalizeApiImage(pickImage(c) || '') || logoImg
               const partSlug = String(name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
               return (
                 <Link key={String((c as any)?.id || name)} to={`/parts/${partSlug}`} className="group rounded-xl p-3 transition">
                   <div className="flex h-42 w-full ring-1 ring-black/10 py-2 items-center justify-center overflow-hidden rounded-lg">
-                    <img src={img} alt={name} className="h-full w-full object-contain" onError={(e)=>{(e.currentTarget as HTMLImageElement).src='/gapa-logo.png'}} />
+                    <img src={img} alt={name} className="h-full w-full object-contain" onError={(e)=>{(e.currentTarget as HTMLImageElement).src=logoImg}} />
                   </div>
                   <p className="mt-3 text-center text-[12px] font-semibold uppercase tracking-wide text-gray-800">{name}</p>
                 </Link>
@@ -683,7 +684,7 @@ export default function Home() {
               const logo = partnerImageFrom(p) || imgOf(p)
               return (
                 <div key={`partner-logo-${String((p as any)?.id ?? i)}-${i}`} className="shrink-0">
-                  {logo ? <img src={normalizeApiImage(logo) || '/gapa-logo.png'} alt={name} className="h-10 w-auto object-contain" onError={(e)=>{(e.currentTarget as HTMLImageElement).src='/gapa-logo.png'}} /> : <span className="text-[13px] font-medium">{name}</span>}
+                  {logo ? <img src={normalizeApiImage(logo) || logoImg} alt={name} className="h-10 w-auto object-contain" onError={(e)=>{(e.currentTarget as HTMLImageElement).src=logoImg}} /> : <span className="text-[13px] font-medium">{name}</span>}
                 </div>
               )
             })}

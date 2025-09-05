@@ -105,17 +105,17 @@ export default function AccountSettings() {
 
   return (
     <div className="bg-white">
-      <header className="bg-[#F8F5FC]">
-        <div className="mx-auto max-w-5xl px-4 py-12 sm:px-6">
+      <header className="">
+        <div className="mx-auto max-w-5xl px-4 pt-12 sm:px-6">
           <h1 className="text-2xl sm:text-3xl font-bold text-[#0F1020]">Account Settings</h1>
           <p className="mt-2 text-sm text-gray-600">Manage your account details, password, and addresses.</p>
         </div>
       </header>
 
-      <main className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
+      <main className="mx-auto max-w-5xl px-4 py-3 sm:px-6">
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           {/* Sidebar card with avatar */}
-          <aside className="rounded-xl border border-black/10 bg-white p-6">
+          <aside className="rounded-xl hidden border border-black/10 bg-white p-6">
             <div className="flex items-center gap-4">
               <div className="h-16 w-16 overflow-hidden rounded-full ring-1 ring-black/10">
                 {user?.image ? (
@@ -136,7 +136,7 @@ export default function AccountSettings() {
           </aside>
 
           {/* Main content */}
-          <section className="lg:col-span-2 space-y-6">
+          <section className="md:col-span-3 space-y-6">
             {/* Profile details */}
             <div className="rounded-xl border border-black/10 bg-white p-6">
               <h2 className="text-base font-semibold text-[#0F1020]">Profile Information</h2>

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import FallbackLoader from './FallbackLoader'
 import { getAllBrands, type ApiBrand } from '../services/api'
 import { brandImageFrom, normalizeApiImage, pickImage } from '../services/images'
+import logoImg from '../assets/gapa-logo.png'
 
 function brandNameOf(b: any): string {
   return String(b?.name || b?.title || b?.brand_name || b?.brand || '').trim() || 'Brand'
@@ -46,24 +47,27 @@ export default function TopBrands({ title = 'Top brands', limit = 12, viewAll = 
         <div className="mt-3 flex items-center justify-between gap-6 overflow-x-auto rounded-xl bg-white px-4 py-3 ring-1 ring-black/10 no-scrollbar">
           {brands.slice(0, limit).map((b, i) => {
             const name = brandNameOf(b)
-            const logo = brandImageFrom(b) || pickImage(b)
+            // Prefer explicit brand path, fallback to any image-like field
+            const explicit = brandImageFrom(b)
+            const fallback = normalizeApiImage(pickImage(b) || '')
+            const src = explicit || fallback || logoImg
             return (
               <div key={`top-brand-${String((b as any)?.id ?? i)}-${i}`} className="shrink-0">
-                {logo ? (
-                  <img
-                    src={normalizeApiImage(logo) || '/gapa-logo.png'}
-                    alt={name}
-                    className="max-h-22 w-auto object-contain"
-                    onError={(e)=>{(e.currentTarget as HTMLImageElement).src='/gapa-logo.png'}}
-                  />
-                ) : (
-                  <span className="text-[13px] font-medium">{name}</span>
-                )}
+                <img
+                  src={src}
+                  alt={name}
+                  className="h-10 sm:h-12 w-auto object-contain"
+                  loading="lazy"
+                  decoding="async"
+                  onError={(e)=>{(e.currentTarget as HTMLImageElement).src=logoImg}}
+                />
               </div>
             )
           })}
         </div>
       )}
+      {/* Local helper to hide scrollbar if the global utility isn't present */}
+      <style>{`.no-scrollbar::-webkit-scrollbar{display:none}`}</style>
     </section>
   )
 }

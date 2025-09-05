@@ -1,5 +1,6 @@
+import logo from '../assets/gapa-logo.png'
+
 export default function FallbackLoader({ label = 'Loading…' }: { label?: string }) {
-  const logo = '../assets/gapa-logo.png' // Fallback for dev environment without env variables
   return (
     <div className="grid min-h-[220px] place-content-center py-12">
       <div className="flex flex-col items-center gap-5">
@@ -19,7 +20,17 @@ export default function FallbackLoader({ label = 'Loading…' }: { label?: strin
 
           {/* Center logo with subtle pulse */}
           <div className="relative grid h-24 w-24 place-content-center rounded-full bg-white/90 shadow-md ring-1 ring-black/10">
-            <img src={logo} alt="Gapa" className="h-12 w-12 object-contain select-none pointer-events-none animate-pulse" />
+            <img
+              src={logo}
+              alt="Gapa"
+              className="h-12 w-12 object-contain select-none pointer-events-none animate-pulse"
+              onError={(e) => {
+                const img = e.currentTarget as HTMLImageElement
+                // Fallback to public asset if the bundled asset URL fails
+                img.onerror = null
+                img.src = '/gapa-logo.png'
+              }}
+            />
           </div>
         </div>
         <p className="text-sm font-medium text-gray-700">{label}</p>

@@ -27,6 +27,7 @@ import PrivacyPolicy from './pages/PrivacyPolicy'
 import TermsAndConditions from './pages/TermsAndConditions'
 import AccountSettings from './pages/AccountSettings'
 import About from './pages/About'
+import Contact from './pages/Contact'
 
 function App() {
   const location = useLocation()
@@ -91,6 +92,7 @@ function App() {
           <Route path="/privacy-policy" element={<PrivacyPolicy />} />
           <Route path="/terms" element={<TermsAndConditions />} />
           <Route path="/about" element={<About />} />
+          <Route path="/contact" element={<Contact />} />
           {/* Account settings */}
           <Route path="/account-settings" element={<AccountSettings />} />
         </Routes>

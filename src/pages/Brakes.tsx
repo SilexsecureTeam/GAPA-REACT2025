@@ -3,6 +3,7 @@ import TopBrands from '../components/TopBrands'
 import brDisk from '../assets/br-disk.png'
 import brakeImg from '../assets/brake.png'
 import special from '../assets/special.png'
+import logoImg from '../assets/gapa-logo.png'
 
 const TOP_CATEGORIES = [
   { name: 'Brake pad set', img: brDisk },
@@ -39,7 +40,7 @@ function OfferCard({ offer }: { offer: typeof SPECIAL_OFFERS[number] }) {
         <div className="h-6 text-[14px] font-extrabold text-brand">{offer.brand}</div>
         <a href="#" className="text-[12px] text-brand underline">{offer.article}</a>
         <div className="">
-          <img src={offer.image} alt={offer.title} className="h-full w-full object-contain" onError={(e)=>{(e.currentTarget as HTMLImageElement).src='/gapa-logo.png'}} />
+          <img src={offer.image} alt={offer.title} className="h-full w-full object-contain" onError={(e)=>{(e.currentTarget as HTMLImageElement).src=logoImg}} />
         </div>
         <div className="mt-3 space-y-1">
           <a href="#" className="block text-[13px] font-semibold text-gray-900 hover:underline">{offer.title}</a>

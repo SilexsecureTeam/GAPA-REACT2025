@@ -3,6 +3,7 @@ import WishlistButton from './WishlistButton'
 import useWishlist from '../hooks/useWishlist'
 import { Link } from 'react-router-dom'
 import { normalizeApiImage } from '../services/images'
+import  logoImg from '../assets/gapa-logo.png'
 
 export type Product = {
   id: string
@@ -31,7 +32,7 @@ export default function ProductCard({ product }: ProductCardProps) {
   const base = `/parts/${derivedBrand}/${partSlug}`
   const to = `${base}?pid=${encodeURIComponent(product.id)}`
 
-  const imgSrc = normalizeApiImage(product.image) || '/gapa-logo.png'
+  const imgSrc = normalizeApiImage(product.image) || logoImg
 
   return (
     <div className="group relative rounded-md bg-[#F6F5FA] p-4 ring-1 ring-black/5 transition hover:bg-white hover:shadow-sm">
@@ -56,7 +57,7 @@ export default function ProductCard({ product }: ProductCardProps) {
         <img
           src={imgSrc}
           alt={product.title}
-          onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/gapa-logo.png' }}
+          onError={(e) => { (e.currentTarget as HTMLImageElement).src = logoImg }}
           className="h-full w-full object-contain transition-transform duration-300 group-hover:scale-105"
         />
       </Link>

@@ -68,8 +68,10 @@ export function normalizeApiImage(input?: string | null): string | undefined {
 export function pickImage(obj: any): string | undefined {
   const candidate = obj?.image
     || obj?.img_url
+    || obj?.image_url
     || obj?.logo
     || obj?.brand_logo
+    || obj?.brand_logo_url
     || obj?.thumbnail
     || obj?.icon
     || obj?.photo
@@ -129,12 +131,21 @@ export function modelImageFrom(obj: any): string | undefined {
 
 // New: brand and partner explicit builders per CDN paths
 export function brandImageFrom(obj: any): string | undefined {
-  const v = firstOf(obj, ['logo', 'image', 'img_url', 'thumbnail', 'img'])
+  const v = firstOf(obj, [
+    'logo',
+    'brand_logo',
+    'brand_logo_url',
+    'image',
+    'img_url',
+    'image_url',
+    'thumbnail',
+    'img',
+  ])
   return absoluteOr('/uploads/brands', v)
 }
 
 export function partnerImageFrom(obj: any): string | undefined {
-  const v = firstOf(obj, ['logo', 'image', 'img_url', 'thumbnail', 'img'])
+  const v = firstOf(obj, ['logo', 'image', 'img_url', 'image_url', 'thumbnail', 'img'])
   // Note: API path is 'patners' as provided in spec
   return absoluteOr('/uploads/makers_', v)
 }

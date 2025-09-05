@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import FallbackLoader from './FallbackLoader'
 import { getAllBrands, getAllCategories, getManufacturers, type ApiBrand, type ApiCategory, type ApiManufacturer } from '../services/api'
 import { categoryImageFrom, normalizeApiImage, pickImage } from '../services/images'
+import logoImg from '../assets/gapa-logo.png'
 
 function unwrap<T = any>(res: any): T[] {
   if (Array.isArray(res)) return res as T[]
@@ -76,13 +77,13 @@ export default function CarPartsCatalogue({ className = '' }: { className?: stri
         <>
           {categories.slice(0, 4).map((c, idx) => {
             const name = (c as any)?.name || (c as any)?.title || 'Category'
-            const icon = categoryImageFrom(c) || normalizeApiImage(pickImage(c) || '') || '/gapa-logo.png'
+            const icon = categoryImageFrom(c) || normalizeApiImage(pickImage(c) || '') || logoImg
             const links = [name, 'Popular', 'New', 'Top Rated', 'Budget']
             return (
               <div key={`cat-${idx}`} className="rounded-xl bg-white p-4 ">
                 <div className="flex justify-center gap-4">
                   <div className="flex h-auto sm:w-40 ring-1 ring-black/10 p-4 items-center justify-center rounded-lg">
-                    <img src={icon} alt={name} className="h-full w-full object-contain" onError={(e)=>{(e.currentTarget as HTMLImageElement).src='/gapa-logo.png'}} />
+                    <img src={icon} alt={name} className="h-full w-full object-contain" onError={(e)=>{(e.currentTarget as HTMLImageElement).src=logoImg}} />
                   </div>
                   <div>
                     <h5 className="text-[14px] font-semibold text-gray-900">{name}</h5>
