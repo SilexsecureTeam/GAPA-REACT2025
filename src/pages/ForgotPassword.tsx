@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import toast from 'react-hot-toast'
 import { forgotPassword } from '../services/api'
+import { useNavigate } from 'react-router-dom'
 
 export default function ForgotPassword() {
   const [identifier, setIdentifier] = useState('')
   const [loading, setLoading] = useState(false)
+  const navigate = useNavigate()
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -12,6 +14,8 @@ export default function ForgotPassword() {
     try {
       await forgotPassword({ email: identifier })
       toast.success('OTP sent. Check your email or SMS')
+      // Navigate to reset password with identifier so user doesn't need to re-type
+      navigate('/reset-password', { state: { identifier }, replace: true })
     } catch (e: any) {
       toast.error(e?.data?.message || e.message || 'Failed to send OTP')
     } finally {

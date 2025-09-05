@@ -11,8 +11,7 @@ import Tyres from './pages/Tyres'
 import EngineOil from './pages/EngineOil'
 import Login from './pages/Login'
 import SignUp from './pages/SignUp'
-import AuthHeader from './components/AuthHeader'
-import { Toaster } from 'react-hot-toast'
+// import AuthHeader from './components/AuthHeader'
 import Profile from './pages/Profile'
 import ForgotPassword from './pages/ForgotPassword'
 import ResetPassword from './pages/ResetPassword'
@@ -28,6 +27,7 @@ import TermsAndConditions from './pages/TermsAndConditions'
 import AccountSettings from './pages/AccountSettings'
 import About from './pages/About'
 import Contact from './pages/Contact'
+import GapaToaster from './components/GapaToaster'
 
 function App() {
   const location = useLocation()
@@ -64,8 +64,9 @@ function App() {
 
   return (
     <>
-      {onAuth ? <AuthHeader /> : <Header />}
-      <main className={`bg-white ${onAuth ? 'pt-0' : 'pt-30 sm:pt-34'}`}>
+      {/* Header */}
+      {onAuth ? <Header /> : <Header />}
+      <main className={`bg-white ${onAuth ? 'pt-30 sm:pt-34' : 'pt-30 sm:pt-34'}`}>
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/parts" element={<CarParts />} />
@@ -97,9 +98,8 @@ function App() {
           <Route path="/account-settings" element={<AccountSettings />} />
         </Routes>
       </main>
-      {onAuth ? '' : <Footer />}
-      <Toaster position="top-right" toastOptions={{ duration: 4000 }} />
-
+      {onAuth ? <Footer /> : <Footer />}
+      <GapaToaster />
       {/* Global Cart Popup */}
       <CartPopup
         open={cartOpen}

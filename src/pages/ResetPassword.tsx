@@ -1,13 +1,21 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import toast from 'react-hot-toast'
 import { resetPassword } from '../services/api'
+import { useLocation } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
+
 
 export default function ResetPassword() {
-  const [identifier, setIdentifier] = useState('')
+  const location = useLocation() as any
+  const navigate = useNavigate()
+  const prefill = location?.state?.identifier || ''
+  const [identifier, setIdentifier] = useState(prefill)
   const [otp, setOtp] = useState('')
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
   const [loading, setLoading] = useState(false)
+
+  useEffect(()=>{ if (prefill && !identifier) setIdentifier(prefill) }, [prefill, identifier])
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -19,6 +27,7 @@ export default function ResetPassword() {
     try {
       await resetPassword({ email: identifier, otp, password })
       toast.success('Password reset successful. You can now sign in.')
+      navigate('/login', { state: { identifier }, replace: true })
     } catch (e: any) {
       toast.error(e?.data?.message || e.message || 'Failed to reset password')
     } finally {

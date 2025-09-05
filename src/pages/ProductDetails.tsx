@@ -113,18 +113,32 @@ export default function ProductDetails() {
     )
   }
 
+  // Error / Not Found UI (match CarPartDetails UX patterns)
   if (error || !prod) {
     return (
-      <div className="bg-white !pt-14">
-        <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
-          <div className="rounded-xl bg-white p-6 text-center ring-1 ring-black/10">
-            <div className="text-[16px] font-semibold text-gray-900">Unable to load product</div>
-            <div className="mt-1 text-[13px] text-gray-600">{error}</div>
-            <div className="mt-4 flex justify-center gap-3">
-              <button onClick={() => navigate(-1)} className="inline-flex h-10 items-center justify-center rounded-md bg-brand px-5 text-[14px] font-semibold text-white ring-1 ring-black/10">Go Back</button>
-              <Link to="/parts" className="inline-flex h-10 items-center justify-center rounded-md bg-[#F7CD3A] px-5 text-[14px] font-semibold text-gray-900 ring-1 ring-black/10">Browse All Parts</Link>
+      <div className="bg-white !pt-10">
+        <section className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
+          <nav aria-label="Breadcrumb" className="text-[13px] text-gray-600">
+            <ol className="flex flex-wrap items-center gap-2 sm:gap-3">
+              <li><Link to="/parts" className="hover:underline">Car Parts</Link></li>
+              <li aria-hidden>›</li>
+              <li className="font-semibold text-brand">No Results</li>
+            </ol>
+          </nav>
+
+            <div className="mt-6 grid gap-6 rounded-xl bg-white p-6 ring-1 ring-black/10">
+              <div className="flex items-center justify-between">
+                <div className="text-[16px] font-semibold text-gray-900">We couldn't find that product.</div>
+                <div className="text-[12px] text-gray-600">ID: {id}</div>
+              </div>
+              <div className="rounded-lg border border-black/10 bg-white p-4 text-sm text-gray-700">
+                {error ? error : 'The product may have been removed or is temporarily unavailable.'}
+              </div>
+              <div className="flex flex-wrap items-center justify-center gap-3">
+                <button onClick={() => navigate(-1)} className="inline-flex h-10 items-center justify-center rounded-md bg-brand px-5 text-[14px] font-semibold text-white ring-1 ring-black/10">Go Back</button>
+                <Link to="/parts" className="inline-flex h-10 items-center justify-center rounded-md bg-[#F7CD3A] px-5 text-[14px] font-semibold text-gray-900 ring-1 ring-black/10">Browse All Parts</Link>
+              </div>
             </div>
-          </div>
         </section>
       </div>
     )
