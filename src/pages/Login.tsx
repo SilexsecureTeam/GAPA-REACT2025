@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { login } from '../services/api'
 import tyreHero from '../assets/login.png'
+import google from '../assets/google.png'
+import apple from '../assets/apple.png'
 import { useAuth } from '../services/auth'
 import toast from 'react-hot-toast'
 
@@ -64,8 +66,12 @@ export default function Login() {
               </div>
 
               <div className="flex justify-center gap-4">
-                <button type="button" className="inline-flex h-9 w-9 items-center justify-center rounded-full ring-1 ring-black/10" onClick={()=>toast('Google OAuth not yet implemented')}>G</button>
-                <button type="button" className="inline-flex h-9 w-9 items-center justify-center rounded-full ring-1 ring-black/10" onClick={()=>toast('Apple OAuth not yet implemented')}></button>
+                <button type="button" className="inline-flex h-9 w-9 items-center justify-center rounded-full ring-1 ring-black/10" onClick={()=>toast('Google OAuth not yet implemented')}>
+                  <img src={google} alt="Google" className="h-4 w-4" />
+                </button>
+                <button type="button" className="inline-flex h-9 w-9 items-center justify-center rounded-full ring-1 ring-black/10" onClick={()=>toast('Apple OAuth not yet implemented')}>
+                  <img src={apple} alt="Apple" className="h-4 w-4" />
+                </button>
               </div>
 
               <p className="text-center text-[12px] text-gray-600">Don't have an account? <Link to="/signup" className="text-brand underline">Sign up</Link></p>

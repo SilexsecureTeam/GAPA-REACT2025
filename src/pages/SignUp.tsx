@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { register, type RegisterPayload } from '../services/api'
+import google from '../assets/google.png'
+import apple from '../assets/apple.png'
 import tyreHero from '../assets/login.png'
 import { useAuth } from '../services/auth'
 import toast from 'react-hot-toast'
@@ -62,8 +64,12 @@ export default function SignUp() {
           <div className="p-8 sm:p-10">
             <h1 className="text-center text-[18px] font-semibold text-gray-900">Create an account for free</h1>
             <div className="mt-2 flex justify-center gap-4">
-              <button type="button" className="inline-flex h-9 w-9 items-center justify-center rounded-full ring-1 ring-black/10" onClick={()=>toast('Google OAuth not yet implemented')}>G</button>
-              <button type="button" className="inline-flex h-9 w-9 items-center justify-center rounded-full ring-1 ring-black/10" onClick={()=>toast('Apple OAuth not yet implemented')}></button>
+              <button type="button" className="inline-flex h-9 w-9 items-center justify-center rounded-full ring-1 ring-black/10" onClick={()=>toast('Google OAuth not yet implemented')}>
+                <img src={google} alt="Google" className="h-4 w-4" />
+              </button>
+              <button type="button" className="inline-flex h-9 w-9 items-center justify-center rounded-full ring-1 ring-black/10" onClick={()=>toast('Apple OAuth not yet implemented')}>
+                <img src={apple} alt="Apple" className="h-4 w-4" />
+              </button>
             </div>
             <div className="relative my-4 text-center text-[12px] text-gray-500">
               <span className="before:absolute before:left-0 before:top-1/2 before:h-px before:w-2/5 before:-translate-y-1/2 before:bg-gray-200 after:absolute after:right-0 after:top-1/2 after:h-px after:w-2/5 after:-translate-y-1/2 after:bg-gray-200">Or</span>
