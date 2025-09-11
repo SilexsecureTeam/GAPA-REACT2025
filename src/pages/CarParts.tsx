@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState, Fragment } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import FallbackLoader from '../components/FallbackLoader'
 import ProductCard, { type Product as UiProduct } from '../components/ProductCard'
-import { getAllCategories, getAllProducts, type ApiCategory, type ApiProduct, getSubCategories, getSubSubCategories, getProductsBySubSubCategory, liveSearch } from '../services/api'
+import { getAllCategories, getAllProducts, type ApiCategory, type ApiProduct, getSubCategories, getSubSubCategories, getProductsBySubSubCategory, liveSearch, getAllBrands, getModelsByBrandId, getSubModelsByModelId } from '../services/api'
 import { normalizeApiImage, pickImage, productImageFrom, categoryImageFrom } from '../services/images'
 import logoImg from '../assets/gapa-logo.png'
 import TopBrands from '../components/TopBrands'
@@ -272,6 +272,142 @@ function CarPartsInner() {
   // Filters for search mode
   const [selectedBrands, setSelectedBrands] = useState<Set<string>>(new Set())
   const [selectedCats, setSelectedCats] = useState<Set<string>>(new Set())
+
+  // --- Vehicle filter (persisted across pages) ---
+  const FILTER_KEY = 'gapa:veh-filter'
+  type PersistedFilter = { brandId?: string; modelId?: string; engineId?: string; brandName?: string; modelName?: string; engineName?: string }
+  const [loadingBrands, setLoadingBrands] = useState(true)
+  const [brands, setBrands] = useState<any[]>([])
+  const [models, setModels] = useState<any[]>([])
+  const [subModels, setSubModels] = useState<any[]>([])
+
+  const [brandId, setBrandId] = useState('')
+  const [modelId, setModelId] = useState('')
+  const [engineId, setEngineId] = useState('')
+  const [brandName, setBrandName] = useState('')
+  const [modelName, setModelName] = useState('')
+  const [engineName, setEngineName] = useState('')
+
+  // Hydrate persisted selection
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(FILTER_KEY)
+      if (raw) {
+        const saved: PersistedFilter = JSON.parse(raw)
+        if (saved.brandId) setBrandId(saved.brandId)
+        if (saved.modelId) setModelId(saved.modelId)
+        if (saved.engineId) setEngineId(saved.engineId)
+        if (saved.brandName) setBrandName(saved.brandName)
+        if (saved.modelName) setModelName(saved.modelName)
+        if (saved.engineName) setEngineName(saved.engineName)
+      }
+    } catch {}
+  }, [])
+
+  // Persist on change
+  useEffect(() => {
+    const saved: PersistedFilter = { brandId, modelId, engineId, brandName, modelName, engineName }
+    try { localStorage.setItem(FILTER_KEY, JSON.stringify(saved)) } catch {}
+  }, [brandId, modelId, engineId, brandName, modelName, engineName])
+
+  // Load brands once
+  useEffect(() => {
+    let alive = true
+    ;(async () => {
+      try {
+        setLoadingBrands(true)
+        const res = await getAllBrands()
+        if (!alive) return
+        setBrands(Array.isArray(res) ? res : [])
+      } catch {
+        if (!alive) return
+        setBrands([])
+      } finally {
+        if (alive) setLoadingBrands(false)
+      }
+    })()
+    return () => { alive = false }
+  }, [])
+
+  // Load models when maker changes (and reset downstream selections immediately)
+  useEffect(() => {
+    let alive = true
+    // Always reset downstream when maker changes
+    setModels([]); setSubModels([]); setModelId(''); setEngineId(''); setModelName(''); setEngineName('')
+    if (!brandId) { return () => { alive = false } }
+    ;(async () => {
+      try {
+        const res = await getModelsByBrandId(brandId)
+        if (!alive) return
+        setModels(Array.isArray(res) ? res : [])
+      } catch {
+        if (!alive) return
+        setModels([])
+      }
+    })()
+    return () => { alive = false }
+  }, [brandId])
+
+  // Load engines when model changes (and reset engine selection immediately)
+  useEffect(() => {
+    let alive = true
+    setSubModels([]); setEngineId(''); setEngineName('')
+    if (!modelId) { return () => { alive = false } }
+    ;(async () => {
+      try {
+        const res = await getSubModelsByModelId(modelId)
+        if (!alive) return
+        setSubModels(Array.isArray(res) ? res : [])
+      } catch {
+        if (!alive) return
+        setSubModels([])
+      }
+    })()
+    return () => { alive = false }
+  }, [modelId])
+
+  const brandOptions = useMemo(() => (
+    (brands || [])
+      .map((b: any) => ({ value: String((b?.brand_id ?? b?.id) ?? ''), label: String(b?.name || b?.title || '') }))
+      .filter((o: any) => o.value && o.label)
+      .sort((a: any,b: any)=>a.label.localeCompare(b.label))
+  ), [brands])
+  const modelOptions = useMemo(() => (
+    (models || [])
+      .map((m: any) => ({ value: String((m?.id ?? m?.model_id) ?? ''), label: String(m?.name || m?.model_name || m?.model || '') }))
+      .filter((o: any) => o.value && o.label)
+      .sort((a: any,b: any)=>a.label.localeCompare(b.label))
+  ), [models])
+  const engineOptions = useMemo(() => (
+    (subModels || [])
+      .map((e: any) => ({ value: String((e?.id ?? e?.sub_model_id) ?? ''), label: String(e?.name || e?.engine || e?.trim || e?.submodel_name || e?.sub_model_name || '') }))
+      .filter((o: any) => o.value && o.label)
+      .sort((a: any,b: any)=>a.label.localeCompare(b.label))
+  ), [subModels])
+
+  const brandLabelById = useMemo(() => { const m = new Map<string,string>(); for (const o of brandOptions) m.set(o.value, o.label); return (id: string) => m.get(id) || '' }, [brandOptions])
+  const modelLabelById = useMemo(() => { const m = new Map<string,string>(); for (const o of modelOptions) m.set(o.value, o.label); return (id: string) => m.get(id) || '' }, [modelOptions])
+  const engineLabelById = useMemo(() => { const m = new Map<string,string>(); for (const o of engineOptions) m.set(o.value, o.label); return (id: string) => m.get(id) || '' }, [engineOptions])
+
+  // Keep the human-readable names in sync with the selected ids
+  useEffect(() => { setBrandName(brandLabelById(brandId)) }, [brandId, brandLabelById])
+  useEffect(() => { setModelName(modelLabelById(modelId)) }, [modelId, modelLabelById])
+  useEffect(() => { setEngineName(engineLabelById(engineId)) }, [engineId, engineLabelById])
+
+  const resetVehicle = () => {
+    setBrandId(''); setModelId(''); setEngineId('')
+    setBrandName(''); setModelName(''); setEngineName('')
+    try { localStorage.removeItem(FILTER_KEY) } catch {}
+  }
+
+  const runVehicleSearch = () => {
+    const term = (engineName || '').trim()
+    if (!term) return
+    const next = new URLSearchParams(searchParams)
+    next.set('q', term)
+    next.delete('catId'); next.delete('subCatId'); next.delete('subSubCatId')
+    setSearchParams(next, { replace: false })
+  }
 
   // Helper to toggle entries in a Set state
   const toggleSet = <T,>(setter: React.Dispatch<React.SetStateAction<Set<T>>>, value: T) => {
@@ -787,6 +923,85 @@ function CarPartsInner() {
                     )
                   })}
                 </ul>
+              </div>
+
+              {/* Vehicle filters */}
+              <div className="mt-4">
+                <div className="text-[13px] font-semibold text-gray-800">Vehicle</div>
+                {/* Maker (brand) */}
+                <div className="mt-2">
+                  <label htmlFor="filter-maker" className="block text-[12px] text-gray-700">Maker</label>
+                  <select
+                    id="filter-maker"
+                    value={brandId}
+                    onChange={(e) => setBrandId(e.target.value)}
+                    className="mt-1 block w-full rounded-md border-gray-300 text-[13px] shadow-sm focus:border-brand focus:ring-brand"
+                  >
+                    <option value="" disabled hidden>Select Maker</option>
+                    {loadingBrands && brandOptions.length === 0 && (
+                      <option value="">Loading makers…</option>
+                    )}
+                    {brandOptions.map((o) => (
+                      <option key={o.value} value={o.value}>{o.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Model */}
+                <div className="mt-4">
+                  <label htmlFor="filter-model" className="block text-[12px] text-gray-700">Model</label>
+                  <select
+                    id="filter-model"
+                    value={modelId}
+                    onChange={(e) => setModelId(e.target.value)}
+                    disabled={!brandId}
+                    className="mt-1 block w-full rounded-md border-gray-300 text-[13px] shadow-sm focus:border-brand focus:ring-brand"
+                  >
+                    <option value="" disabled hidden>Select Model</option>
+                    {modelOptions.length === 0 && (
+                      <option value="">No models found</option>
+                    )}
+                    {modelOptions.map((m) => (
+                      <option key={m.value} value={m.value}>{m.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Engine type */}
+                <div className="mt-4">
+                  <label htmlFor="filter-engine" className="block text-[12px] text-gray-700">Engine type</label>
+                  <select
+                    id="filter-engine"
+                    value={engineId}
+                    onChange={(e) => setEngineId(e.target.value)}
+                    disabled={!modelId}
+                    className="mt-1 block w-full rounded-md border-gray-300 text-[13px] shadow-sm focus:border-brand focus:ring-brand"
+                  >
+                    <option value="" disabled hidden>{engineOptions.length ? 'Select Engine' : 'Base'}</option>
+                    {engineOptions.length === 0 && (
+                      <option value="">No engine types found</option>
+                    )}
+                    {engineOptions.map((e) => (
+                      <option key={e.value} value={e.value}>{e.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Controls */}
+                <div className="mt-4 flex gap-2">
+                  <button
+                    onClick={resetVehicle}
+                    className="flex-1 rounded-md bg-gray-100 px-3 py-2 text-[13px] text-gray-700 ring-1 ring-gray-300 hover:bg-gray-200"
+                  >
+                    Reset vehicle filter
+                  </button>
+                  <button
+                    onClick={runVehicleSearch}
+                    className="flex-1 rounded-md bg-brand px-3 py-2 text-[13px] font-semibold text-white ring-1 ring-black/10 hover:bg-brand/90"
+                  >
+                    Update search
+                  </button>
+                </div>
               </div>
             </aside>
 
