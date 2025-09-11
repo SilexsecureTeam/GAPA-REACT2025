@@ -8,7 +8,6 @@ import FallbackLoader from '../components/FallbackLoader'
 import { getAllBrands, getAllCategories, getFeaturedProducts, getManufacturers, getPartners, type ApiBrand, type ApiCategory, type ApiManufacturer, type ApiPartner, type ApiProduct, liveSearch, getModelsByBrandId, getSubModelsByModelId } from '../services/api'
 import { pickImage, normalizeApiImage, productImageFrom, categoryImageFrom, partnerImageFrom } from '../services/images'
 import { useNavigate } from 'react-router-dom'
-import { Link } from 'react-router-dom'
 import TopBrands from '../components/TopBrands'
 import logoImg from '../assets/gapa-logo.png'
 
@@ -17,12 +16,15 @@ import logoImg from '../assets/gapa-logo.png'
 function unwrap<T = any>(res: any): T[] {
   // Direct array
   if (Array.isArray(res)) return res as T[]
-  // data is array
+  // top-level common keys
+  if (res && Array.isArray(res.result)) return res.result as T[]
   if (res && Array.isArray(res.data)) return res.data as T[]
   // data is object containing an array under some key
   if (res && res.data && typeof res.data === 'object') {
-    for (const k of Object.keys(res.data)) {
-      const v = (res.data as any)[k]
+    const d = res.data as any
+    if (Array.isArray(d.result)) return d.result as T[]
+    for (const k of Object.keys(d)) {
+      const v = d[k]
       if (Array.isArray(v)) return v as T[]
     }
   }
@@ -90,6 +92,17 @@ function StepBadge({ n }: { n: number }) {
 
 const TAB_LABELS: [string, string, string] = ['Top Car Parts', 'Top Manufacturers', 'Top Sellers']
 
+const FILTER_KEY = 'gapa:veh-filter'
+
+type PersistedFilter = {
+  brandId?: string
+  modelId?: string
+  engineId?: string
+  brandName?: string
+  modelName?: string
+  engineName?: string
+}
+
 export default function Home() {
   const navigate = useNavigate()
   // API state
@@ -110,6 +123,31 @@ export default function Home() {
   const [engineName, setEngineName] = useState('')
   // Tabs state
   const [tab, setTab] = useState<0 | 1 | 2>(0)
+
+  // New: hero flow selection state (after model selection)
+  const [heroShowParts, setHeroShowParts] = useState(false)
+
+  // Load persisted vehicle filter
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(FILTER_KEY)
+      if (raw) {
+        const saved: PersistedFilter = JSON.parse(raw)
+        if (saved.brandId) setBrandId(saved.brandId)
+        if (saved.modelId) setModelId(saved.modelId)
+        if (saved.engineId) setEngineId(saved.engineId)
+        if (saved.brandName) setBrandName(saved.brandName)
+        if (saved.modelName) setModelName(saved.modelName)
+        if (saved.engineName) setEngineName(saved.engineName)
+      }
+    } catch {}
+  }, [])
+
+  // Persist vehicle filter when any selection changes
+  useEffect(() => {
+    const saved: PersistedFilter = { brandId, modelId, engineId, brandName, modelName, engineName }
+    try { localStorage.setItem(FILTER_KEY, JSON.stringify(saved)) } catch {}
+  }, [brandId, modelId, engineId, brandName, modelName, engineName])
 
   useEffect(() => {
     let alive = true
@@ -162,8 +200,11 @@ export default function Home() {
         const res = await getSubModelsByModelId(modelId)
         if (!alive) return
         setSubModels(unwrap<any>(res))
+        // After user picks a model, reveal parts to continue
+        setHeroShowParts(true)
       } catch (_) {
         setSubModels([])
+        setHeroShowParts(true)
       }
     })()
     return () => { alive = false }
@@ -201,7 +242,7 @@ export default function Home() {
   // Form state and options using API drill-down
   const brandOptions = useMemo(() => (
     brands
-      .map((b) => ({ value: String((b as any)?.id ?? ''), label: brandNameOf(b) }))
+      .map((b) => ({ value: String((b as any)?.brand_id ?? (b as any)?.id ?? ''), label: brandNameOf(b) }))
       .filter((o) => o.value && o.label)
       .sort((a,b)=>a.label.localeCompare(b.label))
   ), [brands])
@@ -366,6 +407,23 @@ export default function Home() {
     return null
   }
 
+  // When user clicks a category in "Shop by Section", navigate to CarParts to drill down
+  const onPickCategory = (cat: any) => {
+    const id = (cat as any)?.id ?? (cat as any)?.category_id
+    const name = String((cat as any)?.title || (cat as any)?.name || 'Category')
+    if (!id) return
+    const params = new URLSearchParams({ catId: String(id), title: name })
+    navigate(`/parts?${params.toString()}`)
+  }
+
+  // When user picks a part in hero flow, navigate to CarPartDetails without pid to let them pick a product
+  const onPickHeroPart = (cat: any) => {
+    const name = String((cat as any)?.title || (cat as any)?.name || 'parts')
+    const brandSlug = (brandName || 'gapa').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'')
+    const partSlug = name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'')
+    navigate(`/parts/${brandSlug}/${partSlug}`)
+  }
+
   return (
     <div className="min-h-screen bg-white">
       {/* Hero: left promo + right form */}
@@ -487,6 +545,29 @@ export default function Home() {
               </form>
               <a href="#" className="mt-2 block text-sm font-medium text-brand underline">Can't Find Your Car in the Catalogue?</a>
             </div>
+
+            {/* Next step: pick a car part after selecting model */}
+            {heroShowParts && modelId && (
+              <div className="mt-5">
+                <div className="mb-2 text-[12px] font-bold tracking-wide text-white">
+                  <span className="inline-block rounded bg-brand px-2 py-1">PICK A CAR PART</span>
+                </div>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                  {categories.slice(0, 9).map((c, i) => {
+                    const name = String((c as any)?.title || (c as any)?.name || 'Category')
+                    const img = categoryImageFrom(c) || normalizeApiImage(pickImage(c) || '') || logoImg
+                    return (
+                      <button key={`${String((c as any)?.id ?? i)}-${i}`} onClick={() => onPickHeroPart(c)} className="group rounded-md p-2 ring-1 ring-black/10 hover:bg-gray-50 text-left">
+                        <span className="flex h-10 w-10 items-center justify-center overflow-hidden rounded bg-[#F6F5FA] ring-1 ring-black/10">
+                          <img src={img} alt="" className="h-full w-full object-contain" onError={(e)=>{(e.currentTarget as HTMLImageElement).src=logoImg}} />
+                        </span>
+                        <span className="mt-1 block truncate text-[12px] font-medium text-gray-800">{name}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </section>
@@ -526,21 +607,27 @@ export default function Home() {
         {loading ? (
           <FallbackLoader label="Loading categories…" />
         ) : (
-          <div className="mt-4 grid grid-cols-2 gap-10 md:grid-cols-4">
-            {categories.slice(0, 8).map((c) => {
-              const name = (c as any)?.name || (c as any)?.title || 'Category'
-              const img = categoryImageFrom(c) || normalizeApiImage(pickImage(c) || '') || logoImg
-              const partSlug = String(name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
-              return (
-                <Link key={String((c as any)?.id || name)} to={`/parts/${partSlug}`} className="group rounded-xl p-3 transition">
-                  <div className="flex h-42 w-full ring-1 ring-black/10 py-2 items-center justify-center overflow-hidden rounded-lg">
-                    <img src={img} alt={name} className="h-full w-full object-contain" onError={(e)=>{(e.currentTarget as HTMLImageElement).src=logoImg}} />
-                  </div>
-                  <p className="mt-3 text-center text-[12px] font-semibold uppercase tracking-wide text-gray-800">{name}</p>
-                </Link>
-              )
-            })}
-          </div>
+          <>
+            <div className="mt-4 grid grid-cols-2 gap-10 md:grid-cols-4">
+              {categories.slice(0, 8).map((c) => {
+                const name = (c as any)?.name || (c as any)?.title || 'Category'
+                const img = categoryImageFrom(c) || normalizeApiImage(pickImage(c) || '') || logoImg
+                return (
+                  <button
+                    type="button"
+                    key={String((c as any)?.id || name)}
+                    onClick={() => onPickCategory(c)}
+                    className="group rounded-xl p-3 transition text-left"
+                  >
+                    <div className="flex h-42 w-full ring-1 ring-black/10 py-2 items-center justify-center overflow-hidden rounded-lg">
+                      <img src={img} alt={name} className="h-full w-full object-contain" onError={(e)=>{(e.currentTarget as HTMLImageElement).src=logoImg}} />
+                    </div>
+                    <p className="mt-3 text-center text-[12px] font-semibold uppercase tracking-wide text-gray-800">{name}</p>
+                  </button>
+                )
+              })}
+            </div>
+          </>
         )}
       </section>
 

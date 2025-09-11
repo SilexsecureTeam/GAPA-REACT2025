@@ -1681,7 +1681,7 @@
 				"url": {
 					"raw": "{{based_url}}/getSubSubCategoryProduct?subsubcatID=10",
 					"host": [
-						"{{based_url}}"
+						"{{based_url}}" 
 					],
 					"path": [
 						"getSubSubCategoryProduct"

@@ -153,7 +153,7 @@ export async function updateProfilePhoto(payload: { user_id: string | number; fi
 
 // ----- Catalog APIs (from Postman collection) -----
 export type ApiProduct = Record<string, any>
-export type ApiBrand = { id?: string | number; name?: string; title?: string; logo?: string; image?: string } & Record<string, any>
+export type ApiBrand = { id?: string | number; brand_id?: string | number; name?: string; title?: string; logo?: string; image?: string } & Record<string, any>
 export type ApiCategory = { id?: string | number; name?: string; title?: string; image?: string; icon?: string } & Record<string, any>
 export type ApiManufacturer = { id?: string | number; name?: string; title?: string; logo?: string; image?: string } & Record<string, any>
 export type ApiPartner = { id?: string | number; name?: string; title?: string; logo?: string; image?: string; url?: string } & Record<string, any>
@@ -177,6 +177,10 @@ export const ENDPOINTS = {
   // vehicle drill-down
   modelsByBrandId: (brandId: string) => `/getModelByBrandId?brand_id=${encodeURIComponent(brandId)}`,
   subModelsByModelId: (modelId: string) => `/getSubModelByModelId?model_id=${encodeURIComponent(modelId)}`,
+  // category drill-down
+  subCategoriesByCategoryId: (catId: string | number) => `/getSubCategory?cat_id=${encodeURIComponent(String(catId))}`,
+  subSubCategoriesBySubCatId: (subCatId: string | number) => `/getSubSubCategory?sub_cat_id=${encodeURIComponent(String(subCatId))}`,
+  subSubCategoryProducts: (subSubCatId: string | number) => `/getSubSubCategoryProduct?subsubcatID=${encodeURIComponent(String(subSubCatId))}`,
 } as const
 
 export const CART_ENDPOINTS = {
@@ -199,13 +203,19 @@ export const ADDRESS_ENDPOINTS = {
 // Generic unwrap for variable API array envelopes
 export function unwrapArray<T = any>(res: any): T[] {
   if (Array.isArray(res)) return res
+  // common top-level keys
+  if (res?.result && Array.isArray(res.result)) return res.result
   if (res?.data && Array.isArray(res.data)) return res.data
+  // nested under data
   if (res?.data && typeof res.data === 'object') {
-    for (const k of Object.keys(res.data)) {
-      const v = (res.data as any)[k]
+    const d = res.data as any
+    if (Array.isArray(d.result)) return d.result as T[]
+    for (const k of Object.keys(d)) {
+      const v = d[k]
       if (Array.isArray(v)) return v as T[]
     }
   }
+  // any array under any key
   if (res && typeof res === 'object') {
     for (const k of Object.keys(res)) {
       const v = (res as any)[k]
@@ -277,6 +287,7 @@ export async function liveSearch(term: string) {
   form.set('search', term)
   const res = await apiRequest<any>(ENDPOINTS.liveSearch, { method: 'POST', body: form })
   if (Array.isArray(res)) return res
+  if (res?.result && Array.isArray(res.result)) return res.result
   if (res?.data && Array.isArray(res.data)) return res.data
   if (res && typeof res === 'object') { for (const k of Object.keys(res)) { const v = (res as any)[k]; if (Array.isArray(v)) return v } }
   return []
@@ -311,6 +322,22 @@ export async function getModelsByBrandId(brandId: string) {
 export async function getSubModelsByModelId(modelId: string) {
   const res = await apiRequest<any>(ENDPOINTS.subModelsByModelId(modelId))
   return unwrapArray<any>(res)
+}
+
+// Category drill-down helpers
+export async function getSubCategories(catId: string | number) {
+  const res = await apiRequest<any>(ENDPOINTS.subCategoriesByCategoryId(catId))
+  return unwrapArray<any>(res)
+}
+
+export async function getSubSubCategories(subCatId: string | number) {
+  const res = await apiRequest<any>(ENDPOINTS.subSubCategoriesBySubCatId(subCatId))
+  return unwrapArray<any>(res)
+}
+
+export async function getProductsBySubSubCategory(subSubCatId: string | number) {
+  const res = await apiRequest<any>(ENDPOINTS.subSubCategoryProducts(subSubCatId))
+  return unwrapArray<ApiProduct>(res)
 }
 
 export async function addToCartApi(payload: { user_id: number | string; product_id: string; quantity: number }) {

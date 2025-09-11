@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import logo from '../assets/gapa-logo.png'
-import gigImg from '../assets/GIG.png'
+import gigImg from '../assets/deliveryGig.png'
 
 const BRAND = {
   primary: '#5A1E78',
@@ -130,7 +130,7 @@ export default function Footer() {
                 href={s.href}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-black/10 text-black hover:bg-black/20"
                 aria-label={s.label}
                 title={s.label}
               >

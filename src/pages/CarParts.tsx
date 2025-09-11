@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useState, Fragment } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import FallbackLoader from '../components/FallbackLoader'
-// import ProductCard, { type Product as UiProduct } from '../components/ProductCard'
-import { getAllCategories, getAllProducts, type ApiCategory, type ApiProduct } from '../services/api'
+import ProductCard, { type Product as UiProduct } from '../components/ProductCard'
+import { getAllCategories, getAllProducts, type ApiCategory, type ApiProduct, getSubCategories, getSubSubCategories, getProductsBySubSubCategory, liveSearch } from '../services/api'
 import { normalizeApiImage, pickImage, productImageFrom, categoryImageFrom } from '../services/images'
 import logoImg from '../assets/gapa-logo.png'
 import TopBrands from '../components/TopBrands'
@@ -64,7 +64,7 @@ function Crumb() {
 }
 
 // Map API product into UI product for ProductCard
-function toUiProduct(p: any, i: number) {
+function toUiProduct(p: any, i: number): UiProduct {
   // Basic mapping for SearchError suggestion/localStorage
   const id = String(p?.id ?? p?.product_id ?? i)
   const title = String(p?.name || p?.title || p?.product_name || 'Car Part')
@@ -85,6 +85,11 @@ function categoryOf(p: any): string {
 }
 
 const toSlug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
+
+// Helper to extract brand from product safely
+function brandOf(p: any): string {
+  return String(p?.brand?.name || p?.brand || p?.manufacturer || p?.maker || '').trim()
+}
 
 // --- Car Accessories sections (grid) placeholders ---
 type Section = { title: string; img: string; links: string[] }
@@ -254,9 +259,185 @@ function formatNaira(n: number) {
 
 function CarPartsInner() {
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [loading, setLoading] = useState(true)
   const [products, setProducts] = useState<ApiProduct[]>([])
   const [categories, setCategories] = useState<ApiCategory[]>([])
+
+  // Search mode
+  const qParam = (searchParams.get('q') || '').trim()
+  const [searchLoading, setSearchLoading] = useState(false)
+  const [searchResults, setSearchResults] = useState<ApiProduct[]>([])
+
+  // Filters for search mode
+  const [selectedBrands, setSelectedBrands] = useState<Set<string>>(new Set())
+  const [selectedCats, setSelectedCats] = useState<Set<string>>(new Set())
+
+  // Helper to toggle entries in a Set state
+  const toggleSet = <T,>(setter: React.Dispatch<React.SetStateAction<Set<T>>>, value: T) => {
+    setter((prev) => {
+      const next = new Set(prev)
+      if (next.has(value)) next.delete(value)
+      else next.add(value)
+      return next
+    })
+  }
+
+  // Derive brand and category options from search results
+  const allSearchBrands = useMemo<string[]>(() => {
+    const set = new Set<string>()
+    for (const p of searchResults) {
+      const b = brandOf(p)
+      if (b) set.add(b)
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b))
+  }, [searchResults])
+
+  const allSearchCats = useMemo<string[]>(() => {
+    const set = new Set<string>()
+    for (const p of searchResults) {
+      const c = categoryOf(p)
+      if (c) set.add(c)
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b))
+  }, [searchResults])
+
+  const filteredSearchResults = useMemo<ApiProduct[]>(() => {
+    return searchResults.filter((p) => {
+      const b = brandOf(p)
+      const c = categoryOf(p)
+      const brandPass = selectedBrands.size === 0 || (b && selectedBrands.has(b))
+      const catPass = selectedCats.size === 0 || (c && selectedCats.has(c))
+      return brandPass && catPass
+    })
+  }, [searchResults, selectedBrands, selectedCats])
+
+  // Hierarchical navigation state (via query params)
+  const catIdParam = searchParams.get('catId') || ''
+  const subCatIdParam = searchParams.get('subCatId') || ''
+  const subSubCatIdParam = searchParams.get('subSubCatId') || ''
+
+  const [activeCatId, setActiveCatId] = useState<string>(catIdParam)
+  const [activeSubCatId, setActiveSubCatId] = useState<string>(subCatIdParam)
+  const [activeSubSubCatId, setActiveSubSubCatId] = useState<string>(subSubCatIdParam)
+
+  const [subCats, setSubCats] = useState<Array<{ id: string; name: string; image: string }>>([])
+  const [subCatsLoading, setSubCatsLoading] = useState(false)
+  const [subSubCats, setSubSubCats] = useState<Array<{ id: string; name: string; image: string }>>([])
+  const [subSubCatsLoading, setSubSubCatsLoading] = useState(false)
+  const [subProducts, setSubProducts] = useState<ApiProduct[]>([])
+  const [subProductsLoading, setSubProductsLoading] = useState(false)
+
+  // Sync internal state when URL changes
+  useEffect(() => {
+    setActiveCatId(catIdParam)
+    setActiveSubCatId(subCatIdParam)
+    setActiveSubSubCatId(subSubCatIdParam)
+  }, [catIdParam, subCatIdParam, subSubCatIdParam])
+
+  // Fetch drill-down data
+  useEffect(() => {
+    let alive = true
+    if (!activeCatId) { setSubCats([]); return }
+    ;(async () => {
+      try {
+        setSubCatsLoading(true)
+        const res = await getSubCategories(activeCatId)
+        if (!alive) return
+        const arr = Array.isArray(res) ? res : []
+        const mapped = arr.map((sc: any, i: number) => ({
+          id: String(sc?.sub_cat_id ?? sc?.id ?? sc?.sub_category_id ?? i),
+          name: String(sc?.sub_title || sc?.title || sc?.name || 'Sub Category'),
+          image: categoryImageFrom(sc) || normalizeApiImage(pickImage(sc) || '') || logoImg,
+        }))
+        setSubCats(mapped)
+      } catch (_) {
+        if (!alive) return
+        setSubCats([])
+      } finally {
+        if (alive) setSubCatsLoading(false)
+      }
+    })()
+    return () => { alive = false }
+  }, [activeCatId])
+
+  useEffect(() => {
+    let alive = true
+    if (!activeSubCatId) { setSubSubCats([]); return }
+    ;(async () => {
+      try {
+        setSubSubCatsLoading(true)
+        const res = await getSubSubCategories(activeSubCatId)
+        if (!alive) return
+        const arr = Array.isArray(res) ? res : []
+        const mapped = arr.map((ssc: any, i: number) => ({
+          id: String(ssc?.sub_sub_cat_id ?? ssc?.subsubcatID ?? ssc?.id ?? ssc?.sub_sub_category_id ?? i),
+          name: String(ssc?.sub_sub_title || ssc?.title || ssc?.name || 'Type'),
+          image: categoryImageFrom(ssc) || normalizeApiImage(pickImage(ssc) || '') || logoImg,
+        }))
+        setSubSubCats(mapped)
+      } catch (_) {
+        if (!alive) return
+        setSubSubCats([])
+      } finally {
+        if (alive) setSubSubCatsLoading(false)
+      }
+    })()
+    return () => { alive = false }
+  }, [activeSubCatId])
+
+  useEffect(() => {
+    let alive = true
+    if (!activeSubSubCatId) { setSubProducts([]); return }
+    ;(async () => {
+      try {
+        setSubProductsLoading(true)
+        const res = await getProductsBySubSubCategory(activeSubSubCatId)
+        if (!alive) return
+        setSubProducts(Array.isArray(res) ? res : [])
+      } catch (_) {
+        if (!alive) return
+        setSubProducts([])
+      } finally {
+        if (alive) setSubProductsLoading(false)
+      }
+    })()
+    return () => { alive = false }
+  }, [activeSubSubCatId])
+
+  // Fetch search results when qParam present
+  useEffect(() => {
+    let alive = true
+    if (!qParam) { setSearchResults([]); setSelectedBrands(new Set()); setSelectedCats(new Set()); return }
+    ;(async () => {
+      try {
+        setSearchLoading(true)
+        const res = await liveSearch(qParam)
+        if (!alive) return
+        const list = Array.isArray(res) ? res : (res as any)?.data
+        const items = Array.isArray(list) ? list : []
+        setSearchResults(items as ApiProduct[])
+      } catch (_) {
+        if (!alive) return
+        setSearchResults([])
+      } finally {
+        if (alive) setSearchLoading(false)
+      }
+    })()
+    return () => { alive = false }
+  }, [qParam])
+
+  // Handlers to update the URL
+  const setParams = (next: Partial<{ catId: string; subCatId: string; subSubCatId: string }>) => {
+    const current: Record<string, string> = {}
+    for (const [k, v] of Array.from(searchParams.entries())) current[k] = v
+    const merged = { ...current, ...next }
+    // Clean empties
+    if (!merged.catId) delete merged.catId
+    if (!merged.subCatId) delete merged.subCatId
+    if (!merged.subSubCatId) delete merged.subSubCatId
+    setSearchParams(merged, { replace: false })
+  }
 
   // Per-category expand state (replaces global pagination)
   const INITIAL_VISIBLE = 10
@@ -284,23 +465,28 @@ function CarPartsInner() {
         if (alive) setLoading(false)
       }
     }
-    load()
+    // Only load full catalog when not in drill-down or search mode
+    if (!catIdParam && !qParam) {
+      load()
+    } else {
+      setLoading(false)
+    }
     return () => { alive = false }
-  }, [])
+  }, [catIdParam, qParam])
 
   // No global filters now; use full list
   const filtered = products
 
-  // Navigate to SearchError if empty catalog
+  // Navigate to SearchError if empty catalog and not in search/drill-down
   useEffect(() => {
-    if (!loading && filtered.length === 0) {
+    if (!catIdParam && !qParam && !loading && filtered.length === 0) {
       const suggestSrc = Array.isArray(products) && products.length > 0 ? products[0] : null
       const suggest = suggestSrc ? toUiProduct(suggestSrc, 0) : undefined
       // persist suggestion for SearchError fallback
       if (suggest) localStorage.setItem('gapa:last-suggest', JSON.stringify(suggest))
       navigate('/search-error', { state: { reason: 'no_results', suggest }, replace: false })
     }
-  }, [filtered.length, loading, navigate, products])
+  }, [filtered.length, loading, navigate, products, catIdParam, qParam])
 
   // Group by category (all filtered items)
   const grouped = useMemo(() => {
@@ -424,6 +610,217 @@ function CarPartsInner() {
     )
   }
 
+  // --- Drill-down UI when catId is present ---
+  if (activeCatId) {
+    return (
+      <div className="bg-white !pt-10">
+        <section className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
+          <h1 className="text-2xl font-medium text-gray-900 sm:text-[32px]">Car Parts</h1>
+          <nav aria-label="Breadcrumb" className="mt-2 text-[14px] text-gray-700">
+            <ol className="flex items-center gap-2 font-medium">
+              <li>
+                <Link to="/parts" className="hover:underline">Parts Catalogue</Link>
+              </li>
+              <li aria-hidden className='text-[22px] -mt-1'>›</li>
+              <li className={activeSubCatId || activeSubSubCatId ? 'text-brand cursor-pointer hover:underline' : 'font-semibold text-brand'}
+                  onClick={() => setParams({ catId: activeCatId, subCatId: '', subSubCatId: '' })}
+              >Category</li>
+              {activeSubCatId && (
+                <>
+                  <li aria-hidden className='text-[22px] -mt-1'>›</li>
+                  <li className={activeSubSubCatId ? 'text-brand cursor-pointer hover:underline' : 'font-semibold text-brand'}
+                      onClick={() => setParams({ catId: activeCatId, subCatId: activeSubCatId, subSubCatId: '' })}
+                  >Sub Category</li>
+                </>
+              )}
+              {activeSubSubCatId && (
+                <>
+                  <li aria-hidden className='text-[22px] -mt-1'>›</li>
+                  <li className="font-semibold text-brand">Type</li>
+                </>
+              )}
+            </ol>
+          </nav>
+
+          {/* Sub Categories */}
+          <div className="mt-6">
+            <h3 className="text-[16px] font-semibold text-gray-900">Sub Categories</h3>
+            {subCatsLoading ? (
+              <div className="mt-3"><FallbackLoader label="Loading sub categories…" /></div>
+            ) : subCats.length === 0 ? (
+              <div className="mt-3 text-sm text-gray-600">No sub categories found.</div>
+            ) : (
+              <ul className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+                {subCats.map((sc) => (
+                  <li key={sc.id}>
+                    <button
+                      onClick={() => setParams({ catId: activeCatId, subCatId: sc.id, subSubCatId: '' })}
+                      className={`flex w-full items-center gap-3 rounded-lg p-2 ring-1 ring-black/10 hover:bg-gray-50 ${activeSubCatId===sc.id ? 'bg-gray-50' : ''}`}
+                    >
+                      <span className="flex h-10 w-10 items-center justify-center overflow-hidden rounded bg-[#F6F5FA] ring-1 ring-black/10">
+                        <img src={sc.image} alt="" className="h-full w-full object-contain" onError={(e)=>{(e.currentTarget as HTMLImageElement).src=logoImg}} />
+                      </span>
+                      <span className="truncate text-[14px] text-brand">{sc.name}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          {/* Sub-Sub Categories */}
+          {activeSubCatId && (
+            <div className="mt-8">
+              <h3 className="text-[16px] font-semibold text-gray-900">Types</h3>
+              {subSubCatsLoading ? (
+                <div className="mt-3"><FallbackLoader label="Loading types…" /></div>
+              ) : subSubCats.length === 0 ? (
+                <div className="mt-3 text-sm text-gray-600">No types found.</div>
+              ) : (
+                <ul className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+                  {subSubCats.map((ssc) => (
+                    <li key={ssc.id}>
+                      <button
+                        onClick={() => setParams({ catId: activeCatId, subCatId: activeSubCatId, subSubCatId: ssc.id })}
+                        className={`flex w-full items-center gap-3 rounded-lg p-2 ring-1 ring-black/10 hover:bg-gray-50 ${activeSubSubCatId===ssc.id ? 'bg-gray-50' : ''}`}
+                      >
+                        <span className="flex h-10 w-10 items-center justify-center overflow-hidden rounded bg-[#F6F5FA] ring-1 ring-black/10">
+                          <img src={ssc.image} alt="" className="h-full w-full object-contain" onError={(e)=>{(e.currentTarget as HTMLImageElement).src=logoImg}} />
+                        </span>
+                        <span className="truncate text-[14px] text-brand">{ssc.name}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+
+          {/* Products under sub-sub-category */}
+          {activeSubSubCatId && (
+            <div className="mt-10">
+              <h3 className="text-[16px] font-semibold text-gray-900">Products</h3>
+              {subProductsLoading ? (
+                <div className="mt-3"><FallbackLoader label="Loading products…" /></div>
+              ) : subProducts.length === 0 ? (
+                <div className="mt-3 text-sm text-gray-600">No products found under this type.</div>
+              ) : (
+                <ul className="mt-3 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+                  {subProducts.map((p, i) => {
+                    const ui = toUiProduct(p, i)
+                    return (
+                      <li key={ui.id} className="rounded-xl bg-white p-3 ring-1 ring-black/10">
+                        <Link to={`/product/${encodeURIComponent(ui.id)}`} className="block">
+                          <div className="flex h-36 items-center justify-center overflow-hidden rounded-lg bg-white">
+                            <img src={ui.image} alt={ui.title} className="h-[80%] w-auto object-contain" onError={(e)=>{(e.currentTarget as HTMLImageElement).src=logoImg}} />
+                          </div>
+                          <div className="mt-2 truncate text-[13px] font-semibold text-gray-900 hover:underline">{ui.title}</div>
+                        </Link>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+            </div>
+          )}
+        </section>
+      </div>
+    )
+  }
+
+  // --- Search results mode ---
+  if (qParam) {
+    return (
+      <div className="bg-white !pt-10">
+        <section className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
+          <h1 className="text-2xl font-medium text-gray-900 sm:text-[28px]">Search results</h1>
+          <nav aria-label="Breadcrumb" className="mt-2 text-[14px] text-gray-700">
+            <ol className="flex items-center gap-2 font-medium">
+              <li>
+                <Link to="/parts" className="hover:underline">Parts Catalogue</Link>
+              </li>
+              <li aria-hidden className='text-[22px] -mt-1'>›</li>
+              <li className="font-semibold text-brand">Results for “{qParam}”</li>
+            </ol>
+          </nav>
+
+          {/* Filters + results */}
+          <div className="mt-6 grid gap-6 md:grid-cols-[240px_1fr]">
+            {/* Filters */}
+            <aside className="rounded-xl bg-white p-4 ring-1 ring-black/10">
+              <div className="flex items-center justify-between">
+                <h3 className="text-[14px] font-semibold text-gray-900">Filter</h3>
+                {(selectedBrands.size || selectedCats.size) ? (
+                  <button onClick={() => { setSelectedBrands(new Set()); setSelectedCats(new Set()) }} className="text-[12px] text-brand underline">Clear all</button>
+                ) : null}
+              </div>
+
+              {/* Brands */}
+              <div className="mt-3">
+                <div className="text-[13px] font-semibold text-gray-800">Brand</div>
+                <ul className="mt-2 space-y-1">
+                  {allSearchBrands.length === 0 && <li className="text-[12px] text-gray-500">No brand filters</li>}
+                  {allSearchBrands.map((b: string) => {
+                    const id = `b-${toSlug(b)}`
+                    return (
+                      <li key={b} className="flex items-center gap-2">
+                        <input id={id} type="checkbox" className="h-3.5 w-3.5" checked={selectedBrands.has(b)} onChange={() => toggleSet(setSelectedBrands, b)} />
+                        <label htmlFor={id} className="text-[13px] text-gray-700">{b}</label>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </div>
+
+              {/* Categories */}
+              <div className="mt-4">
+                <div className="text-[13px] font-semibold text-gray-800">Category</div>
+                <ul className="mt-2 space-y-1">
+                  {allSearchCats.length === 0 && <li className="text-[12px] text-gray-500">No category filters</li>}
+                  {allSearchCats.map((c: string) => {
+                    const id = `c-${toSlug(c)}`
+                    return (
+                      <li key={c} className="flex items-center gap-2">
+                        <input id={id} type="checkbox" className="h-3.5 w-3.5" checked={selectedCats.has(c)} onChange={() => toggleSet(setSelectedCats, c)} />
+                        <label htmlFor={id} className="text-[13px] text-gray-700">{c}</label>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </div>
+            </aside>
+
+            {/* Results */}
+            <div>
+              {searchLoading ? (
+                <FallbackLoader label="Searching…" />
+              ) : filteredSearchResults.length === 0 ? (
+                <div className="rounded-xl bg-white p-6 text-center ring-1 ring-black/10">
+                  <div className="text-[14px] text-gray-700">No results found for “{qParam}”.</div>
+                </div>
+              ) : (
+                <>
+                  <div className="mb-3 text-[13px] text-gray-700">{filteredSearchResults.length} result{filteredSearchResults.length===1?'':'s'}</div>
+                  <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+                    {filteredSearchResults.map((p: ApiProduct, i: number) => {
+                      const ui = toUiProduct(p, i)
+                      return (
+                        <li key={ui.id}>
+                          <ProductCard product={ui} />
+                        </li>
+                      )
+                    })}
+                  </ul>
+                </>
+              )}
+            </div>
+          </div>
+        </section>
+      </div>
+    )
+  }
+
+  // --- Default: browse catalogue ---
   return (
     <div className="bg-white !pt-10">
       <section className="mx-auto max-w-7xl px-4 py-6 sm:px-6">

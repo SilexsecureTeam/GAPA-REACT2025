@@ -2,22 +2,10 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import logo from '../assets/gapa-logo.png';
 import icon1 from '../assets/h1.png'
-import icon2 from '../assets/h2.png'
-import icon3 from '../assets/h3.png'
-import icon4 from '../assets/h4.png'
-import icon5 from '../assets/h5.png'
-import icon6 from '../assets/h6.png'
-import icon7 from '../assets/h7.png'
+// Removed unused icons h2-h7
 import { useAuth } from '../services/auth'
-import { getAllCategories, getAllProducts, type ApiCategory, type ApiProduct, getAllBrands, type ApiBrand } from '../services/api'
-import { categoryImageFrom, normalizeApiImage, pickImage, productImageFrom, brandImageFrom } from '../services/images'
-
-type Category = {
-  label: string;
-  caret?: boolean;
-  items?: string[];
-  icon?: string;
-};
+import { getAllCategories, type ApiCategory, getAllBrands, type ApiBrand, getSubCategories, getSubSubCategories } from '../services/api'
+import { categoryImageFrom, normalizeApiImage, pickImage, brandImageFrom } from '../services/images'
 
 export default function Header() {
   // Live timer to Sept 1, 12am displayed as HH:MM:SS (no labels)
@@ -31,16 +19,21 @@ export default function Header() {
     return { h, m, s }
   })
   const [query, setQuery] = useState('')
-  const [openIdx, setOpenIdx] = useState<number | null>(null)
+  // Removed live search UI state: searching, suggestions, showSuggest
   const { user } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
 
-  // Mega menu state for Car Parts
+  // Mega menu state for Category drill-down (formerly Car Parts)
   const [carPartsOpen, setCarPartsOpen] = useState(false)
   const [catMenuLoading, setCatMenuLoading] = useState(false)
-  const [catMenu, setCatMenu] = useState<Array<{ name: string; image: string; items: { id: string; title: string; image: string }[] }>>([])
+  const [catMenu, setCatMenu] = useState<Array<{ id: string; name: string; image: string }>>([])
   const [activeCatIdx, setActiveCatIdx] = useState(0)
+  const [subCats, setSubCats] = useState<Array<{ id: string; name: string; image: string }>>([])
+  const [subCatsLoading, setSubCatsLoading] = useState(false)
+  const [activeSubCat, setActiveSubCat] = useState<{ id: string; name: string } | null>(null)
+  const [subSubCats, setSubSubCats] = useState<Array<{ id: string; name: string; image: string }>>([])
+  const [subSubCatsLoading, setSubSubCatsLoading] = useState(false)
 
   // Dropdown state for Car Brands
   const [brandsOpen, setBrandsOpen] = useState(false)
@@ -61,22 +54,16 @@ export default function Header() {
     return () => clearInterval(id)
   }, [])
 
-  const categories: Category[] = [
-    { label: 'Car Brands', caret: true, icon: icon1, items: ['Toyota', 'Honda', 'BMW', 'Mercedes', 'Kia', 'Hyundai'] },
-    { label: 'Car Parts', caret: true, icon: icon2, items: ['Brake Pad Set', 'Brake Discs', 'Suspension', 'Brakes', 'Electrical', 'Body', 'Cooling'] },
-    { label: 'Tyres', icon: icon3 },
-    { label: 'Car Accessories', icon: icon4 },
-    { label: 'Engine Oil', icon: icon5 },
-    { label: 'Tools', icon: icon6 },
-    { label: 'Brakes', icon: icon7 },
-  ]
+  // Removed static categories; we now render Car Brands + dynamic API categories
 
-  const onSearch = (e: React.FormEvent) => {
+  const onSearch = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!query.trim()) return
-    // TODO: integrate real search routing. For now, log and show a basic feedback.
-    console.log('Searching for:', query)
-    alert(`Searching for: ${query}`)
+    const term = query.trim()
+    if (!term) return
+    // Navigate to CarParts with the query param; actual search happens on that page
+    setCarPartsOpen(false)
+    setBrandsOpen(false)
+    navigate(`/parts?q=${encodeURIComponent(term)}`)
   }
 
   const toSlug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
@@ -84,84 +71,65 @@ export default function Header() {
   const pad2 = (n: number) => n.toString().padStart(2, '0')
 
   // Helpers to derive category and images from products (mirrors CarParts.tsx)
-  function categoryOf(p: any): string {
-    const c = (p as any)?.category
-    if (typeof c === 'string') return c
-    return String(c?.name || c?.title || (p as any)?.category_name || 'General')
-  }
+  // Removed unused categoryOf helper
 
   async function ensureCatMenuLoaded() {
     if (catMenu.length || catMenuLoading) return
     try {
       setCatMenuLoading(true)
-      const [prods, cats] = await Promise.all([
-        getAllProducts(),
-        getAllCategories(),
-      ])
-
-      // Use the freshly fetched categories locally; state update may be async
-      const localCats = Array.isArray(cats) ? (cats as ApiCategory[]) : []
-
-      const grouped = new Map<string, ApiProduct[]>()
-      for (const p of (Array.isArray(prods) ? (prods as ApiProduct[]) : [])) {
-        const key = categoryOf(p)
-        const list = grouped.get(key) || []
-        list.push(p)
-        grouped.set(key, list)
-      }
-
-      // Resolve category info using the local categories
-      const resolveCatInfo = (sample: any) => {
-        const c = sample?.category
-        const guessName = categoryOf(sample)
-        let catObj: any | undefined
-        if (c && typeof c === 'object') {
-          catObj = c
-        } else if (typeof c === 'number' || (typeof c === 'string' && /^\d+$/.test(c))) {
-          const idStr = String(c)
-          catObj = (localCats as any[]).find((x: any) => String(x?.id ?? x?.category_id ?? '') === idStr)
-        } else if (!catObj && guessName) {
-          const lower = String(guessName).toLowerCase()
-          catObj = (localCats as any[]).find((x: any) => String(x?.name || x?.title || '').toLowerCase() === lower)
-        }
-        const imgFromCat = catObj ? (categoryImageFrom(catObj) || normalizeApiImage(pickImage(catObj) || '')) : ''
-        const displayName = catObj ? String(catObj?.title || catObj?.name || guessName || 'Category') : (guessName || 'Category')
-        return { name: displayName, image: imgFromCat || '/gapa-logo.png' }
-      }
-
-      let menu = Array.from(grouped.entries()).map(([name, list]) => {
-        const sample = list[0]
-        const info = resolveCatInfo(sample as any)
-        return {
-          name: info.name || name,
-          image: info.image,
-          items: list.slice(0, 12).map((p: ApiProduct, i: number) => ({
-            id: String((p as any)?.id ?? (p as any)?.product_id ?? i),
-            title: String((p as any)?.name || (p as any)?.title || (p as any)?.product_name || 'Car Part'),
-            image: productImageFrom(p) || normalizeApiImage(pickImage(p) || '') || '/gapa-logo.png',
-          }))
-        }
-      }).sort((a, b) => a.name.localeCompare(b.name))
-
-      // Final pass: if name looks like an ID (e.g., '1', '2'), replace with the category title from API
-      menu = menu.map((m) => {
-        if (/^\d+$/.test(m.name)) {
-          const match = (localCats as any[]).find((x: any) => String(x?.id ?? x?.category_id ?? '') === m.name)
-          if (match) {
-            const fixedName = String(match?.title || match?.name || m.name)
-            const fixedImg = categoryImageFrom(match) || normalizeApiImage(pickImage(match) || '') || m.image
-            return { ...m, name: fixedName, image: fixedImg }
-          }
-        }
-        return m
-      })
-
-      setCatMenu(menu)
+      const cats = await getAllCategories()
+      const arr = Array.isArray(cats) ? (cats as ApiCategory[]) : []
+      const list = arr.map((c, i) => ({
+        id: String((c as any)?.id ?? (c as any)?.category_id ?? i),
+        name: String((c as any)?.title || (c as any)?.name || 'Category'),
+        image: categoryImageFrom(c) || normalizeApiImage(pickImage(c) || '') || '/gapa-logo.png'
+      })).sort((a,b)=>a.name.localeCompare(b.name))
+      setCatMenu(list)
       setActiveCatIdx(0)
+      // preload first category's subcats
+      if (list.length) void fetchSubCats(list[0].id)
     } catch (_) {
       // ignore
     } finally {
       setCatMenuLoading(false)
+    }
+  }
+
+  async function fetchSubCats(catId: string | number) {
+    try {
+      setSubCatsLoading(true)
+      setActiveSubCat(null)
+      setSubSubCats([])
+      const res = await getSubCategories(catId)
+      const arr = Array.isArray(res) ? res : []
+      const mapped = arr.map((sc: any, i: number) => ({
+        id: String(sc?.sub_cat_id ?? sc?.id ?? sc?.sub_category_id ?? i),
+        name: String(sc?.sub_title || sc?.title || sc?.name || 'Sub Category'),
+        image: categoryImageFrom(sc) || normalizeApiImage(pickImage(sc) || '') || '/gapa-logo.png'
+      }))
+      setSubCats(mapped)
+    } catch (_) {
+      setSubCats([])
+    } finally {
+      setSubCatsLoading(false)
+    }
+  }
+
+  async function fetchSubSubCats(subCatId: string | number) {
+    try {
+      setSubSubCatsLoading(true)
+      const res = await getSubSubCategories(subCatId)
+      const arr = Array.isArray(res) ? res : []
+      const mapped = arr.map((ssc: any, i: number) => ({
+        id: String(ssc?.sub_sub_cat_id ?? ssc?.id ?? ssc?.sub_sub_category_id ?? ssc?.subsubcatID ?? i),
+        name: String(ssc?.sub_sub_title || ssc?.title || ssc?.name || 'Type'),
+        image: categoryImageFrom(ssc) || normalizeApiImage(pickImage(ssc) || '') || '/gapa-logo.png'
+      }))
+      setSubSubCats(mapped)
+    } catch (_) {
+      setSubSubCats([])
+    } finally {
+      setSubSubCatsLoading(false)
     }
   }
 
@@ -201,16 +169,15 @@ export default function Header() {
   // Close menus on route change using location instead of navigate.listen
   useEffect(() => {
     // Close menus when the pathname or hash changes
-    setOpenIdx(null)
     setCarPartsOpen(false)
     setBrandsOpen(false)
   }, [location.pathname, location.hash])
 
   // Close all menus helper
-  const closeMenus = () => { setOpenIdx(null); setCarPartsOpen(false); setBrandsOpen(false) }
+  const closeMenus = () => { setCarPartsOpen(false); setBrandsOpen(false) }
 
   return (
-    <header className="fixed w-full top-0 z-50 shadow-sm" onKeyDown={(e) => { if (e.key === 'Escape') closeMenus() }}>
+    <header className="fixed w-full top-0 z-50 shadow-sm" onKeyDown={(e) => { if (e.key === 'Escape') { closeMenus() } }}>
       {/* Top promo strip */}
       <div className="bg-brand text-white py-1">
         <div className="mx-auto flex h-10 max-w-7xl items-center justify-between px-4 sm:px-6">
@@ -251,7 +218,7 @@ export default function Header() {
           </Link>
 
           {/* Search */}
-          <form onSubmit={onSearch} className="w-full">
+          <form onSubmit={onSearch} className="w-full relative">
             <div className="relative flex h-10 sm:h-11 w-full md:w-[80%] md:ml-20 overflow-hidden rounded-md bg-white ring-1 ring-black/10 focus-within:ring-black/20">
               <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">
                 {/* Magnifier icon */}
@@ -320,7 +287,7 @@ export default function Header() {
                   </svg>
                   <span>Sign In</span>
                 </Link>
-                {/* <Link to="/signup" className="text-[14px] font-medium text-white hover:underline">Create account</Link> */}
+                {/* <Link to="/signup" className="text:[14px] font-medium text-white hover:underline">Create account</Link> */}
               </div>
             )}
           </div>
@@ -328,91 +295,69 @@ export default function Header() {
       </div>
 
       {/* Category bar with dropdowns */}
-      <nav className="relative bg-brand overflow-visible text-white" onMouseLeave={() => { setOpenIdx(null); setCarPartsOpen(false); setBrandsOpen(false) }}>
+      <nav className="relative bg-brand overflow-visible text-white" onMouseLeave={() => { setCarPartsOpen(false); setBrandsOpen(false) }}>
         <div
           className="mx-auto flex h-11 sm:h-12 max-w-7xl items-center justify-between gap-4 overflow-x-auto px-2 sm:px-4"
         >
-          {categories.map((cat, i) => {
-            const isCarParts = cat.label === 'Car Parts'
-            const isCarBrands = cat.label === 'Car Brands'
+          {/* Car Brands first */}
+          <div className="relative">
+            <button
+              onMouseEnter={async () => { setBrandsOpen(true); setCarPartsOpen(false); await ensureBrandsMenuLoaded() }}
+              onFocus={async () => { setBrandsOpen(true); setCarPartsOpen(false); await ensureBrandsMenuLoaded() }}
+              onClick={async (e) => { e.preventDefault(); const willOpen = !brandsOpen; setBrandsOpen(willOpen); setCarPartsOpen(false); if (willOpen) await ensureBrandsMenuLoaded() }}
+              className={`group inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-md px-2.5 py-1.5 text-[13px] sm:text-[14px] font-medium ${
+                brandsOpen ? 'bg-white/10 text-white' : 'text-white/90 hover:text-white hover:bg-white/10'
+              }`}
+              aria-haspopup
+              aria-expanded={brandsOpen}
+            >
+              <img src={icon1} alt="" className="h-4 w-4 sm:h-5 sm:w-5" />
+              <span>Car Brands</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="opacity-80 group-hover:opacity-100">
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Dynamic categories from API */}
+          {catMenu.map((c, idx) => {
+            const nameLower = c.name.toLowerCase()
+            const isEngineOil = /engine\s*oil/.test(nameLower)
+            const isTools = /tools?/.test(nameLower)
+            const isBrakes = /brakes?/.test(nameLower)
+            const isTyres = /tyres?|tires?/.test(nameLower)
+            const isActive = carPartsOpen && activeCatIdx === idx
             return (
-              <div key={cat.label} className="relative">
+              <div key={c.id} className="relative">
                 <button
-                  onMouseEnter={() => { if (!isCarParts && !isCarBrands) setOpenIdx(cat.items ? i : null) }}
-                  onFocus={() => { if (!isCarParts && !isCarBrands) setOpenIdx(cat.items ? i : null) }}
-                  onClick={async (e) => {
-                    if (isCarParts) {
-                      e.preventDefault()
-                      const willOpen = !carPartsOpen
-                      setCarPartsOpen(willOpen)
-                      setBrandsOpen(false)
-                      setOpenIdx(null)
-                      if (willOpen) await ensureCatMenuLoaded()
-                    } else if (isCarBrands) {
-                      e.preventDefault()
-                      const willOpen = !brandsOpen
-                      setBrandsOpen(willOpen)
-                      setCarPartsOpen(false)
-                      setOpenIdx(null)
-                      if (willOpen) await ensureBrandsMenuLoaded()
-                    } else {
-                      setCarPartsOpen(false)
-                      setBrandsOpen(false)
-                      setOpenIdx(null)
-                      // Navigate to mapped routes for non-car-parts/brands
-                      if (cat.label === 'Tyres') navigate('/tyres')
-                      else if (cat.label === 'Engine Oil') navigate('/engine-oil')
-                      else if (cat.label === 'Tools') navigate('/tools')
-                      else if (cat.label === 'Brakes') navigate('/brakes')
-                      else navigate('/parts')
-                    }
+                  onMouseEnter={async () => { setBrandsOpen(false); setCarPartsOpen(true); setActiveCatIdx(idx); await fetchSubCats(c.id) }}
+                  onFocus={async () => { setBrandsOpen(false); setCarPartsOpen(true); setActiveCatIdx(idx); await fetchSubCats(c.id) }}
+                  onClick={(e) => {
+                    e.preventDefault()
+                    setBrandsOpen(false)
+                    // Navigate for special categories; otherwise open /parts page for this category
+                    if (isEngineOil) navigate('/engine-oil')
+                    else if (isTools) navigate('/tools')
+                    else if (isBrakes) navigate('/brakes')
+                    else if (isTyres) navigate('/tyres')
+                    else navigate(`/parts?catId=${encodeURIComponent(c.id)}`)
+                    setCarPartsOpen(false)
                   }}
                   className={`group inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-md px-2.5 py-1.5 text-[13px] sm:text-[14px] font-medium ${
-                    (isCarParts && carPartsOpen) || (isCarBrands && brandsOpen) || (!isCarParts && !isCarBrands && openIdx===i) ? 'bg-white/10 text-white' : 'text-white/90 hover:text-white hover:bg-white/10'
+                    isActive ? 'bg-white/10 text-white' : 'text-white/90 hover:text-white hover:bg-white/10'
                   }`}
-                  aria-haspopup={!!cat.items}
-                  aria-expanded={isCarParts ? carPartsOpen : (isCarBrands ? brandsOpen : openIdx === i)}
+                  aria-haspopup
+                  aria-expanded={isActive}
                 >
-                  {cat.icon && (
-                    <img src={cat.icon} alt="" className="h-4 w-4 sm:h-5 sm:w-5" />
-                  )}
-                  <span>{cat.label}</span>
-                  {cat.caret && (
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="opacity-80 group-hover:opacity-100">
-                      <polyline points="6 9 12 15 18 9" />
-                    </svg>
-                  )}
+                  {/* Optional icons could be mapped here if needed */}
+                  <span>{c.name}</span>
                 </button>
-
-                {/* Simple dropdown for non-Car Parts/Brands */}
-                {!isCarParts && !isCarBrands && openIdx === i && cat.items && (
-                  <div className="absolute left-0 top-full z-40 mt-2 w-screen max-w-md rounded-xl bg-white p-3 text-gray-900 shadow-lg ring-1 ring-black/10 sm:max-w-lg md:max-w-xl">
-                    <div role="menu" aria-label={`${cat.label} menu`} className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                      {cat.items.map((item) => {
-                        const to = i === 0
-                          ? `/parts/${toSlug(item)}/brake-discs`
-                          : `/parts/${toSlug(item)}`
-                        return (
-                          <Link
-                            key={item}
-                            role="menuitem"
-                            to={to}
-                            className="block rounded-md px-3 py-2 text-sm text-gray-800 hover:bg-brand hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
-                            onClick={() => setOpenIdx(null)}
-                          >
-                            {item}
-                          </Link>
-                        )
-                      })}
-                    </div>
-                  </div>
-                )}
               </div>
             )
           })}
         </div>
 
-        {/* Mega dropdown for Car Parts */}
+        {/* Mega dropdown for Category drill-down */}
         {carPartsOpen && (
           <div className="absolute inset-x-0 top-full z-40">
             <div className="mx-auto max-w-7xl px-2 sm:px-4">
@@ -426,11 +371,11 @@ export default function Header() {
                   ) : (
                     <ul className="max-h-[60vh] overflow-y-auto">
                       {catMenu.map((c, idx) => (
-                        <li key={c.name}>
+                        <li key={c.id}>
                           <button
-                            onMouseEnter={() => setActiveCatIdx(idx)}
-                            onFocus={() => setActiveCatIdx(idx)}
-                            onClick={() => { setActiveCatIdx(idx); /* Keep open */ }}
+                            onMouseEnter={() => { setActiveCatIdx(idx); fetchSubCats(c.id) }}
+                            onFocus={() => { setActiveCatIdx(idx); fetchSubCats(c.id) }}
+                            onClick={() => { setActiveCatIdx(idx); fetchSubCats(c.id); navigate(`/parts?catId=${encodeURIComponent(c.id)}`); setCarPartsOpen(false) }}
                             className={`flex w-full items-center gap-3 rounded-md px-2.5 py-2 text-left text-[14px] hover:bg-gray-50 ${activeCatIdx===idx ? 'bg-gray-50 text-brand' : 'text-gray-800'}`}
                             aria-current={activeCatIdx===idx}
                           >
@@ -445,48 +390,73 @@ export default function Header() {
                   )}
                 </aside>
 
-                {/* Right: items for active category */}
+                {/* Right: sub categories and sub-sub categories */}
                 <section className="p-3 md:p-5">
-                  {catMenuLoading ? (
-                    <div className="p-4 text-sm text-gray-600">Preparing items…</div>
-                  ) : catMenu.length === 0 ? (
-                    <div className="p-4 text-sm text-gray-600">Select a category to see items.</div>
+                  {subCatsLoading ? (
+                    <div className="p-4 text-sm text-gray-600">Loading sub categories…</div>
+                  ) : subCats.length === 0 ? (
+                    <div className="p-4 text-sm text-gray-600">Select a category to see sub categories.</div>
                   ) : (
-                    <div className="flex h-full flex-col">
-                      <div className="mb-3 flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-lg bg-[#F6F5FA] ring-1 ring-black/10">
-                            <img src={catMenu[activeCatIdx]?.image} alt="" className="h-full w-full object-contain" onError={(e)=>{(e.currentTarget as HTMLImageElement).src='/gapa-logo.png'}} />
-                          </div>
-                          <h3 className="text-[16px] font-semibold text-gray-900">{catMenu[activeCatIdx]?.name}</h3>
-                        </div>
-                        <Link
-                          to={`/parts#cat-${toSlug(catMenu[activeCatIdx]?.name || '')}`}
-                          className="text-[13px] font-semibold text-brand hover:underline"
-                          onClick={() => setCarPartsOpen(false)}
-                        >
-                          View all
-                        </Link>
-                      </div>
-
-                      <div className="min-h-0 flex-1 overflow-y-auto">
+                    <div className="flex h-full flex-col gap-4">
+                      <div className="min-h-0 overflow-y-auto">
+                        <h4 className="mb-2 text-[14px] font-semibold text-gray-900">Sub Categories</h4>
                         <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                          {(catMenu[activeCatIdx]?.items || []).map((it, i) => (
-                            <li key={`${it.id}-${i}`} className="">
-                              <Link
-                                to={`/product/${encodeURIComponent(it.id)}`}
-                                className="group flex items-center gap-3 rounded-md p-2 ring-1 ring-black/5 hover:bg-gray-50"
-                                onClick={() => setCarPartsOpen(false)}
-                              >
-                                <span className="flex h-10 w-10 items-center justify-center overflow-hidden rounded bg-[#F6F5FA] ring-1 ring-black/10">
-                                  <img src={it.image} alt="" className="h-full w-full object-contain" onError={(e)=>{(e.currentTarget as HTMLImageElement).src='/gapa-logo.png'}} />
-                                </span>
-                                <span className="text-[14px] text-brand group-hover:underline truncate">{it.title}</span>
-                              </Link>
-                            </li>
-                          ))}
+                          {subCats.map((sc) => {
+                            const activeCatId = catMenu[activeCatIdx]?.id
+                            return (
+                              <li key={sc.id}>
+                                <button
+                                  onClick={() => { setActiveSubCat({ id: sc.id, name: sc.name }); fetchSubSubCats(sc.id); if (activeCatId) navigate(`/parts?catId=${encodeURIComponent(activeCatId)}&subCatId=${encodeURIComponent(sc.id)}`) }}
+                                  className="group flex items-center gap-3 rounded-md p-2 ring-1 ring-black/5 hover:bg-gray-50 w-full text-left"
+                                >
+                                  <span className="flex h-10 w-10 items-center justify-center overflow-hidden rounded bg-[#F6F5FA] ring-1 ring-black/10">
+                                    <img src={sc.image} alt="" className="h-full w-full object-contain" onError={(e)=>{(e.currentTarget as HTMLImageElement).src='/gapa-logo.png'}} />
+                                  </span>
+                                  <span className="text-[14px] text-brand group-hover:underline truncate">{sc.name}</span>
+                                </button>
+                              </li>
+                            )
+                          })}
                         </ul>
                       </div>
+
+                      {activeSubCat && (
+                        <div className="min-h-0 overflow-y-auto">
+                          <div className="mb-2 flex items-center justify-between">
+                            <h4 className="text-[14px] font-semibold text-gray-900">{activeSubCat.name} – Types</h4>
+                            <button onClick={() => { setActiveSubCat(null); setSubSubCats([]) }} className="text-[12px] text-brand underline">Back</button>
+                          </div>
+                          {subSubCatsLoading ? (
+                            <div className="p-2 text-sm text-gray-600">Loading types…</div>
+                          ) : subSubCats.length === 0 ? (
+                            <div className="p-2 text-sm text-gray-600">No types found.</div>
+                          ) : (
+                            <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                              {subSubCats.map((ssc) => {
+                                const activeCatId = catMenu[activeCatIdx]?.id
+                                const subId = activeSubCat?.id
+                                const href = activeCatId && subId
+                                  ? `/parts?catId=${encodeURIComponent(activeCatId)}&subCatId=${encodeURIComponent(subId)}&subSubCatId=${encodeURIComponent(ssc.id)}`
+                                  : '/parts'
+                                return (
+                                  <li key={ssc.id}>
+                                    <Link
+                                      to={href}
+                                      className="group flex items-center gap-3 rounded-md p-2 ring-1 ring-black/5 hover:bg-gray-50"
+                                      onClick={() => setCarPartsOpen(false)}
+                                    >
+                                      <span className="flex h-10 w-10 items-center justify-center overflow-hidden rounded bg-[#F6F5FA] ring-1 ring-black/10">
+                                        <img src={ssc.image} alt="" className="h-full w-full object-contain" onError={(e)=>{(e.currentTarget as HTMLImageElement).src='/gapa-logo.png'}} />
+                                      </span>
+                                      <span className="text-[14px] text-brand group-hover:underline truncate">{ssc.name}</span>
+                                    </Link>
+                                  </li>
+                                )
+                              })}
+                            </ul>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )}
                 </section>

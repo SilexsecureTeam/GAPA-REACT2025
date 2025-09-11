@@ -10,6 +10,17 @@ import { addGuestCartItem } from '../services/cart'
 const toSlug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
 const titleCase = (s: string) => s.replace(/-/g, ' ').replace(/\b\w/g, (m) => m.toUpperCase())
 
+// Persisted vehicle filter key (shared with Home)
+const FILTER_KEY = 'gapa:veh-filter'
+type PersistedFilter = {
+  brandId?: string
+  modelId?: string
+  engineId?: string
+  brandName?: string
+  modelName?: string
+  engineName?: string
+}
+
 // Derive brand and category names from product
 function brandOf(p: any): string {
   return String(p?.brand?.name || p?.brand || p?.manufacturer || p?.maker || p?.brand_name || '').trim()
@@ -97,6 +108,28 @@ function VehicleFilter({ onNavigate }: { onNavigate: (url: string) => void }) {
 
   const [busy, setBusy] = useState(false)
 
+  // Hydrate from persisted state
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(FILTER_KEY)
+      if (raw) {
+        const saved: PersistedFilter = JSON.parse(raw)
+        if (saved.brandId) setBrandId(saved.brandId)
+        if (saved.modelId) setModelId(saved.modelId)
+        if (saved.engineId) setEngineId(saved.engineId)
+        if (saved.brandName) setBrandName(saved.brandName)
+        if (saved.modelName) setModelName(saved.modelName)
+        if (saved.engineName) setEngineName(saved.engineName)
+      }
+    } catch { /* ignore */ }
+  }, [])
+
+  // Persist on change
+  useEffect(() => {
+    const saved: PersistedFilter = { brandId, modelId, engineId, brandName, modelName, engineName }
+    try { localStorage.setItem(FILTER_KEY, JSON.stringify(saved)) } catch { /* ignore */ }
+  }, [brandId, modelId, engineId, brandName, modelName, engineName])
+
   useEffect(() => {
     let alive = true
     ;(async () => {
@@ -152,7 +185,7 @@ function VehicleFilter({ onNavigate }: { onNavigate: (url: string) => void }) {
   // Options with human-readable labels
   const brandOptions = useMemo(() => (
     (brands || [])
-      .map((b) => ({ value: String((b as any)?.id ?? ''), label: String((b as any)?.name || (b as any)?.title || '') }))
+      .map((b) => ({ value: String((b as any)?.brand_id ?? (b as any)?.id ?? ''), label: String((b as any)?.name || (b as any)?.title || '') }))
       .filter((o) => o.value && o.label)
       .sort((a,b)=>a.label.localeCompare(b.label))
   ), [brands])
@@ -170,6 +203,39 @@ function VehicleFilter({ onNavigate }: { onNavigate: (url: string) => void }) {
       .filter((o) => o.value && o.label)
       .sort((a,b)=>a.label.localeCompare(b.label))
   ), [subModels])
+
+  // Label mappers and sync when options load
+  const brandLabelById = useMemo(() => {
+    const m = new Map<string,string>()
+    for (const o of brandOptions) m.set(o.value, o.label)
+    return (id: string) => m.get(id) || ''
+  }, [brandOptions])
+  const modelLabelById = useMemo(() => {
+    const m = new Map<string,string>()
+    for (const o of modelOptions) m.set(o.value, o.label)
+    return (id: string) => m.get(id) || ''
+  }, [modelOptions])
+  const engineLabelById = useMemo(() => {
+    const m = new Map<string,string>()
+    for (const o of engineOptions) m.set(o.value, o.label)
+    return (id: string) => m.get(id) || ''
+  }, [engineOptions])
+
+  useEffect(() => {
+    if (brandId && !brandName) setBrandName(brandLabelById(brandId))
+  }, [brandId, brandName, brandLabelById])
+  useEffect(() => {
+    if (modelId && !modelName) setModelName(modelLabelById(modelId))
+  }, [modelId, modelName, modelLabelById])
+  useEffect(() => {
+    if (engineId && !engineName) setEngineName(engineLabelById(engineId))
+  }, [engineId, engineName, engineLabelById])
+
+  const handleReset = () => {
+    setBrandId(''); setModelId(''); setEngineId('')
+    setBrandName(''); setModelName(''); setEngineName('')
+    try { localStorage.removeItem(FILTER_KEY) } catch { /* ignore */ }
+  }
 
   const doSearch = async () => {
     if (busy) return
@@ -260,6 +326,7 @@ function VehicleFilter({ onNavigate }: { onNavigate: (url: string) => void }) {
           </div>
         </div>
         <button onClick={doSearch} disabled={busy || !brandId || !modelId} className="inline-flex h-10 w-full items-center justify-center rounded-md bg-[#F7CD3A] text-[14px] font-semibold text-gray-900 ring-1 ring-black/10 disabled:opacity-60">{busy ? 'Searching…' : 'Search'}</button>
+        <button onClick={handleReset} className="h-9 w-full rounded-md bg-gray-100 text-[12px] font-medium ring-1 ring-black/10">Reset vehicle</button>
       </div>
     </div>
   )
@@ -701,6 +768,9 @@ export default function CarPartDetails() {
                 <div className="rounded-lg border border-black/10 bg-white p-4 text-sm text-gray-700">No products found in this section.</div>
               ) : (
                 <div className="grid grid-cols-1 gap-4">
+                  <div className="rounded-md bg-[#FBF5E9] p-3 text-[13px] text-gray-800 ring-1 ring-black/10">
+                    Select a product below to view details and related products.
+                  </div>
                   {results.map((r) => (
                     <div key={r.id} className="rounded-md bg-white p-3 ring-1 ring-black/10">
                       <button onClick={() => onViewProduct(r.id, r.raw)} className="block text-left text-[14px] font-semibold text-brand hover:underline">{r.title}</button>
