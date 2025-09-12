@@ -287,6 +287,7 @@ function CarPartsInner() {
   const [brandName, setBrandName] = useState('')
   const [modelName, setModelName] = useState('')
   const [engineName, setEngineName] = useState('')
+  const [vehBusy, setVehBusy] = useState(false)
 
   // Hydrate persisted selection
   useEffect(() => {
@@ -407,6 +408,31 @@ function CarPartsInner() {
     next.set('q', term)
     next.delete('catId'); next.delete('subCatId'); next.delete('subSubCatId')
     setSearchParams(next, { replace: false })
+  }
+
+  // New: replicate CarPartDetails VehicleFilter behavior (navigate to details if match, else brand/part with q)
+  const doVehicleNavigate = async () => {
+    if (vehBusy) return
+    const term = [brandName, modelName, engineName].filter(Boolean).join(' ').trim()
+    if (!term) return
+    setVehBusy(true)
+    try {
+      const res = await liveSearch(term)
+      const list = Array.isArray(res) ? res : (res as any)?.data
+      const items = Array.isArray(list) ? list : []
+      const brandSlug = brandName ? toSlug(brandName) : 'gapa'
+      const partSlug = modelName ? toSlug(modelName) : 'parts'
+      if (items.length === 0) {
+        navigate(`/parts/${brandSlug}/${partSlug}?q=${encodeURIComponent(term)}`)
+      } else {
+        const first = items[0]
+        const pid = String((first as any)?.id || (first as any)?.product_id || '')
+        if (pid) navigate(`/parts/${brandSlug}/${partSlug}?pid=${encodeURIComponent(pid)}`)
+        else navigate(`/parts/${brandSlug}/${partSlug}?q=${encodeURIComponent(term)}`)
+      }
+    } finally {
+      setVehBusy(false)
+    }
   }
 
   // Helper to toggle entries in a Set state
@@ -844,9 +870,12 @@ function CarPartsInner() {
                 <ul className="mt-3 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
                   {subProducts.map((p, i) => {
                     const ui = toUiProduct(p, i)
+                    const bSlug = ui.brandSlug || 'gapa'
+                    const pSlug = ui.partSlug || 'parts'
+                    const to = `/parts/${bSlug}/${pSlug}?pid=${encodeURIComponent(ui.id)}`
                     return (
                       <li key={ui.id} className="rounded-xl bg-white p-3 ring-1 ring-black/10">
-                        <Link to={`/product/${encodeURIComponent(ui.id)}`} className="block">
+                        <Link to={to} className="block">
                           <div className="flex h-36 items-center justify-center overflow-hidden rounded-lg bg-white">
                             <img src={ui.image} alt={ui.title} className="h-[80%] w-auto object-contain" onError={(e)=>{(e.currentTarget as HTMLImageElement).src=logoImg}} />
                           </div>
@@ -925,82 +954,75 @@ function CarPartsInner() {
                 </ul>
               </div>
 
-              {/* Vehicle filters */}
+              {/* Vehicle filter styled like Home/Details */}
               <div className="mt-4">
-                <div className="text-[13px] font-semibold text-gray-800">Vehicle</div>
-                {/* Maker (brand) */}
-                <div className="mt-2">
-                  <label htmlFor="filter-maker" className="block text-[12px] text-gray-700">Maker</label>
-                  <select
-                    id="filter-maker"
-                    value={brandId}
-                    onChange={(e) => setBrandId(e.target.value)}
-                    className="mt-1 block w-full rounded-md border-gray-300 text-[13px] shadow-sm focus:border-brand focus:ring-brand"
-                  >
-                    <option value="" disabled hidden>Select Maker</option>
-                    {loadingBrands && brandOptions.length === 0 && (
-                      <option value="">Loading makers…</option>
-                    )}
-                    {brandOptions.map((o) => (
-                      <option key={o.value} value={o.value}>{o.label}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Model */}
-                <div className="mt-4">
-                  <label htmlFor="filter-model" className="block text-[12px] text-gray-700">Model</label>
-                  <select
-                    id="filter-model"
-                    value={modelId}
-                    onChange={(e) => setModelId(e.target.value)}
-                    disabled={!brandId}
-                    className="mt-1 block w-full rounded-md border-gray-300 text-[13px] shadow-sm focus:border-brand focus:ring-brand"
-                  >
-                    <option value="" disabled hidden>Select Model</option>
-                    {modelOptions.length === 0 && (
-                      <option value="">No models found</option>
-                    )}
-                    {modelOptions.map((m) => (
-                      <option key={m.value} value={m.value}>{m.label}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Engine type */}
-                <div className="mt-4">
-                  <label htmlFor="filter-engine" className="block text-[12px] text-gray-700">Engine type</label>
-                  <select
-                    id="filter-engine"
-                    value={engineId}
-                    onChange={(e) => setEngineId(e.target.value)}
-                    disabled={!modelId}
-                    className="mt-1 block w-full rounded-md border-gray-300 text-[13px] shadow-sm focus:border-brand focus:ring-brand"
-                  >
-                    <option value="" disabled hidden>{engineOptions.length ? 'Select Engine' : 'Base'}</option>
-                    {engineOptions.length === 0 && (
-                      <option value="">No engine types found</option>
-                    )}
-                    {engineOptions.map((e) => (
-                      <option key={e.value} value={e.value}>{e.label}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Controls */}
-                <div className="mt-4 flex gap-2">
-                  <button
-                    onClick={resetVehicle}
-                    className="flex-1 rounded-md bg-gray-100 px-3 py-2 text-[13px] text-gray-700 ring-1 ring-gray-300 hover:bg-gray-200"
-                  >
-                    Reset vehicle filter
-                  </button>
-                  <button
-                    onClick={runVehicleSearch}
-                    className="flex-1 rounded-md bg-brand px-3 py-2 text-[13px] font-semibold text-white ring-1 ring-black/10 hover:bg-brand/90"
-                  >
-                    Update search
-                  </button>
+                <div className="rounded-xl bg-white p-4 ring-1 ring-black/10">
+                  <h4 className="text-[12px] font-bold tracking-wide text-white">
+                    <span className="inline-block rounded bg-brand px-2 py-1">SELECT VEHICLE</span>
+                  </h4>
+                  <div className="mt-3 space-y-4">
+                    <div className="space-y-3">
+                      <div className="relative">
+                        <select
+                          value={brandId}
+                          onChange={(e)=>{
+                            const id = (e.target as HTMLSelectElement).value
+                            setBrandId(id)
+                            const label = brandOptions.find(o=>o.value===id)?.label || ''
+                            setBrandName(label)
+                          }}
+                          disabled={loadingBrands}
+                          className="h-11 w-full appearance-none rounded-md bg-gray-100 px-3 pr-10 text-sm text-gray-800 outline-none ring-1 ring-gray-200 focus:bg-white focus:ring-gray-300 disabled:opacity-60"
+                        >
+                          <option value="" disabled hidden>Select Maker</option>
+                          {brandOptions.map((o)=> (<option key={o.value} value={o.value}>{o.label}</option>))}
+                        </select>
+                        <span className="pointer-events-none absolute inset-y-0 right-3 inline-flex items-center text-gray-500">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
+                        </span>
+                      </div>
+                      <div className="relative">
+                        <select
+                          value={modelId}
+                          onChange={(e)=>{
+                            const id = (e.target as HTMLSelectElement).value
+                            setModelId(id)
+                            const label = modelOptions.find(o=>o.value===id)?.label || ''
+                            setModelName(label)
+                          }}
+                          disabled={!brandId}
+                          className="h-11 w-full appearance-none rounded-md bg-gray-100 px-3 pr-10 text-sm text-gray-800 outline-none ring-1 ring-gray-200 focus:bg-white focus:ring-gray-300 disabled:opacity-60"
+                        >
+                          <option value="" disabled hidden>Select Model</option>
+                          {modelOptions.map((o)=> (<option key={o.value} value={o.value}>{o.label}</option>))}
+                        </select>
+                        <span className="pointer-events-none absolute inset-y-0 right-3 inline-flex items-center text-gray-500">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
+                        </span>
+                      </div>
+                      <div className="relative">
+                        <select
+                          value={engineId}
+                          onChange={(e)=>{
+                            const id = (e.target as HTMLSelectElement).value
+                            setEngineId(id)
+                            const label = engineOptions.find(o=>o.value===id)?.label || ''
+                            setEngineName(label)
+                          }}
+                          disabled={!brandId || !modelId}
+                          className="h-11 w-full appearance-none rounded-md bg-gray-100 px-3 pr-10 text-sm text-gray-800 outline-none ring-1 ring-gray-200 focus:bg-white focus:ring-gray-300 disabled:opacity-60"
+                        >
+                          <option value="" hidden>{engineOptions.length ? 'Select Engine' : 'Base'}</option>
+                          {engineOptions.map((o)=> (<option key={o.value} value={o.value}>{o.label}</option>))}
+                        </select>
+                        <span className="pointer-events-none absolute inset-y-0 right-3 inline-flex items-center text-gray-500">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
+                        </span>
+                      </div>
+                    </div>
+                    <button onClick={doVehicleNavigate} disabled={vehBusy || !brandId || !modelId} className="inline-flex h-10 w-full items-center justify-center rounded-md bg-[#F7CD3A] text-[14px] font-semibold text-gray-900 ring-1 ring-black/10 disabled:opacity-60">{vehBusy ? 'Searching…' : 'Search'}</button>
+                    <button onClick={resetVehicle} className="h-9 w-full rounded-md bg-gray-100 text-[12px] font-medium ring-1 ring-black/10">Reset vehicle</button>
+                  </div>
                 </div>
               </div>
             </aside>

@@ -89,6 +89,10 @@ button, a, link{
   opacity: 1;
   transform: translateX(30%);
 }
+
+.capitalized {
+  text-transform: capitalize !important;
+}
 @keyframes brandLogoIn {
   from { transform: translateY(-6px); opacity: 0; filter: saturate(0.8); }
   to { transform: translateY(0); opacity: 1; filter: saturate(1); }

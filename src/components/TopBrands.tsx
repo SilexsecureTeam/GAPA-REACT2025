@@ -8,7 +8,7 @@ function brandNameOf(b: any): string {
   return String(b?.name || b?.title || b?.brand_name || b?.brand || '').trim() || 'Brand'
 }
 
-export default function TopBrands({ title = 'Top brands', limit = 12, viewAll = true }: { title?: string; limit?: number; viewAll?: boolean }) {
+export default function TopBrands({ title = 'Top brands', limit = 12, viewAll = true, onSelect }: { title?: string; limit?: number; viewAll?: boolean; onSelect?: (brandName: string, brand?: ApiBrand) => void }) {
   const [loading, setLoading] = useState(true)
   const [brands, setBrands] = useState<ApiBrand[]>([])
 
@@ -51,8 +51,30 @@ export default function TopBrands({ title = 'Top brands', limit = 12, viewAll = 
             const explicit = brandImageFrom(b)
             const fallback = normalizeApiImage(pickImage(b) || '')
             const src = explicit || fallback || logoImg
+            const key = `top-brand-${String((b as any)?.id ?? i)}-${i}`
+            if (onSelect) {
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => onSelect(name, b)}
+                  className="shrink-0 rounded-md p-1 hover:bg-brand/10 focus:outline-none focus:ring-2 focus:ring-brand"
+                  aria-label={`Filter by ${name}`}
+                  title={`Filter by ${name}`}
+                >
+                  <img
+                    src={src}
+                    alt={name}
+                    className="h-10 sm:h-12 w-auto object-contain"
+                    loading="lazy"
+                    decoding="async"
+                    onError={(e)=>{(e.currentTarget as HTMLImageElement).src=logoImg}}
+                  />
+                </button>
+              )
+            }
             return (
-              <div key={`top-brand-${String((b as any)?.id ?? i)}-${i}`} className="shrink-0">
+              <div key={key} className="shrink-0">
                 <img
                   src={src}
                   alt={name}

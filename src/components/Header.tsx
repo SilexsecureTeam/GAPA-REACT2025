@@ -343,14 +343,14 @@ export default function Header() {
                     else navigate(`/parts?catId=${encodeURIComponent(c.id)}`)
                     setCarPartsOpen(false)
                   }}
-                  className={`group inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-md px-2.5 py-1.5 text-[13px] sm:text-[14px] font-medium ${
+                  className={`group capitalized inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-md px-2.5 py-1.5 text-[13px] sm:text-[14px] font-medium ${
                     isActive ? 'bg-white/10 text-white' : 'text-white/90 hover:text-white hover:bg-white/10'
                   }`}
                   aria-haspopup
                   aria-expanded={isActive}
                 >
                   {/* Optional icons could be mapped here if needed */}
-                  <span>{c.name}</span>
+                  <span className='capitalized'>{c.name}</span>
                 </button>
               </div>
             )

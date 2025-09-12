@@ -5,6 +5,7 @@ import { normalizeApiImage, pickImage, productImageFrom, categoryImageFrom } fro
 import logoImg from '../assets/gapa-logo.png'
 import { useAuth } from '../services/auth'
 import { addGuestCartItem } from '../services/cart'
+import TopBrands from '../components/TopBrands'
 
 // Helpers
 const toSlug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
@@ -798,6 +799,23 @@ export default function CarPartDetails() {
           </div>
         </div>
       </section>
+
+      {/* Top brands to filter within this section */}
+      {(() => {
+        const onBrandSelect = (brandName: string) => {
+          const brandSlug = toSlug(brandName) || 'gapa'
+          const targetPart = part ? toSlug(part) : (selectedRaw ? toSlug(categoryOf(selectedRaw)) : 'parts')
+          // Clear selection and query, then navigate to brand-scoped list view
+          setSearchParams((prev) => {
+            const next = new URLSearchParams(prev)
+            next.delete('pid')
+            next.delete('q')
+            return next
+          }, { replace: true })
+          navigate(`/parts/${brandSlug}/${targetPart}`)
+        }
+        return <TopBrands title="Top brands" onSelect={onBrandSelect} />
+      })()}
     </div>
   )
 }

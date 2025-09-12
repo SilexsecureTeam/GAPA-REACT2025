@@ -1,13 +1,8 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import TopBrands from '../components/TopBrands'
 import airLogo from '../assets/air-freshner.png'
 import airImg from '../assets/air2.png'
-import brand1 from '../assets/brand1.png'
-import brand2 from '../assets/brand2.png'
-import brand3 from '../assets/brand3.png'
-import brand4 from '../assets/brand4.png'
-import brand5 from '../assets/brand5.png'
-import brand6 from '../assets/brand6.png'
 
 // Data types
 type AFAttr = { label: string; value: string }
@@ -25,15 +20,6 @@ export type AFProduct = {
   inStock: boolean
   attrs: AFAttr[]
 }
-
-const BRANDS = [
-    { name: 'BMW', logo: brand1 },
-  { name: 'Vaxhaul', logo: brand2 },
-  { name: 'Audi', logo: brand3 },
-  { name: 'Ford', logo: brand4 },
-  { name: 'Mercedes-Benz', logo: brand5 },
-  { name: 'Toyota', logo: brand6 },
-]
 
 const SAMPLE_PRODUCTS: AFProduct[] = Array.from({ length: 8 }).map((_, i) => ({
   id: `af-${i + 1}`,
@@ -57,20 +43,6 @@ const SAMPLE_PRODUCTS: AFProduct[] = Array.from({ length: 8 }).map((_, i) => ({
     { label: 'Condition', value: 'New' },
   ],
 }))
-
-function BrandCarousel() {
-  return (
-    <div className="relative mt-3">
-      <div className="mt-2 flex items-center justify-between gap-6 overflow-x-auto rounded-xl bg-white px-4 py-3 ring-1 ring-black/10">
-        {BRANDS.map((b) => (
-          <div key={b.name} className="shrink-0">
-            <img src={b.logo} alt={b.name} className="h-10 w-auto object-contain" />
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
 
 function FilterSection({ title, items }: { title: string; items: string[] }) {
   return (
@@ -210,7 +182,7 @@ export default function AirFresheners() {
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14" /><path d="M12 5l7 7-7 7" /></svg>
               </a>
             </div>
-            <BrandCarousel />
+            <TopBrands title="Top brands" />
 
             {/* Results */}
             <div className="mt-6 space-y-4">

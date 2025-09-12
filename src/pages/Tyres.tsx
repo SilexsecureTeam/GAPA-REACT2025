@@ -1,16 +1,11 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import brand1 from '../assets/brand1.png'
-import brand2 from '../assets/brand2.png'
-import brand3 from '../assets/brand3.png'
-import brand4 from '../assets/brand4.png'
-import brand5 from '../assets/brand5.png'
-import brand6 from '../assets/brand6.png'
 import tyreImg from '../assets/tyre.png'
 import tyres from '../assets/tyres.png'
 import tyre1 from '../assets/tyre1.png'
 import tyre2 from '../assets/tyre2.png'
 import tyre3 from '../assets/tyre3.png'
+import TopBrands from '../components/TopBrands'
 
 function Step({ n }: { n: number }) {
   return (
@@ -28,15 +23,6 @@ export default function Tyres() {
   const [profile, setProfile] = useState('150')
   const [rim, setRim] = useState('150')
   const [season, setSeason] = useState<'all' | 'summer' | 'winter'>('all')
-
-  const BRANDS = useMemo(() => ([
-    { name: 'BMW', logo: brand1 },
-    { name: 'Vaxhaul', logo: brand2 },
-    { name: 'Audi', logo: brand3 },
-    { name: 'Ford', logo: brand4 },
-    { name: 'Mercedes-Benz', logo: brand5 },
-    { name: 'Toyota', logo: brand6 },
-  ]), [])
 
   const BEST = Array.from({ length: 4 }).map((_, i) => ({
     id: `t-${i + 1}`,
@@ -149,7 +135,7 @@ export default function Tyres() {
         <div className="mt-10 grid grid-cols-2 gap-3 sm:grid-cols-4">
           {[['RETURN AND EXCHANGE','14 DAYS'],['SAFE ORDER','100 DAYS'],['SAVE ON DELIVERY','14 DAYS'],['FAST DELIVERY','']].map(([t,d]) => (
             <div key={t} className="flex items-center gap-3 rounded-xl bg-white px-4 py-3 ring-1 ring-black/10">
-              <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-accent/20 text-brand" aria-hidden>
+              <span className="inline-block h-9 w-9 items-center justify-center rounded-full bg-accent/20 text-brand" aria-hidden>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6l-11 11-5-5"/></svg>
               </span>
               <div>
@@ -220,19 +206,9 @@ export default function Tyres() {
           </div>
         </div>
 
-        {/* Top brands row */}
+        {/* Top brands row replaced with shared component */}
         <div className="mx-auto mt-10 max-w-7xl">
-          <div className="flex items-center justify-between">
-            <h3 className="text-[16px] font-semibold text-gray-900">Top brands</h3>
-            <a href="#" className="text-xs text-brand">View all ⟲</a>
-          </div>
-          <div className="mt-3 flex items-center justify-between gap-6 overflow-x-auto rounded-xl bg-white px-4 py-3 ring-1 ring-black/10">
-            {BRANDS.map((b) => (
-              <div key={b.name} className="shrink-0">
-                <img src={b.logo} alt={b.name} className="h-12 w-auto object-contain" />
-              </div>
-            ))}
-          </div>
+          <TopBrands title="Top brands" />
         </div>
 
         {/* Weather CTA */}
