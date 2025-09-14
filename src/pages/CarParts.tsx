@@ -2,10 +2,12 @@ import React, { useEffect, useMemo, useState, Fragment } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import FallbackLoader from '../components/FallbackLoader'
 import ProductCard, { type Product as UiProduct } from '../components/ProductCard'
-import { getAllCategories, getAllProducts, type ApiCategory, type ApiProduct, getSubCategories, getSubSubCategories, getProductsBySubSubCategory, liveSearch, getAllBrands, getModelsByBrandId, getSubModelsByModelId } from '../services/api'
+import { getAllCategories, getAllProducts, type ApiCategory, type ApiProduct, getSubCategories, getSubSubCategories, getProductsBySubSubCategory, liveSearch, getAllBrands, getModelsByBrandId, getSubModelsByModelId, addToCartApi } from '../services/api'
 import { normalizeApiImage, pickImage, productImageFrom, categoryImageFrom } from '../services/images'
 import logoImg from '../assets/gapa-logo.png'
 import TopBrands from '../components/TopBrands'
+import { useAuth } from '../services/auth'
+import { addGuestCartItem } from '../services/cart'
 
 // Error boundary to surface runtime errors on the page
 class ErrorBoundary extends React.Component<{ children?: React.ReactNode }, { hasError: boolean; error?: Error | null; info?: React.ErrorInfo | null }> {
@@ -65,9 +67,11 @@ function Crumb() {
 
 // Map API product into UI product for ProductCard
 function toUiProduct(p: any, i: number): UiProduct {
-  // Basic mapping for SearchError suggestion/localStorage
-  const id = String(p?.id ?? p?.product_id ?? i)
-  const title = String(p?.name || p?.title || p?.product_name || 'Car Part')
+  // Prefer product_id (string) for details endpoint
+  const id = String(p?.product_id ?? p?.id ?? i)
+  // Prefer part_name as requested
+  const title = String(p?.part_name || p?.name || p?.title || p?.product_name || 'Car Part')
+  // Use product image base url helper
   const image = productImageFrom(p) || normalizeApiImage(pickImage(p) || '') || logoImg
   const rating = Number(p?.rating || 4)
   const brandName = String(p?.brand?.name || p?.brand || p?.manufacturer || p?.maker || '')
@@ -238,7 +242,7 @@ function Tile({ s }: { s: Section }) {
     <div className="rounded-2xl bg-white p-4 ring-1 ring-black/10 md:p-5">
       <div className="grid grid-cols-[140px_1fr] items-start gap-4">
         <div className="overflow-hidden rounded-lg">
-          <img src={s.img} alt="" className="h-24 w-full object-contain md:h-28" onError={(e)=>{(e.currentTarget as HTMLImageElement).src=logoImg}} />
+          <img src={s.img} alt="" className="h-24 w-full object-contain md:h-28" onError={(e) => { (e.currentTarget as HTMLImageElement).src = logoImg }} />
         </div>
         <div>
           <h4 className="text-[13px] font-semibold text-gray-900 md:text-[14px]">{s.title}</h4>
@@ -259,6 +263,7 @@ function formatNaira(n: number) {
 
 function CarPartsInner() {
   const navigate = useNavigate()
+  const { user } = useAuth()
   const [searchParams, setSearchParams] = useSearchParams()
   const [loading, setLoading] = useState(true)
   const [products, setProducts] = useState<ApiProduct[]>([])
@@ -287,7 +292,6 @@ function CarPartsInner() {
   const [brandName, setBrandName] = useState('')
   const [modelName, setModelName] = useState('')
   const [engineName, setEngineName] = useState('')
-  const [vehBusy, setVehBusy] = useState(false)
 
   // Hydrate persisted selection
   useEffect(() => {
@@ -302,31 +306,31 @@ function CarPartsInner() {
         if (saved.modelName) setModelName(saved.modelName)
         if (saved.engineName) setEngineName(saved.engineName)
       }
-    } catch {}
+    } catch { }
   }, [])
 
   // Persist on change
   useEffect(() => {
     const saved: PersistedFilter = { brandId, modelId, engineId, brandName, modelName, engineName }
-    try { localStorage.setItem(FILTER_KEY, JSON.stringify(saved)) } catch {}
+    try { localStorage.setItem(FILTER_KEY, JSON.stringify(saved)) } catch { }
   }, [brandId, modelId, engineId, brandName, modelName, engineName])
 
   // Load brands once
   useEffect(() => {
     let alive = true
-    ;(async () => {
-      try {
-        setLoadingBrands(true)
-        const res = await getAllBrands()
-        if (!alive) return
-        setBrands(Array.isArray(res) ? res : [])
-      } catch {
-        if (!alive) return
-        setBrands([])
-      } finally {
-        if (alive) setLoadingBrands(false)
-      }
-    })()
+      ; (async () => {
+        try {
+          setLoadingBrands(true)
+          const res = await getAllBrands()
+          if (!alive) return
+          setBrands(Array.isArray(res) ? res : [])
+        } catch {
+          if (!alive) return
+          setBrands([])
+        } finally {
+          if (alive) setLoadingBrands(false)
+        }
+      })()
     return () => { alive = false }
   }, [])
 
@@ -336,7 +340,7 @@ function CarPartsInner() {
     // Always reset downstream when maker changes
     setModels([]); setSubModels([]); setModelId(''); setEngineId(''); setModelName(''); setEngineName('')
     if (!brandId) { return () => { alive = false } }
-    ;(async () => {
+    ; (async () => {
       try {
         const res = await getModelsByBrandId(brandId)
         if (!alive) return
@@ -354,7 +358,7 @@ function CarPartsInner() {
     let alive = true
     setSubModels([]); setEngineId(''); setEngineName('')
     if (!modelId) { return () => { alive = false } }
-    ;(async () => {
+    ; (async () => {
       try {
         const res = await getSubModelsByModelId(modelId)
         if (!alive) return
@@ -371,24 +375,24 @@ function CarPartsInner() {
     (brands || [])
       .map((b: any) => ({ value: String((b?.brand_id ?? b?.id) ?? ''), label: String(b?.name || b?.title || '') }))
       .filter((o: any) => o.value && o.label)
-      .sort((a: any,b: any)=>a.label.localeCompare(b.label))
+      .sort((a: any, b: any) => a.label.localeCompare(b.label))
   ), [brands])
   const modelOptions = useMemo(() => (
     (models || [])
       .map((m: any) => ({ value: String((m?.id ?? m?.model_id) ?? ''), label: String(m?.name || m?.model_name || m?.model || '') }))
       .filter((o: any) => o.value && o.label)
-      .sort((a: any,b: any)=>a.label.localeCompare(b.label))
+      .sort((a: any, b: any) => a.label.localeCompare(b.label))
   ), [models])
   const engineOptions = useMemo(() => (
     (subModels || [])
       .map((e: any) => ({ value: String((e?.id ?? e?.sub_model_id) ?? ''), label: String(e?.name || e?.engine || e?.trim || e?.submodel_name || e?.sub_model_name || '') }))
       .filter((o: any) => o.value && o.label)
-      .sort((a: any,b: any)=>a.label.localeCompare(b.label))
+      .sort((a: any, b: any) => a.label.localeCompare(b.label))
   ), [subModels])
 
-  const brandLabelById = useMemo(() => { const m = new Map<string,string>(); for (const o of brandOptions) m.set(o.value, o.label); return (id: string) => m.get(id) || '' }, [brandOptions])
-  const modelLabelById = useMemo(() => { const m = new Map<string,string>(); for (const o of modelOptions) m.set(o.value, o.label); return (id: string) => m.get(id) || '' }, [modelOptions])
-  const engineLabelById = useMemo(() => { const m = new Map<string,string>(); for (const o of engineOptions) m.set(o.value, o.label); return (id: string) => m.get(id) || '' }, [engineOptions])
+  const brandLabelById = useMemo(() => { const m = new Map<string, string>(); for (const o of brandOptions) m.set(o.value, o.label); return (id: string) => m.get(id) || '' }, [brandOptions])
+  const modelLabelById = useMemo(() => { const m = new Map<string, string>(); for (const o of modelOptions) m.set(o.value, o.label); return (id: string) => m.get(id) || '' }, [modelOptions])
+  const engineLabelById = useMemo(() => { const m = new Map<string, string>(); for (const o of engineOptions) m.set(o.value, o.label); return (id: string) => m.get(id) || '' }, [engineOptions])
 
   // Keep the human-readable names in sync with the selected ids
   useEffect(() => { setBrandName(brandLabelById(brandId)) }, [brandId, brandLabelById])
@@ -398,20 +402,12 @@ function CarPartsInner() {
   const resetVehicle = () => {
     setBrandId(''); setModelId(''); setEngineId('')
     setBrandName(''); setModelName(''); setEngineName('')
-    try { localStorage.removeItem(FILTER_KEY) } catch {}
+    try { localStorage.removeItem(FILTER_KEY) } catch { }
   }
 
-  const runVehicleSearch = () => {
-    const term = (engineName || '').trim()
-    if (!term) return
-    const next = new URLSearchParams(searchParams)
-    next.set('q', term)
-    next.delete('catId'); next.delete('subCatId'); next.delete('subSubCatId')
-    setSearchParams(next, { replace: false })
-  }
-
-  // New: replicate CarPartDetails VehicleFilter behavior (navigate to details if match, else brand/part with q)
-  const doVehicleNavigate = async () => {
+  // Vehicle search (same behavior as details page)
+  const [vehBusy, setVehBusy] = useState(false)
+  const doVehicleSearch = async () => {
     if (vehBusy) return
     const term = [brandName, modelName, engineName].filter(Boolean).join(' ').trim()
     if (!term) return
@@ -425,8 +421,9 @@ function CarPartsInner() {
       if (items.length === 0) {
         navigate(`/parts/${brandSlug}/${partSlug}?q=${encodeURIComponent(term)}`)
       } else {
-        const first = items[0]
-        const pid = String((first as any)?.id || (first as any)?.product_id || '')
+        const first = items[0] as any
+        // Prefer product_id for details view
+        const pid = String(first?.product_id || first?.id || '')
         if (pid) navigate(`/parts/${brandSlug}/${partSlug}?pid=${encodeURIComponent(pid)}`)
         else navigate(`/parts/${brandSlug}/${partSlug}?q=${encodeURIComponent(term)}`)
       }
@@ -464,15 +461,34 @@ function CarPartsInner() {
     return Array.from(set).sort((a, b) => a.localeCompare(b))
   }, [searchResults])
 
+  // --- Vehicle compatibility matching ---
+  const hasVehicleFilter = Boolean(brandName || modelName || engineName)
+  const compatTextOf = (p: any) => {
+    const src = (p && typeof p === 'object' && 'part' in p) ? (p as any).part : p
+    const raw = String((src as any)?.compatibility || '')
+    return raw.toLowerCase()
+  }
+  const vehicleMatches = (p: any) => {
+    if (!hasVehicleFilter) return true
+    const text = compatTextOf(p)
+    if (!text) return true // if no compatibility provided, don't exclude
+    const bOk = brandName ? text.includes(brandName.toLowerCase()) : true
+    const mOk = modelName ? text.includes(modelName.toLowerCase()) : true
+    const eOk = engineName ? text.includes(engineName.toLowerCase()) : true
+    return bOk && mOk && eOk
+  }
+
   const filteredSearchResults = useMemo<ApiProduct[]>(() => {
-    return searchResults.filter((p) => {
-      const b = brandOf(p)
-      const c = categoryOf(p)
-      const brandPass = selectedBrands.size === 0 || (b && selectedBrands.has(b))
-      const catPass = selectedCats.size === 0 || (c && selectedCats.has(c))
-      return brandPass && catPass
-    })
-  }, [searchResults, selectedBrands, selectedCats])
+    return searchResults
+      .filter((p) => {
+        const b = brandOf(p)
+        const c = categoryOf(p)
+        const brandPass = selectedBrands.size === 0 || (b && selectedBrands.has(b))
+        const catPass = selectedCats.size === 0 || (c && selectedCats.has(c))
+        return brandPass && catPass
+      })
+      .filter(vehicleMatches)
+  }, [searchResults, selectedBrands, selectedCats, hasVehicleFilter, brandName, modelName, engineName])
 
   // Hierarchical navigation state (via query params)
   const catIdParam = searchParams.get('catId') || ''
@@ -501,7 +517,7 @@ function CarPartsInner() {
   useEffect(() => {
     let alive = true
     if (!activeCatId) { setSubCats([]); return }
-    ;(async () => {
+    ; (async () => {
       try {
         setSubCatsLoading(true)
         const res = await getSubCategories(activeCatId)
@@ -526,7 +542,7 @@ function CarPartsInner() {
   useEffect(() => {
     let alive = true
     if (!activeSubCatId) { setSubSubCats([]); return }
-    ;(async () => {
+    ; (async () => {
       try {
         setSubSubCatsLoading(true)
         const res = await getSubSubCategories(activeSubCatId)
@@ -551,7 +567,7 @@ function CarPartsInner() {
   useEffect(() => {
     let alive = true
     if (!activeSubSubCatId) { setSubProducts([]); return }
-    ;(async () => {
+    ; (async () => {
       try {
         setSubProductsLoading(true)
         const res = await getProductsBySubSubCategory(activeSubSubCatId)
@@ -571,7 +587,7 @@ function CarPartsInner() {
   useEffect(() => {
     let alive = true
     if (!qParam) { setSearchResults([]); setSelectedBrands(new Set()); setSelectedCats(new Set()); return }
-    ;(async () => {
+    ; (async () => {
       try {
         setSearchLoading(true)
         const res = await liveSearch(qParam)
@@ -636,8 +652,11 @@ function CarPartsInner() {
     return () => { alive = false }
   }, [catIdParam, qParam])
 
-  // No global filters now; use full list
-  const filtered = products
+  // Apply vehicle compatibility filter globally for catalogue views
+  const filtered = useMemo(() => {
+    if (!hasVehicleFilter) return products
+    return products.filter(vehicleMatches)
+  }, [products, hasVehicleFilter, brandName, modelName, engineName])
 
   // Navigate to SearchError if empty catalog and not in search/drill-down
   useEffect(() => {
@@ -705,6 +724,8 @@ function CarPartsInner() {
           id: String((p as any)?.id ?? (p as any)?.product_id ?? i),
           title: String((p as any)?.name || (p as any)?.title || (p as any)?.product_name || 'Car Part'),
           image: productImageFrom(p) || normalizeApiImage(pickImage(p) || '') || logoImg,
+          brandSlug: toSlug(brandOf(p)) || 'gapa',
+          partSlug: toSlug(categoryOf(p)) || 'parts',
         }))
       }
     })
@@ -751,7 +772,7 @@ function CarPartsInner() {
           {/* Image */}
           <Link to={`/product/${a.id}`} className="block">
             <div className="flex h-40 items-center justify-center overflow-hidden rounded-lg bg-white">
-              <img src={a.image} alt={a.title} className="h-[80%] w-auto object-contain" onError={(e)=>{(e.currentTarget as HTMLImageElement).src=logoImg}} />
+              <img src={a.image} alt={a.title} className="h-[80%] w-auto object-contain" onError={(e) => { (e.currentTarget as HTMLImageElement).src = logoImg }} />
             </div>
           </Link>
           {/* Rating + title + price */}
@@ -772,8 +793,47 @@ function CarPartsInner() {
     )
   }
 
+  // Actions for drill-down products
+  const onViewProduct = (p: any) => {
+    const pid = String((p as any)?.product_id ?? (p as any)?.id ?? '')
+    if (!pid) return
+    const brandSlug = toSlug(brandOf(p) || 'gapa')
+    const partSlug = toSlug(categoryOf(p) || 'parts')
+    navigate(`/parts/${brandSlug}/${partSlug}?pid=${encodeURIComponent(pid)}`)
+  }
+  const onAddToCart = async (p: any) => {
+    const pid = String((p as any)?.product_id ?? (p as any)?.id ?? '')
+    if (!pid) return
+    try {
+      if (user && user.id) {
+        await addToCartApi({ user_id: user.id, product_id: pid, quantity: 1 })
+      } else {
+        addGuestCartItem(pid, 1)
+      }
+      navigate({ hash: '#cart' })
+    } catch {
+      navigate({ hash: '#cart' })
+    }
+  }
+
+  // Map product for card display (match Tools)
+  const mapProduct = (p: any, i: number) => ({
+    id: String((p as any)?.product_id ?? (p as any)?.id ?? i),
+    title: String((p as any)?.part_name || (p as any)?.name || (p as any)?.title || 'Car Part'),
+    image: productImageFrom(p) || normalizeApiImage(pickImage(p) || '') || logoImg,
+    rating: Number((p as any)?.rating || (p as any)?.stars || 4),
+    reviews: Number((p as any)?.reviews_count || (p as any)?.reviews || 0),
+    brand: brandOf(p) || 'GAPA',
+    price: Number((p as any)?.price || (p as any)?.selling_price || (p as any)?.amount || 0),
+  })
+
   // --- Drill-down UI when catId is present ---
   if (activeCatId) {
+    // Also filter sub-category products by selected vehicle
+    const filteredSubProducts = useMemo(() => {
+      return subProducts.filter(vehicleMatches)
+    }, [subProducts, hasVehicleFilter, brandName, modelName, engineName])
+
     return (
       <div className="bg-white !pt-10">
         <section className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
@@ -785,13 +845,13 @@ function CarPartsInner() {
               </li>
               <li aria-hidden className='text-[22px] -mt-1'>›</li>
               <li className={activeSubCatId || activeSubSubCatId ? 'text-brand cursor-pointer hover:underline' : 'font-semibold text-brand'}
-                  onClick={() => setParams({ catId: activeCatId, subCatId: '', subSubCatId: '' })}
+                onClick={() => setParams({ catId: activeCatId, subCatId: '', subSubCatId: '' })}
               >Category</li>
               {activeSubCatId && (
                 <>
                   <li aria-hidden className='text-[22px] -mt-1'>›</li>
                   <li className={activeSubSubCatId ? 'text-brand cursor-pointer hover:underline' : 'font-semibold text-brand'}
-                      onClick={() => setParams({ catId: activeCatId, subCatId: activeSubCatId, subSubCatId: '' })}
+                    onClick={() => setParams({ catId: activeCatId, subCatId: activeSubCatId, subSubCatId: '' })}
                   >Sub Category</li>
                 </>
               )}
@@ -812,17 +872,23 @@ function CarPartsInner() {
             ) : subCats.length === 0 ? (
               <div className="mt-3 text-sm text-gray-600">No sub categories found.</div>
             ) : (
-              <ul className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+              <ul className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 {subCats.map((sc) => (
                   <li key={sc.id}>
                     <button
                       onClick={() => setParams({ catId: activeCatId, subCatId: sc.id, subSubCatId: '' })}
-                      className={`flex w-full items-center gap-3 rounded-lg p-2 ring-1 ring-black/10 hover:bg-gray-50 ${activeSubCatId===sc.id ? 'bg-gray-50' : ''}`}
+                      className={`rounded-2xl bg-white p-4 text-left ring-1 ring-black/10 transition hover:shadow ${activeSubCatId===sc.id ? 'outline-2 outline-[#F7CD3A]' : ''}`}
+                      aria-pressed={activeSubCatId===sc.id}
                     >
-                      <span className="flex h-10 w-10 items-center justify-center overflow-hidden rounded bg-[#F6F5FA] ring-1 ring-black/10">
-                        <img src={sc.image} alt="" className="h-full w-full object-contain" onError={(e)=>{(e.currentTarget as HTMLImageElement).src=logoImg}} />
-                      </span>
-                      <span className="truncate text-[14px] text-brand">{sc.name}</span>
+                      <div className="flex items-center gap-3">
+                        <div className="h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-[#F6F5FA] ring-1 ring-black/10">
+                          <img src={sc.image} alt="" className="h-full w-full object-contain" onError={(e) => { (e.currentTarget as HTMLImageElement).src = logoImg }} />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="truncate text-[13px] font-semibold text-gray-900">{sc.name}</div>
+                          <div className="text-[12px] text-gray-500">Sub-category</div>
+                        </div>
+                      </div>
                     </button>
                   </li>
                 ))}
@@ -839,21 +905,27 @@ function CarPartsInner() {
               ) : subSubCats.length === 0 ? (
                 <div className="mt-3 text-sm text-gray-600">No types found.</div>
               ) : (
-                <ul className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-                  {subSubCats.map((ssc) => (
-                    <li key={ssc.id}>
-                      <button
-                        onClick={() => setParams({ catId: activeCatId, subCatId: activeSubCatId, subSubCatId: ssc.id })}
-                        className={`flex w-full items-center gap-3 rounded-lg p-2 ring-1 ring-black/10 hover:bg-gray-50 ${activeSubSubCatId===ssc.id ? 'bg-gray-50' : ''}`}
-                      >
-                        <span className="flex h-10 w-10 items-center justify-center overflow-hidden rounded bg-[#F6F5FA] ring-1 ring-black/10">
-                          <img src={ssc.image} alt="" className="h-full w-full object-contain" onError={(e)=>{(e.currentTarget as HTMLImageElement).src=logoImg}} />
-                        </span>
-                        <span className="truncate text-[14px] text-brand">{ssc.name}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
+                <>
+                  {/* Top Types pill list (like Tools page) */}
+                  <div className="mt-4">
+                    <ul className="grid grid-cols-2 gap-3 text-[12px] text-gray-800 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+                      {subSubCats.map((ssc) => (
+                        <li key={`pill-${ssc.id}`}>
+                          <button
+                            onClick={() => setParams({ catId: activeCatId, subCatId: activeSubCatId, subSubCatId: ssc.id })}
+                            className={`flex w-full items-center gap-2 rounded-full bg-white px-3 py-2 ring-1 ring-black/10 transition hover:shadow ${activeSubSubCatId===ssc.id ? 'outline-2 outline-[#F7CD3A]' : ''}`}
+                            aria-pressed={activeSubSubCatId===ssc.id}
+                          >
+                            <span className="inline-flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-[#F6F5FA] ring-1 ring-black/10" aria-hidden>
+                              <img src={ssc.image} alt="" className="h-full w-full object-contain" onError={(e) => { (e.currentTarget as HTMLImageElement).src = logoImg }} />
+                            </span>
+                            <span className="truncate">{ssc.name}</span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </>
               )}
             </div>
           )}
@@ -864,27 +936,49 @@ function CarPartsInner() {
               <h3 className="text-[16px] font-semibold text-gray-900">Products</h3>
               {subProductsLoading ? (
                 <div className="mt-3"><FallbackLoader label="Loading products…" /></div>
-              ) : subProducts.length === 0 ? (
+              ) : filteredSubProducts.length === 0 ? (
                 <div className="mt-3 text-sm text-gray-600">No products found under this type.</div>
               ) : (
-                <ul className="mt-3 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-                  {subProducts.map((p, i) => {
-                    const ui = toUiProduct(p, i)
-                    const bSlug = ui.brandSlug || 'gapa'
-                    const pSlug = ui.partSlug || 'parts'
-                    const to = `/parts/${bSlug}/${pSlug}?pid=${encodeURIComponent(ui.id)}`
+                <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  {filteredSubProducts.map((p, i) => {
+                    const ui = mapProduct(p, i)
                     return (
-                      <li key={ui.id} className="rounded-xl bg-white p-3 ring-1 ring-black/10">
-                        <Link to={to} className="block">
-                          <div className="flex h-36 items-center justify-center overflow-hidden rounded-lg bg-white">
-                            <img src={ui.image} alt={ui.title} className="h-[80%] w-auto object-contain" onError={(e)=>{(e.currentTarget as HTMLImageElement).src=logoImg}} />
+                      <div key={ui.id} className="relative rounded-xl bg-white ring-1 ring-black/10">
+                        <div className="p-4">
+                          <div className="h-6 text-[14px] font-extrabold text-brand">{ui.brand || 'GAPA'}</div>
+                          <button type="button" className="text-[12px] text-brand underline">Article No: {String((p as any)?.article_no || (p as any)?.article_number || (p as any)?.code || '—')}</button>
+                          <button onClick={() => onViewProduct(p)} className="mt-2 block">
+                            <div className="flex h-36 items-center justify-center overflow-hidden rounded-lg">
+                              <img src={ui.image || logoImg} alt={ui.title} className="h-full w-full object-contain" onError={(e)=>{(e.currentTarget as HTMLImageElement).src=logoImg}} />
+                            </div>
+                          </button>
+                          <div className="mt-3 space-y-1">
+                            <button onClick={() => onViewProduct(p)} className="block text-left text-[13px] font-semibold text-gray-900 hover:underline">{ui.title}</button>
+                            <div className="text-[12px] text-gray-600">Weight: {String((p as any)?.weight_in_kg || '—')}kg</div>
+                            <div className="mt-2 flex items-center gap-1 text-[12px] text-gray-600">
+                              <span className="text-brand">{'★★★★★'.slice(0, Math.round(ui.rating))}</span>
+                              <span className="text-gray-500">({ui.reviews})</span>
+                            </div>
+                            <div className="text-[16px] font-extrabold text-gray-900">{formatNaira(ui.price)}</div>
+                            <div className="text-[10px] leading-3 text-gray-500">Price per item</div>
+                            <div className="text-[10px] leading-3 text-gray-500">Incl. 20% VAT</div>
                           </div>
-                          <div className="mt-2 truncate text-[13px] font-semibold text-gray-900 hover:underline">{ui.title}</div>
-                        </Link>
-                      </li>
+                          <div className="mt-3 flex items-center justify-between">
+                            <span />
+                            <button type="button" aria-label="Add to cart" onClick={() => onAddToCart(p)} className="inline-flex h-8 items-center justify-center rounded-md bg-[#F7CD3A] px-3 text-[12px] font-semibold text-[#201A2B] ring-1 ring-black/10 hover:brightness-105">
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-1">
+                                <circle cx="9" cy="21" r="1" />
+                                <circle cx="20" cy="21" r="1" />
+                                <path d="M1 1h4l2.68 12.39a2 2 0 0 0 2 1.61h7.72a2 2 0 0 0 2-1.61L23 6H6" />
+                              </svg>
+                              Add to cart
+                            </button>
+                          </div>
+                        </div>
+                      </div>
                     )
                   })}
-                </ul>
+                </div>
               )}
             </div>
           )}
@@ -954,75 +1048,56 @@ function CarPartsInner() {
                 </ul>
               </div>
 
-              {/* Vehicle filter styled like Home/Details */}
+              {/* Vehicle filters (styled like home hero) */}
               <div className="mt-4">
                 <div className="rounded-xl bg-white p-4 ring-1 ring-black/10">
-                  <h4 className="text-[12px] font-bold tracking-wide text-white">
-                    <span className="inline-block rounded bg-brand px-2 py-1">SELECT VEHICLE</span>
-                  </h4>
-                  <div className="mt-3 space-y-4">
-                    <div className="space-y-3">
-                      <div className="relative">
-                        <select
-                          value={brandId}
-                          onChange={(e)=>{
-                            const id = (e.target as HTMLSelectElement).value
-                            setBrandId(id)
-                            const label = brandOptions.find(o=>o.value===id)?.label || ''
-                            setBrandName(label)
-                          }}
-                          disabled={loadingBrands}
-                          className="h-11 w-full appearance-none rounded-md bg-gray-100 px-3 pr-10 text-sm text-gray-800 outline-none ring-1 ring-gray-200 focus:bg-white focus:ring-gray-300 disabled:opacity-60"
-                        >
-                          <option value="" disabled hidden>Select Maker</option>
-                          {brandOptions.map((o)=> (<option key={o.value} value={o.value}>{o.label}</option>))}
-                        </select>
-                        <span className="pointer-events-none absolute inset-y-0 right-3 inline-flex items-center text-gray-500">
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
-                        </span>
-                      </div>
-                      <div className="relative">
-                        <select
-                          value={modelId}
-                          onChange={(e)=>{
-                            const id = (e.target as HTMLSelectElement).value
-                            setModelId(id)
-                            const label = modelOptions.find(o=>o.value===id)?.label || ''
-                            setModelName(label)
-                          }}
-                          disabled={!brandId}
-                          className="h-11 w-full appearance-none rounded-md bg-gray-100 px-3 pr-10 text-sm text-gray-800 outline-none ring-1 ring-gray-200 focus:bg-white focus:ring-gray-300 disabled:opacity-60"
-                        >
-                          <option value="" disabled hidden>Select Model</option>
-                          {modelOptions.map((o)=> (<option key={o.value} value={o.value}>{o.label}</option>))}
-                        </select>
-                        <span className="pointer-events-none absolute inset-y-0 right-3 inline-flex items-center text-gray-500">
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
-                        </span>
-                      </div>
-                      <div className="relative">
-                        <select
-                          value={engineId}
-                          onChange={(e)=>{
-                            const id = (e.target as HTMLSelectElement).value
-                            setEngineId(id)
-                            const label = engineOptions.find(o=>o.value===id)?.label || ''
-                            setEngineName(label)
-                          }}
-                          disabled={!brandId || !modelId}
-                          className="h-11 w-full appearance-none rounded-md bg-gray-100 px-3 pr-10 text-sm text-gray-800 outline-none ring-1 ring-gray-200 focus:bg-white focus:ring-gray-300 disabled:opacity-60"
-                        >
-                          <option value="" hidden>{engineOptions.length ? 'Select Engine' : 'Base'}</option>
-                          {engineOptions.map((o)=> (<option key={o.value} value={o.value}>{o.label}</option>))}
-                        </select>
-                        <span className="pointer-events-none absolute inset-y-0 right-3 inline-flex items-center text-gray-500">
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
-                        </span>
-                      </div>
+                  <div className="text-[12px] font-bold tracking-wide text-white"><span className="inline-block rounded bg-brand px-2 py-1">SELECT VEHICLE</span></div>
+                  <div className="mt-3 space-y-3">
+                    <div className="relative">
+                      <select
+                        value={brandId}
+                        onChange={(e) => setBrandId((e.target as HTMLSelectElement).value)}
+                        disabled={loadingBrands}
+                        className="h-11 w-full appearance-none rounded-md bg-gray-100 px-3 pr-10 text-sm text-gray-800 outline-none ring-1 ring-gray-200 focus:bg-white focus:ring-gray-300 disabled:opacity-60"
+                      >
+                        <option value="" disabled hidden>Select Maker</option>
+                        {brandOptions.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
+                      </select>
+                      <span className="pointer-events-none absolute inset-y-0 right-3 inline-flex items-center text-gray-500">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
+                      </span>
                     </div>
-                    <button onClick={doVehicleNavigate} disabled={vehBusy || !brandId || !modelId} className="inline-flex h-10 w-full items-center justify-center rounded-md bg-[#F7CD3A] text-[14px] font-semibold text-gray-900 ring-1 ring-black/10 disabled:opacity-60">{vehBusy ? 'Searching…' : 'Search'}</button>
-                    <button onClick={resetVehicle} className="h-9 w-full rounded-md bg-gray-100 text-[12px] font-medium ring-1 ring-black/10">Reset vehicle</button>
+                    <div className="relative">
+                      <select
+                        value={modelId}
+                        onChange={(e) => setModelId((e.target as HTMLSelectElement).value)}
+                        disabled={!brandId}
+                        className="h-11 w-full appearance-none rounded-md bg-gray-100 px-3 pr-10 text-sm text-gray-800 outline-none ring-1 ring-gray-200 focus:bg-white focus:ring-gray-300 disabled:opacity-60"
+                      >
+                        <option value="" disabled hidden>Select Model</option>
+                        {modelOptions.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
+                      </select>
+                      <span className="pointer-events-none absolute inset-y-0 right-3 inline-flex items-center text-gray-500">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
+                      </span>
+                    </div>
+                    <div className="relative">
+                      <select
+                        value={engineId}
+                        onChange={(e) => setEngineId((e.target as HTMLSelectElement).value)}
+                        disabled={!brandId || !modelId}
+                        className="h-11 w-full appearance-none rounded-md bg-gray-100 px-3 pr-10 text-sm text-gray-800 outline-none ring-1 ring-gray-200 focus:bg-white focus:ring-gray-300 disabled:opacity-60"
+                      >
+                        <option value="" hidden>{engineOptions.length ? 'Select Engine' : 'Base'}</option>
+                        {engineOptions.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
+                      </select>
+                      <span className="pointer-events-none absolute inset-y-0 right-3 inline-flex items-center text-gray-500">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
+                      </span>
+                    </div>
                   </div>
+                  <button onClick={doVehicleSearch} disabled={vehBusy || !brandId || !modelId} className="mt-3 inline-flex h-10 w-full items-center justify-center rounded-md bg-[#F7CD3A] text-[14px] font-semibold text-gray-900 ring-1 ring-black/10 disabled:opacity-60">{vehBusy ? 'Searching…' : 'Search'}</button>
+                  <button onClick={resetVehicle} className="mt-2 h-9 w-full rounded-md bg-gray-100 text-[12px] font-medium ring-1 ring-black/10">Reset vehicle</button>
                 </div>
               </div>
             </aside>
@@ -1037,7 +1112,7 @@ function CarPartsInner() {
                 </div>
               ) : (
                 <>
-                  <div className="mb-3 text-[13px] text-gray-700">{filteredSearchResults.length} result{filteredSearchResults.length===1?'':'s'}</div>
+                  <div className="mb-3 text-[13px] text-gray-700">{filteredSearchResults.length} result{filteredSearchResults.length === 1 ? '' : 's'}</div>
                   <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
                     {filteredSearchResults.map((p: ApiProduct, i: number) => {
                       const ui = toUiProduct(p, i)
@@ -1086,30 +1161,30 @@ function CarPartsInner() {
                     onMouseEnter={() => setOpenIdx(i)}
                     onFocus={() => setOpenIdx(i)}
                     onClick={() => { setOpenIdx(null); scrollToCat(c.name) }}
-                    className={`group inline-flex items-center gap-2 whitespace-nowrap rounded-md px-2.5 py-1.5 text-[13px] font-medium ${openIdx===i ? 'bg-brand text-white' : 'text-gray-800 hover:bg-gray-100'}`}
+                    className={`group inline-flex items-center gap-2 whitespace-nowrap rounded-md px-2.5 py-1.5 text-[13px] font-medium ${openIdx === i ? 'bg-brand text-white' : 'text-gray-800 hover:bg-gray-100'}`}
                     aria-haspopup
-                    aria-expanded={openIdx===i}
+                    aria-expanded={openIdx === i}
                   >
                     <span className="flex h-5 w-5 items-center justify-center overflow-hidden rounded bg-[#F6F5FA] ring-1 ring-black/10">
-                      <img src={c.image} alt="" className="h-full w-full object-contain" onError={(e)=>{(e.currentTarget as HTMLImageElement).src=logoImg}} />
+                      <img src={c.image} alt="" className="h-full w-full object-contain" onError={(e) => { (e.currentTarget as HTMLImageElement).src = logoImg }} />
                     </span>
                     <span>{c.name}</span>
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`transition-transform ${openIdx===i ? 'rotate-180' : ''}`}>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`transition-transform ${openIdx === i ? 'rotate-180' : ''}`}>
                       <polyline points="6 9 12 15 18 9" />
                     </svg>
                   </button>
-                  {openIdx===i && (
+                  {openIdx === i && (
                     <div className="absolute left-0 top-full z-40 mt-2 w-screen max-w-md rounded-xl bg-white p-3 text-gray-900 shadow-lg ring-1 ring-black/10 sm:max-w-lg md:max-w-xl">
                       <div role="menu" aria-label={`${c.name} items`} className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                         {c.items.map((it) => (
                           <Link
                             key={it.id}
                             role="menuitem"
-                            to={`/product/${encodeURIComponent(it.id)}`}
+                            to={`/parts/${encodeURIComponent(it.brandSlug || 'gapa')}/${encodeURIComponent(it.partSlug || 'parts')}?pid=${encodeURIComponent(it.id)}`}
                             className="group flex items-center gap-3 rounded-md px-3 py-2 text-sm text-gray-800 hover:bg-brand/5 focus:outline-none"
                           >
                             <span className="flex h-10 w-10 items-center justify-center overflow-hidden rounded bg-[#F6F5FA] ring-1 ring-black/10">
-                              <img src={it.image} alt="" className="h-full w-full object-contain" onError={(e)=>{(e.currentTarget as HTMLImageElement).src=logoImg}} />
+                              <img src={it.image} alt="" className="h-full w-full object-contain" onError={(e) => { (e.currentTarget as HTMLImageElement).src = logoImg }} />
                             </span>
                             <span className="truncate text-brand group-hover:underline">{it.title}</span>
                           </Link>
@@ -1144,11 +1219,11 @@ function CarPartsInner() {
                     {/* Category card */}
                     <div className="flex items-center gap-3">
                       <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-lg bg-[#F6F5FA] ring-1 ring-black/10">
-                        <img src={catImg} alt={catName} className="h-full w-full object-contain" onError={(e)=>{(e.currentTarget as HTMLImageElement).src=logoImg}} />
+                        <img src={catImg} alt={catName} className="h-full w-full object-contain" onError={(e) => { (e.currentTarget as HTMLImageElement).src = logoImg }} />
                       </div>
                       <div>
                         <h3 className="text-[16px] font-semibold text-gray-900">{catName}</h3>
-                        <div className="text-[12px] text-gray-600">{list.length} item{list.length===1?'':'s'}</div>
+                        <div className="text-[12px] text-gray-600">{list.length} item{list.length === 1 ? '' : 's'}</div>
                       </div>
                     </div>
 
@@ -1156,11 +1231,14 @@ function CarPartsInner() {
                     <div>
                       <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                         {visible.map((p, i) => {
-                          const id = String((p as any)?.id ?? (p as any)?.product_id ?? i)
-                          const title = String((p as any)?.name || (p as any)?.title || (p as any)?.product_name || 'Car Part')
+                          // Ensure product_id is used for view details
+                          const id = String((p as any)?.product_id ?? (p as any)?.id ?? i)
+                          const title = String((p as any)?.part_name || (p as any)?.name || (p as any)?.title || (p as any)?.product_name || 'Car Part')
+                          const brandSlug = toSlug(brandOf(p)) || 'gapa'
+                          const partSlug = toSlug(categoryOf(p)) || 'parts'
                           return (
                             <li key={`${catName}-${id}-${i}`} className="truncate">
-                              <Link to={`/product/${encodeURIComponent(id)}`} className="text-[14px] text-brand hover:underline">{title}</Link>
+                              <Link to={`/parts/${encodeURIComponent(brandSlug)}/${encodeURIComponent(partSlug)}?pid=${encodeURIComponent(id)}`} className="text-[14px] text-brand hover:underline">{title}</Link>
                             </li>
                           )
                         })}
@@ -1206,7 +1284,7 @@ function CarPartsInner() {
           ]).map((label) => (
             <li key={label} className="flex items-center gap-2 rounded-2xl bg-white px-3 py-2 ring-1 ring-black/10">
               <span className="inline-block h-3 w-3 rounded-full ring-1 ring-black/20" aria-hidden />
-              <a href="#" onClick={(e)=>{e.preventDefault(); scrollToCat(label)}} className="hover:underline">{label}</a>
+              <a href="#" onClick={(e) => { e.preventDefault(); scrollToCat(label) }} className="hover:underline">{label}</a>
             </li>
           ))}
         </ul>

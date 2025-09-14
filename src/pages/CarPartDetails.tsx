@@ -69,19 +69,21 @@ function attrsFrom(p: any): Attr[] {
 function mapApiToUi(p: any) {
   // Unwrap nested `part` payloads
   const src = (p && typeof p === 'object' && 'part' in p) ? (p as any).part : p
-  const id = String(src?.id ?? src?.product_id ?? '')
+  // Prefer product_id (string)
+  const id = String(src?.product_id ?? src?.id ?? '')
   const brandName = String(src?.brand?.name || src?.brand || src?.manufacturer || src?.maker || 'GAPA')
   const brandLogo = normalizeApiImage(pickImage(src?.brand)) || normalizeApiImage(src?.brand_logo) || normalizeApiImage(pickImage(src)) || logoImg
-  const name = String(src?.name || src?.title || src?.product_name || 'Car Part')
+  // Prefer part_name
+  const name = String(src?.part_name || src?.name || src?.title || src?.product_name || 'Car Part')
   const articleNo = String(src?.article_no || src?.article_number || src?.article || src?.sku || src?.code || 'N/A')
   const price = Number(src?.price || src?.selling_price || src?.amount || 0)
   const image = productImageFrom(src) || normalizeApiImage(pickImage(src) || '') || logoImg
-  // Build gallery from known image fields and arrays
+  // Build gallery from known image fields and arrays (respect product image base URL)
   const galleryFields = [src?.img_url, src?.img_url_1, src?.img_url_2].filter(Boolean) as string[]
-  const galleryFromFields = galleryFields.map((s) => normalizeApiImage(s) || productImageFrom({ img_url: s }) || '').filter(Boolean)
+  const galleryFromFields = galleryFields.map((s) => productImageFrom({ img_url: s }) || normalizeApiImage(s) || '').filter(Boolean)
   const rawImages: any[] = Array.isArray(src?.images) ? src.images : Array.isArray(src?.gallery) ? src.gallery : []
   const builtGallery = rawImages.map((x) => {
-    if (typeof x === 'string') return normalizeApiImage(x) || ''
+    if (typeof x === 'string') return productImageFrom({ img_url: x }) || normalizeApiImage(x) || ''
     return productImageFrom(x) || normalizeApiImage(pickImage(x) || '') || ''
   })
   const gallery = Array.from(new Set([image, ...galleryFromFields, ...builtGallery].filter(Boolean)))
@@ -376,7 +378,8 @@ export default function CarPartDetails() {
         const items = Array.isArray(list) ? list : []
         if (items.length > 0) {
           const first = items[0]
-          const firstId = String(first?.id || first?.product_id || '')
+          // Prefer product_id
+          const firstId = String((first as any)?.product_id || (first as any)?.id || '')
           if (firstId) {
             const brandSlug = brand ? toSlug(brand) : toSlug(brandOf(first)) || 'gapa'
             const partSlug = part ? toSlug(part) : toSlug(categoryOf(first)) || 'parts'
@@ -390,7 +393,7 @@ export default function CarPartDetails() {
           }
         }
       } catch {
-        // ignore search errors, banner + frontend fallback will handle
+        // ignore search errors
       }
     })()
     return () => { alive = false }
@@ -497,7 +500,7 @@ export default function CarPartDetails() {
 
   // Frontend-related suggestions when search fails or related API fails
   const frontendRelated = useMemo(() => {
-    const selectedId = String((selectedRaw && ((selectedRaw as any).part ? (selectedRaw as any).part : selectedRaw)?.id) || '')
+    const selectedId = String((selectedRaw && ((selectedRaw as any).part ? (selectedRaw as any).part : selectedRaw)?.product_id) || (selectedRaw && ((selectedRaw as any).part ? (selectedRaw as any).part : selectedRaw)?.id) || '')
     const basePool = scoped.length ? scoped : products
 
     // If there is a query, try token-based scoring against titles
@@ -524,7 +527,7 @@ export default function CarPartDetails() {
       const c = toSlug(categoryOf(p))
       const sameCat = wantPart ? c === wantPart : true
       const sameBrand = wantBrand ? b === wantBrand : true
-      const notSelf = String((p as any)?.id ?? (p as any)?.product_id ?? '') !== selectedId
+      const notSelf = String((p as any)?.product_id ?? (p as any)?.id ?? '') !== selectedId
       return notSelf && (sameCat || sameBrand)
     })
     return similar.slice(0, 8)
@@ -548,8 +551,10 @@ export default function CarPartDetails() {
 
   // Map to UI and optionally highlight selection
   const results = useMemo(() => filtered.map((p, i) => ({
-    id: String(p?.id ?? p?.product_id ?? i),
-    title: String(p?.name || p?.title || p?.product_name || 'Car Part'),
+    // Use product_id first
+    id: String(p?.product_id ?? p?.id ?? i),
+    // Prefer part_name
+    title: String(p?.part_name || p?.name || p?.title || p?.product_name || 'Car Part'),
     image: productImageFrom(p) || normalizeApiImage(pickImage(p) || '') || logoImg,
     rating: Number(p?.rating || 4),
     price: Number(p?.price || p?.selling_price || p?.amount || 0),
@@ -786,7 +791,8 @@ export default function CarPartDetails() {
               <section className="mt-6 space-y-4">
                 <h3 className="text-[16px] font-semibold text-gray-900">Related Products</h3>
                 {finalRelated.slice(0, 6).map((p, i) => {
-                  const id = String((p as any)?.id ?? (p as any)?.product_id ?? i)
+                  // Use product_id for navigation keys
+                  const id = String((p as any)?.product_id ?? (p as any)?.id ?? i)
                   const ui = mapApiToUi(p)
                   return (
                     <div key={id}>
