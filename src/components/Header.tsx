@@ -322,8 +322,6 @@ export default function Header() {
           {/* Dynamic categories from API */}
           {catMenu.map((c, idx) => {
             const nameLower = c.name.toLowerCase()
-            const isEngineOil = /engine\s*oil/.test(nameLower)
-            const isTools = /tools?/.test(nameLower)
             const isBrakes = /brakes?/.test(nameLower)
             const isTyres = /tyres?|tires?/.test(nameLower)
             const isActive = carPartsOpen && activeCatIdx === idx
@@ -335,10 +333,8 @@ export default function Header() {
                   onClick={(e) => {
                     e.preventDefault()
                     setBrandsOpen(false)
-                    // Navigate for special categories; otherwise open /parts page for this category
-                    if (isEngineOil) navigate('/engine-oil')
-                    else if (isTools) navigate('/tools')
-                    else if (isBrakes) navigate('/brakes')
+                    // Brakes and Tyres keep special routes; others use drilldown
+                    if (isBrakes) navigate('/brakes')
                     else if (isTyres) navigate('/tyres')
                     else navigate(`/parts?catId=${encodeURIComponent(c.id)}`)
                     setCarPartsOpen(false)
@@ -349,7 +345,6 @@ export default function Header() {
                   aria-haspopup
                   aria-expanded={isActive}
                 >
-                  {/* Optional icons could be mapped here if needed */}
                   <span className='capitalized'>{c.name}</span>
                 </button>
               </div>

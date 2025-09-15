@@ -1,13 +1,15 @@
-import React, { useEffect, useMemo, useState, Fragment } from 'react'
+import React, { useEffect, useMemo, useState, Fragment, useCallback } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import FallbackLoader from '../components/FallbackLoader'
 import ProductCard, { type Product as UiProduct } from '../components/ProductCard'
-import { getAllCategories, getAllProducts, type ApiCategory, type ApiProduct, getSubCategories, getSubSubCategories, getProductsBySubSubCategory, liveSearch, getAllBrands, getModelsByBrandId, getSubModelsByModelId, addToCartApi } from '../services/api'
+import { getAllCategories, getAllProducts, type ApiCategory, type ApiProduct, getSubCategories, getSubSubCategories, getProductsBySubSubCategory, liveSearch, addToCartApi } from '../services/api'
 import { normalizeApiImage, pickImage, productImageFrom, categoryImageFrom } from '../services/images'
 import logoImg from '../assets/gapa-logo.png'
 import TopBrands from '../components/TopBrands'
 import { useAuth } from '../services/auth'
 import { addGuestCartItem } from '../services/cart'
+import VehicleFilter from '../components/VehicleFilter'
+import { getPersistedVehicleFilter, setPersistedVehicleFilter, vehicleMatches as sharedVehicleMatches, type VehicleFilterState as VehState } from '../services/vehicle'
 
 // Error boundary to surface runtime errors on the page
 class ErrorBoundary extends React.Component<{ children?: React.ReactNode }, { hasError: boolean; error?: Error | null; info?: React.ErrorInfo | null }> {
@@ -98,138 +100,6 @@ function brandOf(p: any): string {
 // --- Car Accessories sections (grid) placeholders ---
 type Section = { title: string; img: string; links: string[] }
 const SECTIONS: Section[] = [
-  {
-    title: 'Car cleaning & detailing accessories',
-    img: logoImg,
-    links: [
-      'Car air freshener',
-      'Car dehumidifier',
-      'Car sponge',
-      'Car washing brushes',
-      'Cleaning brushes',
-      'Cleaning wipes',
-      'Hand cleaner',
-      'Hand sanitizer',
-      'Microfiber cloths',
-      'Polisher heads',
-      'Polishing pads',
-      'Pressure washers',
-      'Wheel brushes',
-    ],
-  },
-  {
-    title: 'Road Emergencies and First Aid',
-    img: logoImg,
-    links: [
-      'Car de-icing spray',
-      'Car emergency kit',
-      'Warning triangle',
-      'Reflective vests',
-      'Tow rope',
-      'Jump cables',
-      'Spare bulbs',
-      'Paper towels',
-      'Work gloves',
-      'First aid kit',
-    ],
-  },
-  {
-    title: 'Winter car accessories',
-    img: logoImg,
-    links: [
-      'Ice scraper',
-      'Jump starter',
-      'Parking heater',
-      'Roof box',
-      'Ski bag',
-      'Snow chains',
-      'Universal car mats',
-      'Window cleaner',
-    ],
-  },
-  {
-    title: 'Car interior Accessories',
-    img: logoImg,
-    links: [
-      'Car armrest',
-      'Car boot mats & liners',
-      'Car boot hanger',
-      'Car seat covers',
-      'Car seat protectors',
-      'Car vacuum cleaner',
-      'Cool box',
-      'Cooler bag',
-      'Organizer bags',
-      'Gear stick gaiter',
-      'Car seat gap cover',
-      'Headrest or seat cover',
-      'Non-slip dashboard mat',
-    ],
-  },
-  {
-    title: 'PPE & disinfection products',
-    img: logoImg,
-    links: [
-      'Face masks',
-      'Disinfectant',
-      'Hand sanitizer',
-      'Paper towels',
-      'Gloves',
-    ],
-  },
-  {
-    title: 'Camping accessories',
-    img: logoImg,
-    links: [
-      'Camping stove',
-      '12V fridge',
-      'Portable heater',
-      'Roof box',
-      'Sleeping bag',
-      'Universal car mats',
-      'Window cleaner',
-    ],
-  },
-  {
-    title: 'Wheel & tyre accessories',
-    img: logoImg,
-    links: [
-      'Car jack',
-      'Foot pumps',
-      'Tyre inflators',
-      'Tyre pressure gauges',
-      'Tyre repair kits',
-      'Valve caps',
-      'Wheel nuts caps',
-      'Valve cores',
-      'Wheel / tyre bags',
-    ],
-  },
-  {
-    title: 'Car phone accessories',
-    img: logoImg,
-    links: [
-      'Car inverter',
-      'Car phone charger',
-      'Car phone holder',
-      'Dash camera',
-    ],
-  },
-  {
-    title: 'In-car entertainment',
-    img: logoImg,
-    links: [
-      'Amp wiring kit',
-      'Car amplifiers',
-      'Car audio accessories',
-      'Car audio speakers',
-      'Car multimedia systems',
-      'Car subwoofers',
-      'Car tweeters',
-      'FM transmitter',
-      'Sound deadening mats',
-    ],
-  },
 ]
 
 function Tile({ s }: { s: Section }) {
@@ -269,6 +139,16 @@ function CarPartsInner() {
   const [products, setProducts] = useState<ApiProduct[]>([])
   const [categories, setCategories] = useState<ApiCategory[]>([])
 
+  // Build a quick lookup for categories by id to resolve names/images
+  const categoriesById = useMemo(() => {
+    const map = new Map<string, any>()
+    for (const c of categories || []) {
+      const id = String((c as any)?.id ?? (c as any)?.category_id ?? (c as any)?.cat_id ?? '')
+      if (id) map.set(id, c)
+    }
+    return map
+  }, [categories])
+
   // Search mode
   const qParam = (searchParams.get('q') || '').trim()
   const [searchLoading, setSearchLoading] = useState(false)
@@ -278,159 +158,9 @@ function CarPartsInner() {
   const [selectedBrands, setSelectedBrands] = useState<Set<string>>(new Set())
   const [selectedCats, setSelectedCats] = useState<Set<string>>(new Set())
 
-  // --- Vehicle filter (persisted across pages) ---
-  const FILTER_KEY = 'gapa:veh-filter'
-  type PersistedFilter = { brandId?: string; modelId?: string; engineId?: string; brandName?: string; modelName?: string; engineName?: string }
-  const [loadingBrands, setLoadingBrands] = useState(true)
-  const [brands, setBrands] = useState<any[]>([])
-  const [models, setModels] = useState<any[]>([])
-  const [subModels, setSubModels] = useState<any[]>([])
-
-  const [brandId, setBrandId] = useState('')
-  const [modelId, setModelId] = useState('')
-  const [engineId, setEngineId] = useState('')
-  const [brandName, setBrandName] = useState('')
-  const [modelName, setModelName] = useState('')
-  const [engineName, setEngineName] = useState('')
-
-  // Hydrate persisted selection
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(FILTER_KEY)
-      if (raw) {
-        const saved: PersistedFilter = JSON.parse(raw)
-        if (saved.brandId) setBrandId(saved.brandId)
-        if (saved.modelId) setModelId(saved.modelId)
-        if (saved.engineId) setEngineId(saved.engineId)
-        if (saved.brandName) setBrandName(saved.brandName)
-        if (saved.modelName) setModelName(saved.modelName)
-        if (saved.engineName) setEngineName(saved.engineName)
-      }
-    } catch { }
-  }, [])
-
-  // Persist on change
-  useEffect(() => {
-    const saved: PersistedFilter = { brandId, modelId, engineId, brandName, modelName, engineName }
-    try { localStorage.setItem(FILTER_KEY, JSON.stringify(saved)) } catch { }
-  }, [brandId, modelId, engineId, brandName, modelName, engineName])
-
-  // Load brands once
-  useEffect(() => {
-    let alive = true
-      ; (async () => {
-        try {
-          setLoadingBrands(true)
-          const res = await getAllBrands()
-          if (!alive) return
-          setBrands(Array.isArray(res) ? res : [])
-        } catch {
-          if (!alive) return
-          setBrands([])
-        } finally {
-          if (alive) setLoadingBrands(false)
-        }
-      })()
-    return () => { alive = false }
-  }, [])
-
-  // Load models when maker changes (and reset downstream selections immediately)
-  useEffect(() => {
-    let alive = true
-    // Always reset downstream when maker changes
-    setModels([]); setSubModels([]); setModelId(''); setEngineId(''); setModelName(''); setEngineName('')
-    if (!brandId) { return () => { alive = false } }
-    ; (async () => {
-      try {
-        const res = await getModelsByBrandId(brandId)
-        if (!alive) return
-        setModels(Array.isArray(res) ? res : [])
-      } catch {
-        if (!alive) return
-        setModels([])
-      }
-    })()
-    return () => { alive = false }
-  }, [brandId])
-
-  // Load engines when model changes (and reset engine selection immediately)
-  useEffect(() => {
-    let alive = true
-    setSubModels([]); setEngineId(''); setEngineName('')
-    if (!modelId) { return () => { alive = false } }
-    ; (async () => {
-      try {
-        const res = await getSubModelsByModelId(modelId)
-        if (!alive) return
-        setSubModels(Array.isArray(res) ? res : [])
-      } catch {
-        if (!alive) return
-        setSubModels([])
-      }
-    })()
-    return () => { alive = false }
-  }, [modelId])
-
-  const brandOptions = useMemo(() => (
-    (brands || [])
-      .map((b: any) => ({ value: String((b?.brand_id ?? b?.id) ?? ''), label: String(b?.name || b?.title || '') }))
-      .filter((o: any) => o.value && o.label)
-      .sort((a: any, b: any) => a.label.localeCompare(b.label))
-  ), [brands])
-  const modelOptions = useMemo(() => (
-    (models || [])
-      .map((m: any) => ({ value: String((m?.id ?? m?.model_id) ?? ''), label: String(m?.name || m?.model_name || m?.model || '') }))
-      .filter((o: any) => o.value && o.label)
-      .sort((a: any, b: any) => a.label.localeCompare(b.label))
-  ), [models])
-  const engineOptions = useMemo(() => (
-    (subModels || [])
-      .map((e: any) => ({ value: String((e?.id ?? e?.sub_model_id) ?? ''), label: String(e?.name || e?.engine || e?.trim || e?.submodel_name || e?.sub_model_name || '') }))
-      .filter((o: any) => o.value && o.label)
-      .sort((a: any, b: any) => a.label.localeCompare(b.label))
-  ), [subModels])
-
-  const brandLabelById = useMemo(() => { const m = new Map<string, string>(); for (const o of brandOptions) m.set(o.value, o.label); return (id: string) => m.get(id) || '' }, [brandOptions])
-  const modelLabelById = useMemo(() => { const m = new Map<string, string>(); for (const o of modelOptions) m.set(o.value, o.label); return (id: string) => m.get(id) || '' }, [modelOptions])
-  const engineLabelById = useMemo(() => { const m = new Map<string, string>(); for (const o of engineOptions) m.set(o.value, o.label); return (id: string) => m.get(id) || '' }, [engineOptions])
-
-  // Keep the human-readable names in sync with the selected ids
-  useEffect(() => { setBrandName(brandLabelById(brandId)) }, [brandId, brandLabelById])
-  useEffect(() => { setModelName(modelLabelById(modelId)) }, [modelId, modelLabelById])
-  useEffect(() => { setEngineName(engineLabelById(engineId)) }, [engineId, engineLabelById])
-
-  const resetVehicle = () => {
-    setBrandId(''); setModelId(''); setEngineId('')
-    setBrandName(''); setModelName(''); setEngineName('')
-    try { localStorage.removeItem(FILTER_KEY) } catch { }
-  }
-
-  // Vehicle search (same behavior as details page)
-  const [vehBusy, setVehBusy] = useState(false)
-  const doVehicleSearch = async () => {
-    if (vehBusy) return
-    const term = [brandName, modelName, engineName].filter(Boolean).join(' ').trim()
-    if (!term) return
-    setVehBusy(true)
-    try {
-      const res = await liveSearch(term)
-      const list = Array.isArray(res) ? res : (res as any)?.data
-      const items = Array.isArray(list) ? list : []
-      const brandSlug = brandName ? toSlug(brandName) : 'gapa'
-      const partSlug = modelName ? toSlug(modelName) : 'parts'
-      if (items.length === 0) {
-        navigate(`/parts/${brandSlug}/${partSlug}?q=${encodeURIComponent(term)}`)
-      } else {
-        const first = items[0] as any
-        // Prefer product_id for details view
-        const pid = String(first?.product_id || first?.id || '')
-        if (pid) navigate(`/parts/${brandSlug}/${partSlug}?pid=${encodeURIComponent(pid)}`)
-        else navigate(`/parts/${brandSlug}/${partSlug}?q=${encodeURIComponent(term)}`)
-      }
-    } finally {
-      setVehBusy(false)
-    }
-  }
+  // --- Shared vehicle filter (persisted across pages) ---
+  const [vehFilter, setVehFilter] = useState<VehState>(() => getPersistedVehicleFilter())
+  const hasVehicleFilter = useMemo(() => Boolean(vehFilter.brandName || vehFilter.modelName || vehFilter.engineName), [vehFilter])
 
   // Helper to toggle entries in a Set state
   const toggleSet = <T,>(setter: React.Dispatch<React.SetStateAction<Set<T>>>, value: T) => {
@@ -452,43 +182,41 @@ function CarPartsInner() {
     return Array.from(set).sort((a, b) => a.localeCompare(b))
   }, [searchResults])
 
+  // Resolve category name from raw category field using categories API mapping
+  const resolveCategoryName = useCallback((raw: any): string => {
+    if (!raw) return ''
+    if (typeof raw === 'object') return String(raw?.name || raw?.title || raw?.category_name || '')
+    if (typeof raw === 'number' || (typeof raw === 'string' && /^\d+$/.test(raw))) {
+      const cObj = categoriesById.get(String(raw))
+      return cObj ? String((cObj as any)?.title || (cObj as any)?.name || '') : ''
+    }
+    return String(raw)
+  }, [categoriesById])
+
   const allSearchCats = useMemo<string[]>(() => {
     const set = new Set<string>()
     for (const p of searchResults) {
-      const c = categoryOf(p)
-      if (c) set.add(c)
+      const raw = (p as any)?.category
+      const name = resolveCategoryName(raw) || categoryOf(p)
+      if (name) set.add(name)
     }
     return Array.from(set).sort((a, b) => a.localeCompare(b))
-  }, [searchResults])
+  }, [searchResults, resolveCategoryName])
 
-  // --- Vehicle compatibility matching ---
-  const hasVehicleFilter = Boolean(brandName || modelName || engineName)
-  const compatTextOf = (p: any) => {
-    const src = (p && typeof p === 'object' && 'part' in p) ? (p as any).part : p
-    const raw = String((src as any)?.compatibility || '')
-    return raw.toLowerCase()
-  }
-  const vehicleMatches = (p: any) => {
-    if (!hasVehicleFilter) return true
-    const text = compatTextOf(p)
-    if (!text) return true // if no compatibility provided, don't exclude
-    const bOk = brandName ? text.includes(brandName.toLowerCase()) : true
-    const mOk = modelName ? text.includes(modelName.toLowerCase()) : true
-    const eOk = engineName ? text.includes(engineName.toLowerCase()) : true
-    return bOk && mOk && eOk
-  }
+  // --- Vehicle compatibility matching (shared util) ---
+  const productMatchesVehicle = (p: any) => sharedVehicleMatches(p, vehFilter)
 
   const filteredSearchResults = useMemo<ApiProduct[]>(() => {
     return searchResults
       .filter((p) => {
         const b = brandOf(p)
-        const c = categoryOf(p)
+        const cName = resolveCategoryName((p as any)?.category) || categoryOf(p)
         const brandPass = selectedBrands.size === 0 || (b && selectedBrands.has(b))
-        const catPass = selectedCats.size === 0 || (c && selectedCats.has(c))
+        const catPass = selectedCats.size === 0 || (cName && selectedCats.has(cName))
         return brandPass && catPass
       })
-      .filter(vehicleMatches)
-  }, [searchResults, selectedBrands, selectedCats, hasVehicleFilter, brandName, modelName, engineName])
+      .filter(productMatchesVehicle)
+  }, [searchResults, selectedBrands, selectedCats, vehFilter])
 
   // Hierarchical navigation state (via query params)
   const catIdParam = searchParams.get('catId') || ''
@@ -652,22 +380,28 @@ function CarPartsInner() {
     return () => { alive = false }
   }, [catIdParam, qParam])
 
+  // Ensure categories are available for search/drilldown mapping (if not already loaded)
+  useEffect(() => {
+    let alive = true
+    if (categories.length === 0) {
+      ;(async () => {
+        try {
+          const c = await getAllCategories()
+          if (!alive) return
+          setCategories(Array.isArray(c) ? c : [])
+        } catch {
+          // ignore
+        }
+      })()
+    }
+    return () => { alive = false }
+  }, [qParam, activeCatId, categories.length])
+
   // Apply vehicle compatibility filter globally for catalogue views
   const filtered = useMemo(() => {
     if (!hasVehicleFilter) return products
-    return products.filter(vehicleMatches)
-  }, [products, hasVehicleFilter, brandName, modelName, engineName])
-
-  // Navigate to SearchError if empty catalog and not in search/drill-down
-  useEffect(() => {
-    if (!catIdParam && !qParam && !loading && filtered.length === 0) {
-      const suggestSrc = Array.isArray(products) && products.length > 0 ? products[0] : null
-      const suggest = suggestSrc ? toUiProduct(suggestSrc, 0) : undefined
-      // persist suggestion for SearchError fallback
-      if (suggest) localStorage.setItem('gapa:last-suggest', JSON.stringify(suggest))
-      navigate('/search-error', { state: { reason: 'no_results', suggest }, replace: false })
-    }
-  }, [filtered.length, loading, navigate, products, catIdParam, qParam])
+    return products.filter(productMatchesVehicle)
+  }, [products, vehFilter])
 
   // Group by category (all filtered items)
   const grouped = useMemo(() => {
@@ -827,161 +561,189 @@ function CarPartsInner() {
     price: Number((p as any)?.price || (p as any)?.selling_price || (p as any)?.amount || 0),
   })
 
+  // Derived values for drill-down (must not be inside conditionals to respect Hooks rules)
+  const filteredSubProducts = useMemo(() => {
+    return subProducts.filter(productMatchesVehicle)
+  }, [subProducts, vehFilter])
+
+  const activeCategoryName = useMemo(() => {
+    const c = categoriesById.get(String(activeCatId))
+    return String((c as any)?.title || (c as any)?.name || '')
+  }, [categoriesById, activeCatId])
+
+  const activeSubCategoryName = useMemo(() => {
+    const sc = subCats.find((x) => x.id === activeSubCatId)
+    return sc?.name || ''
+  }, [subCats, activeSubCatId])
+
+  const activeTypeName = useMemo(() => {
+    const ssc = subSubCats.find((x) => x.id === activeSubSubCatId)
+    return ssc?.name || ''
+  }, [subSubCats, activeSubSubCatId])
+
   // --- Drill-down UI when catId is present ---
   if (activeCatId) {
-    // Also filter sub-category products by selected vehicle
-    const filteredSubProducts = useMemo(() => {
-      return subProducts.filter(vehicleMatches)
-    }, [subProducts, hasVehicleFilter, brandName, modelName, engineName])
+    // Removed duplicate memoized declarations (use top-level values)
 
     return (
       <div className="bg-white !pt-10">
         <section className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
-          <h1 className="text-2xl font-medium text-gray-900 sm:text-[32px]">Car Parts</h1>
+          <h1 className="text-2xl font-medium text-gray-900 sm:text-[32px]">{activeCategoryName || 'Car Parts'}</h1>
           <nav aria-label="Breadcrumb" className="mt-2 text-[14px] text-gray-700">
             <ol className="flex items-center gap-2 font-medium">
               <li>
                 <Link to="/parts" className="hover:underline">Parts Catalogue</Link>
               </li>
               <li aria-hidden className='text-[22px] -mt-1'>›</li>
-              <li className={activeSubCatId || activeSubSubCatId ? 'text-brand cursor-pointer hover:underline' : 'font-semibold text-brand'}
+              <li className={(activeSubCatId || activeSubSubCatId) ? 'text-brand cursor-pointer hover:underline' : 'font-semibold text-brand'}
                 onClick={() => setParams({ catId: activeCatId, subCatId: '', subSubCatId: '' })}
-              >Category</li>
+              >{activeCategoryName || 'Category'}</li>
               {activeSubCatId && (
                 <>
                   <li aria-hidden className='text-[22px] -mt-1'>›</li>
                   <li className={activeSubSubCatId ? 'text-brand cursor-pointer hover:underline' : 'font-semibold text-brand'}
                     onClick={() => setParams({ catId: activeCatId, subCatId: activeSubCatId, subSubCatId: '' })}
-                  >Sub Category</li>
+                  >{activeSubCategoryName || 'Sub Category'}</li>
                 </>
               )}
               {activeSubSubCatId && (
                 <>
                   <li aria-hidden className='text-[22px] -mt-1'>›</li>
-                  <li className="font-semibold text-brand">Type</li>
+                  <li className="font-semibold text-brand">{activeTypeName || 'Type'}</li>
                 </>
               )}
             </ol>
           </nav>
 
-          {/* Sub Categories */}
-          <div className="mt-6">
-            <h3 className="text-[16px] font-semibold text-gray-900">Sub Categories</h3>
-            {subCatsLoading ? (
-              <div className="mt-3"><FallbackLoader label="Loading sub categories…" /></div>
-            ) : subCats.length === 0 ? (
-              <div className="mt-3 text-sm text-gray-600">No sub categories found.</div>
-            ) : (
-              <ul className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                {subCats.map((sc) => (
-                  <li key={sc.id}>
-                    <button
-                      onClick={() => setParams({ catId: activeCatId, subCatId: sc.id, subSubCatId: '' })}
-                      className={`rounded-2xl bg-white p-4 text-left ring-1 ring-black/10 transition hover:shadow ${activeSubCatId===sc.id ? 'outline-2 outline-[#F7CD3A]' : ''}`}
-                      aria-pressed={activeSubCatId===sc.id}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-[#F6F5FA] ring-1 ring-black/10">
-                          <img src={sc.image} alt="" className="h-full w-full object-contain" onError={(e) => { (e.currentTarget as HTMLImageElement).src = logoImg }} />
-                        </div>
-                        <div className="min-w-0">
-                          <div className="truncate text-[13px] font-semibold text-gray-900">{sc.name}</div>
-                          <div className="text-[12px] text-gray-500">Sub-category</div>
-                        </div>
-                      </div>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-
-          {/* Sub-Sub Categories */}
-          {activeSubCatId && (
-            <div className="mt-8">
-              <h3 className="text-[16px] font-semibold text-gray-900">Types</h3>
-              {subSubCatsLoading ? (
-                <div className="mt-3"><FallbackLoader label="Loading types…" /></div>
-              ) : subSubCats.length === 0 ? (
-                <div className="mt-3 text-sm text-gray-600">No types found.</div>
-              ) : (
-                <>
-                  {/* Top Types pill list (like Tools page) */}
-                  <div className="mt-4">
-                    <ul className="grid grid-cols-2 gap-3 text-[12px] text-gray-800 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
-                      {subSubCats.map((ssc) => (
-                        <li key={`pill-${ssc.id}`}>
-                          <button
-                            onClick={() => setParams({ catId: activeCatId, subCatId: activeSubCatId, subSubCatId: ssc.id })}
-                            className={`flex w-full items-center gap-2 rounded-full bg-white px-3 py-2 ring-1 ring-black/10 transition hover:shadow ${activeSubSubCatId===ssc.id ? 'outline-2 outline-[#F7CD3A]' : ''}`}
-                            aria-pressed={activeSubSubCatId===ssc.id}
-                          >
-                            <span className="inline-flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-[#F6F5FA] ring-1 ring-black/10" aria-hidden>
-                              <img src={ssc.image} alt="" className="h-full w-full object-contain" onError={(e) => { (e.currentTarget as HTMLImageElement).src = logoImg }} />
-                            </span>
-                            <span className="truncate">{ssc.name}</span>
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                </>
-              )}
+          {hasVehicleFilter && (
+            <div className="mt-3 rounded-md bg-[#F7CD3A]/15 px-3 py-2 text-[12px] text-gray-800 ring-1 ring-[#F7CD3A]/30">
+              Selected vehicle: <strong>{[vehFilter.brandName, vehFilter.modelName, vehFilter.engineName].filter(Boolean).join(' › ')}</strong>
             </div>
           )}
 
-          {/* Products under sub-sub-category */}
-          {activeSubSubCatId && (
-            <div className="mt-10">
-              <h3 className="text-[16px] font-semibold text-gray-900">Products</h3>
-              {subProductsLoading ? (
-                <div className="mt-3"><FallbackLoader label="Loading products…" /></div>
-              ) : filteredSubProducts.length === 0 ? (
-                <div className="mt-3 text-sm text-gray-600">No products found under this type.</div>
-              ) : (
-                <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                  {filteredSubProducts.map((p, i) => {
-                    const ui = mapProduct(p, i)
-                    return (
-                      <div key={ui.id} className="relative rounded-xl bg-white ring-1 ring-black/10">
-                        <div className="p-4">
-                          <div className="h-6 text-[14px] font-extrabold text-brand">{ui.brand || 'GAPA'}</div>
-                          <button type="button" className="text-[12px] text-brand underline">Article No: {String((p as any)?.article_no || (p as any)?.article_number || (p as any)?.code || '—')}</button>
-                          <button onClick={() => onViewProduct(p)} className="mt-2 block">
-                            <div className="flex h-36 items-center justify-center overflow-hidden rounded-lg">
-                              <img src={ui.image || logoImg} alt={ui.title} className="h-full w-full object-contain" onError={(e)=>{(e.currentTarget as HTMLImageElement).src=logoImg}} />
+          {/* Sidebar + content */}
+          <div className="mt-6 grid gap-6 md:grid-cols-[280px_1fr]">
+            {/* <aside className="rounded-xl bg-white p-4 ring-1 h-max sticky top-4 self-start"> */}
+              {/* <h3 className="text-[14px] font-semibold text-gray-900">Select vehicle</h3> */}
+              {/* <div className="mt-3"> */}
+                <VehicleFilter onSearch={(url)=>navigate(url)} onChange={setVehFilter} />
+              {/* </div> */}
+            {/* </aside> */}
+
+            <div>
+              {/* Sub Categories */}
+              <div className="mt-0">
+                <h3 className="text-[16px] font-semibold text-gray-900">{activeCategoryName || 'Sub Categories'}</h3>
+                {subCatsLoading ? (
+                  <div className="mt-3"><FallbackLoader label="Loading sub categories…" /></div>
+                ) : subCats.length === 0 ? (
+                  <div className="mt-3 text-sm text-gray-600">No sub categories found.</div>
+                ) : (
+                  <ul className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    {subCats.map((sc) => (
+                      <li key={sc.id}>
+                        <button
+                          onClick={() => setParams({ catId: activeCatId, subCatId: sc.id, subSubCatId: '' })}
+                          className={`rounded-2xl bg-white p-4 text-left ring-black/10 transition hover:shadow ${activeSubCatId===sc.id ? 'outline-2 outline-[#F7CD3A]' : ''}`}
+                          aria-pressed={activeSubCatId===sc.id}
+                        >
+                          <div className="flex flex-col items-center gap-3">
+                            <div className="shrink-0 h-30 overflow-hidden rounded-lg bg-[#F6F5FA] ring-1 ring-black/10">
+                              <img src={sc.image} alt="" className="h-full w-full object-contain" onError={(e) => { (e.currentTarget as HTMLImageElement).src = logoImg }} />
                             </div>
-                          </button>
-                          <div className="mt-3 space-y-1">
-                            <button onClick={() => onViewProduct(p)} className="block text-left text-[13px] font-semibold text-gray-900 hover:underline">{ui.title}</button>
-                            <div className="text-[12px] text-gray-600">Weight: {String((p as any)?.weight_in_kg || '—')}kg</div>
-                            <div className="mt-2 flex items-center gap-1 text-[12px] text-gray-600">
-                              <span className="text-brand">{'★★★★★'.slice(0, Math.round(ui.rating))}</span>
-                              <span className="text-gray-500">({ui.reviews})</span>
+                            <div className="min-w-0">
+                              <div className="truncate text-[13px] font-semibold text-gray-900">{sc.name}</div>
+                              {/* <div className="text-[12px] text-gray-500">Sub-category</div> */}
                             </div>
-                            <div className="text-[16px] font-extrabold text-gray-900">{formatNaira(ui.price)}</div>
-                            <div className="text-[10px] leading-3 text-gray-500">Price per item</div>
-                            <div className="text-[10px] leading-3 text-gray-500">Incl. 20% VAT</div>
                           </div>
-                          <div className="mt-3 flex items-center justify-between">
-                            <span />
-                            <button type="button" aria-label="Add to cart" onClick={() => onAddToCart(p)} className="inline-flex h-8 items-center justify-center rounded-md bg-[#F7CD3A] px-3 text-[12px] font-semibold text-[#201A2B] ring-1 ring-black/10 hover:brightness-105">
-                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-1">
-                                <circle cx="9" cy="21" r="1" />
-                                <circle cx="20" cy="21" r="1" />
-                                <path d="M1 1h4l2.68 12.39a2 2 0 0 0 2 1.61h7.72a2 2 0 0 0 2-1.61L23 6H6" />
-                              </svg>
-                              Add to cart
-                            </button>
-                          </div>
-                        </div>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+
+              {/* Sub-Sub Categories */}
+              {activeSubCatId && (
+                <div className="mt-8">
+                  <h3 className="text-[16px] font-semibold text-gray-900">{activeSubCategoryName || 'Types'}</h3>
+                  {subSubCatsLoading ? (
+                    <div className="mt-3"><FallbackLoader label="Loading types…" /></div>
+                  ) : subSubCats.length === 0 ? (
+                    <div className="mt-3 text-sm text-gray-600">No types found.</div>
+                  ) : (
+                    <>
+                      {/* Top Types pill list (like Tools page) */}
+                      <div className="mt-4">
+                        <ul className="grid grid-cols-2 gap-3 text-[12px] text-gray-800 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+                          {subSubCats.map((ssc) => (
+                            <li key={`pill-${ssc.id}`}>
+                              <button
+                                onClick={() => setParams({ catId: activeCatId, subCatId: activeSubCatId, subSubCatId: ssc.id })}
+                                className={`w-full rounded-full border px-3 py-2 text-left transition ${activeSubSubCatId===ssc.id ? 'border-[#F7CD3A] bg-[#F7CD3A]/20' : 'border-black/10 hover:bg-black/5'}`}
+                                aria-pressed={activeSubSubCatId===ssc.id}
+                              >
+                                <span className="truncate block">{ssc.name}</span>
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
                       </div>
-                    )
-                  })}
+                    </>
+                  )}
+                </div>
+              )}
+
+              {/* Products under sub-sub-category */}
+              {activeSubSubCatId && (
+                <div className="mt-10">
+                  <h3 className="text-[16px] font-semibold text-gray-900">{activeTypeName || 'Products'}</h3>
+                  {subProductsLoading ? (
+                    <div className="mt-3"><FallbackLoader label="Loading products…" /></div>
+                  ) : filteredSubProducts.length === 0 ? (
+                    <div className="mt-3 text-sm text-gray-700">
+                      {hasVehicleFilter ? 'No compatible products for your selected vehicle in this type. Adjust or reset the vehicle filter.' : 'No products found under this type.'}
+                    </div>
+                  ) : (
+                    <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                      {filteredSubProducts.map((p, i) => {
+                        const ui = mapProduct(p, i)
+                        return (
+                          <div key={ui.id} className="relative rounded-xl bg-white ring-1 ring-black/10">
+                            <div className="p-4">
+                              {/* Image */}
+                              <button onClick={() => onViewProduct(p)} className="block w-full">
+                                <div className="flex h-40 items-center justify-center overflow-hidden rounded-lg bg-white">
+                                  <img src={ui.image} alt={ui.title} className="h-[80%] w-auto object-contain" onError={(e) => { (e.currentTarget as HTMLImageElement).src = logoImg }} />
+                                </div>
+                              </button>
+                              {/* Meta */}
+                              <div className="mt-3 space-y-1">
+                                <div className="text-[12px] text-gray-600">{ui.rating.toFixed ? ui.rating.toFixed(1) : Number(ui.rating).toFixed(1)} • ({ui.reviews?.toLocaleString?.() || '0'})</div>
+                                <button onClick={() => onViewProduct(p)} className="block text-left text-[14px] font-semibold text-gray-900 hover:underline line-clamp-2">{ui.title}</button>
+                                <div className="text-[12px] text-gray-600">{brandOf(p) || 'GAPA'}</div>
+                                <div className="text-[16px] font-extrabold text-brand">{formatNaira(Number((p as any)?.price || (p as any)?.selling_price || (p as any)?.amount || 0))}</div>
+                                <div className="text-left text-[11px] leading-3 text-gray-600">Incl. VAT</div>
+                              </div>
+                              {/* Actions */}
+                              <div className="mt-3 flex items-center justify-end gap-2">
+                                <button type="button" onClick={() => onViewProduct(p)} className="inline-flex h-9 items-center justify-center rounded-md border border-black/10 px-3 text-[12px] font-semibold text-gray-800 hover:bg-black/5">
+                                  View
+                                </button>
+                                <button type="button" onClick={() => onAddToCart(p)} className="inline-flex h-9 items-center justify-center rounded-md bg-[#F7CD3A] px-4 text-[12px] font-semibold text-[#201A2B] ring-1 ring-black/10 hover:brightness-105">
+                                  Add to cart
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
-          )}
+          </div>
         </section>
       </div>
     )
@@ -1003,6 +765,12 @@ function CarPartsInner() {
             </ol>
           </nav>
 
+          {hasVehicleFilter && (
+            <div className="mt-3 rounded-md bg-[#F7CD3A]/15 px-3 py-2 text-[12px] text-gray-800 ring-1 ring-[#F7CD3A]/30">
+              Selected vehicle: <strong>{[vehFilter.brandName, vehFilter.modelName, vehFilter.engineName].filter(Boolean).join(' › ')}</strong>
+            </div>
+          )}
+
           {/* Filters + results */}
           <div className="mt-6 grid gap-6 md:grid-cols-[240px_1fr]">
             {/* Filters */}
@@ -1010,105 +778,62 @@ function CarPartsInner() {
               <div className="flex items-center justify-between">
                 <h3 className="text-[14px] font-semibold text-gray-900">Filter</h3>
                 {(selectedBrands.size || selectedCats.size) ? (
-                  <button onClick={() => { setSelectedBrands(new Set()); setSelectedCats(new Set()) }} className="text-[12px] text-brand underline">Clear all</button>
+                  <button
+                    type="button"
+                    className="text-[12px] text-brand hover:underline"
+                    onClick={() => { setSelectedBrands(new Set()); setSelectedCats(new Set()) }}
+                  >
+                    Clear
+                  </button>
                 ) : null}
               </div>
 
               {/* Brands */}
               <div className="mt-3">
-                <div className="text-[13px] font-semibold text-gray-800">Brand</div>
-                <ul className="mt-2 space-y-1">
-                  {allSearchBrands.length === 0 && <li className="text-[12px] text-gray-500">No brand filters</li>}
-                  {allSearchBrands.map((b: string) => {
-                    const id = `b-${toSlug(b)}`
-                    return (
-                      <li key={b} className="flex items-center gap-2">
-                        <input id={id} type="checkbox" className="h-3.5 w-3.5" checked={selectedBrands.has(b)} onChange={() => toggleSet(setSelectedBrands, b)} />
-                        <label htmlFor={id} className="text-[13px] text-gray-700">{b}</label>
-                      </li>
-                    )
-                  })}
+                <div className="text-[12px] font-semibold text-gray-800">Brands</div>
+                <ul className="mt-2 space-y-2 text-[12px] text-gray-800">
+                  {allSearchBrands.map((b) => (
+                    <li key={`b-${b}`} className="flex items-center gap-2">
+                      <input
+                        id={`brand-${toSlug(b)}`}
+                        type="checkbox"
+                        className="h-3.5 w-3.5 rounded border-gray-300 text-brand focus:ring-brand"
+                        checked={selectedBrands.has(b)}
+                        onChange={() => toggleSet(setSelectedBrands, b)}
+                      />
+                      <label htmlFor={`brand-${toSlug(b)}`} className="cursor-pointer select-none">{b}</label>
+                    </li>
+                  ))}
                 </ul>
               </div>
 
-              {/* Categories */}
+              {/* Categories (names resolved via API) */}
               <div className="mt-4">
-                <div className="text-[13px] font-semibold text-gray-800">Category</div>
-                <ul className="mt-2 space-y-1">
-                  {allSearchCats.length === 0 && <li className="text-[12px] text-gray-500">No category filters</li>}
-                  {allSearchCats.map((c: string) => {
-                    const id = `c-${toSlug(c)}`
-                    return (
-                      <li key={c} className="flex items-center gap-2">
-                        <input id={id} type="checkbox" className="h-3.5 w-3.5" checked={selectedCats.has(c)} onChange={() => toggleSet(setSelectedCats, c)} />
-                        <label htmlFor={id} className="text-[13px] text-gray-700">{c}</label>
-                      </li>
-                    )
-                  })}
+                <div className="text-[12px] font-semibold text-gray-800">Categories</div>
+                <ul className="mt-2 space-y-2 text-[12px] text-gray-800">
+                  {allSearchCats.map((cName) => (
+                    <li key={`c-${toSlug(cName)}`} className="flex items-center gap-2">
+                      <input
+                        id={`cat-${toSlug(cName)}`}
+                        type="checkbox"
+                        className="h-3.5 w-3.5 rounded border-gray-300 text-brand focus:ring-brand"
+                        checked={selectedCats.has(cName)}
+                        onChange={() => toggleSet(setSelectedCats, cName)}
+                      />
+                      <label htmlFor={`cat-${toSlug(cName)}`} className="cursor-pointer select-none">{cName}</label>
+                    </li>
+                  ))}
                 </ul>
-              </div>
-
-              {/* Vehicle filters (styled like home hero) */}
-              <div className="mt-4">
-                <div className="rounded-xl bg-white p-4 ring-1 ring-black/10">
-                  <div className="text-[12px] font-bold tracking-wide text-white"><span className="inline-block rounded bg-brand px-2 py-1">SELECT VEHICLE</span></div>
-                  <div className="mt-3 space-y-3">
-                    <div className="relative">
-                      <select
-                        value={brandId}
-                        onChange={(e) => setBrandId((e.target as HTMLSelectElement).value)}
-                        disabled={loadingBrands}
-                        className="h-11 w-full appearance-none rounded-md bg-gray-100 px-3 pr-10 text-sm text-gray-800 outline-none ring-1 ring-gray-200 focus:bg-white focus:ring-gray-300 disabled:opacity-60"
-                      >
-                        <option value="" disabled hidden>Select Maker</option>
-                        {brandOptions.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
-                      </select>
-                      <span className="pointer-events-none absolute inset-y-0 right-3 inline-flex items-center text-gray-500">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
-                      </span>
-                    </div>
-                    <div className="relative">
-                      <select
-                        value={modelId}
-                        onChange={(e) => setModelId((e.target as HTMLSelectElement).value)}
-                        disabled={!brandId}
-                        className="h-11 w-full appearance-none rounded-md bg-gray-100 px-3 pr-10 text-sm text-gray-800 outline-none ring-1 ring-gray-200 focus:bg-white focus:ring-gray-300 disabled:opacity-60"
-                      >
-                        <option value="" disabled hidden>Select Model</option>
-                        {modelOptions.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
-                      </select>
-                      <span className="pointer-events-none absolute inset-y-0 right-3 inline-flex items-center text-gray-500">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
-                      </span>
-                    </div>
-                    <div className="relative">
-                      <select
-                        value={engineId}
-                        onChange={(e) => setEngineId((e.target as HTMLSelectElement).value)}
-                        disabled={!brandId || !modelId}
-                        className="h-11 w-full appearance-none rounded-md bg-gray-100 px-3 pr-10 text-sm text-gray-800 outline-none ring-1 ring-gray-200 focus:bg-white focus:ring-gray-300 disabled:opacity-60"
-                      >
-                        <option value="" hidden>{engineOptions.length ? 'Select Engine' : 'Base'}</option>
-                        {engineOptions.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
-                      </select>
-                      <span className="pointer-events-none absolute inset-y-0 right-3 inline-flex items-center text-gray-500">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
-                      </span>
-                    </div>
-                  </div>
-                  <button onClick={doVehicleSearch} disabled={vehBusy || !brandId || !modelId} className="mt-3 inline-flex h-10 w-full items-center justify-center rounded-md bg-[#F7CD3A] text-[14px] font-semibold text-gray-900 ring-1 ring-black/10 disabled:opacity-60">{vehBusy ? 'Searching…' : 'Search'}</button>
-                  <button onClick={resetVehicle} className="mt-2 h-9 w-full rounded-md bg-gray-100 text-[12px] font-medium ring-1 ring-black/10">Reset vehicle</button>
-                </div>
               </div>
             </aside>
 
-            {/* Results */}
+            {/* Results list */}
             <div>
               {searchLoading ? (
                 <FallbackLoader label="Searching…" />
               ) : filteredSearchResults.length === 0 ? (
                 <div className="rounded-xl bg-white p-6 text-center ring-1 ring-black/10">
-                  <div className="text-[14px] text-gray-700">No results found for “{qParam}”.</div>
+                  <div className="text-[14px] text-gray-700">{hasVehicleFilter ? 'No compatible products for your selected vehicle. Adjust or reset the vehicle filter.' : `No results found for “${qParam}”.`}</div>
                 </div>
               ) : (
                 <>
@@ -1138,6 +863,17 @@ function CarPartsInner() {
       <section className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
         <h1 className="text-2xl font-medium text-gray-900 sm:text-[38px]">Browse Car Parts</h1>
         <Crumb />
+
+        {hasVehicleFilter && (
+          <div className="mt-3 rounded-md bg-[#F7CD3A]/15 px-3 py-2 text-[12px] text-gray-800 ring-1 ring-[#F7CD3A]/30">
+            Selected vehicle: <strong>{[vehFilter.brandName, vehFilter.modelName, vehFilter.engineName].filter(Boolean).join(' › ')}</strong>
+          </div>
+        )}
+
+        {/* Quick vehicle filter on catalogue page */}
+        <div className="mt-4 max-w-sm">
+          <VehicleFilter onSearch={(url)=>navigate(url)} onChange={setVehFilter} />
+        </div>
 
         {/* Car Accessories grid (restored) */}
         <div className="mt-6 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -1205,7 +941,19 @@ function CarPartsInner() {
           <div className="mt-8 space-y-8">
             {/* Category sections (no global pagination) */}
             {grouped.length === 0 ? (
-              <div className="text-center text-sm text-gray-600">No products found.</div>
+              <div className="text-center text-sm text-gray-700">
+                {hasVehicleFilter ? (
+                  <>
+                    <div>No compatible products for your selected vehicle.</div>
+                    <div className="mt-2">
+                      <button
+                        onClick={() => { setPersistedVehicleFilter({}); setVehFilter({}); }}
+                        className="rounded-md bg-gray-100 px-3 py-1.5 text-[12px] font-medium ring-1 ring-black/10"
+                      >Reset vehicle filter</button>
+                    </div>
+                  </>
+                ) : 'No products found.'}
+              </div>
             ) : grouped.map(([_, list]) => {
               const sample = list[0]
               const info = catInfoFor(sample as any)

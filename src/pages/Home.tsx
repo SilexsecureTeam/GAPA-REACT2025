@@ -1,17 +1,18 @@
-import { useMemo, useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import ProductCard, { type Product } from '../components/ProductCard'
 import Rating from '../components/Rating'
 import WishlistButton from '../components/WishlistButton'
 import useWishlist from '../hooks/useWishlist'
 import carShop from '../assets/car-shop.png'
 import FallbackLoader from '../components/FallbackLoader'
-import { getAllBrands, getAllCategories, getFeaturedProducts, getManufacturers, getPartners, type ApiBrand, type ApiCategory, type ApiManufacturer, type ApiPartner, type ApiProduct, liveSearch, getModelsByBrandId, getSubModelsByModelId } from '../services/api'
+import { getAllBrands, getAllCategories, getFeaturedProducts, getManufacturers, getPartners, type ApiBrand, type ApiCategory, type ApiManufacturer, type ApiPartner, type ApiProduct } from '../services/api'
 import { pickImage, normalizeApiImage, productImageFrom, categoryImageFrom, partnerImageFrom } from '../services/images'
 import { useNavigate } from 'react-router-dom'
 import TopBrands from '../components/TopBrands'
 import logoImg from '../assets/gapa-logo.png'
+import VehicleFilter from '../components/VehicleFilter'
+import { getPersistedVehicleFilter, type VehicleFilterState as VehState } from '../services/vehicle'
 
-// Remove static MAKERS/MODELS/ENGINES and derive from API drill-down (brands -> models -> engines)
 // Helpers to unwrap API shapes and map images safely
 function unwrap<T = any>(res: any): T[] {
   // Direct array
@@ -42,12 +43,6 @@ function imgOf(obj: any): string | undefined { return pickImage(obj) }
 // Name helpers for vehicle drill-down
 function brandNameOf(b: any): string {
   return String(b?.name || b?.title || b?.brand_name || b?.brand || '').trim() || 'Brand'
-}
-function modelNameOf(m: any): string {
-  return String(m?.name || m?.model_name || m?.model || m?.title || '').trim() || 'Model'
-}
-function engineNameOf(e: any): string {
-  return String(e?.name || e?.engine || e?.trim || e?.sub_model_name || e?.submodel_name || e?.title || '').trim() || 'Engine'
 }
 
 // Special offers demo type reused by API mapping
@@ -82,26 +77,7 @@ function OfferCard({ offer }: { offer: Offer }) {
   )
 }
 
-function StepBadge({ n }: { n: number }) {
-  return (
-    <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-white text-[11px] font-semibold text-brand ring-1 ring-black/10">
-      {n}
-    </span>
-  )
-}
-
 const TAB_LABELS: [string, string, string] = ['Top Car Parts', 'Top Manufacturers', 'Top Sellers']
-
-const FILTER_KEY = 'gapa:veh-filter'
-
-type PersistedFilter = {
-  brandId?: string
-  modelId?: string
-  engineId?: string
-  brandName?: string
-  modelName?: string
-  engineName?: string
-}
 
 export default function Home() {
   const navigate = useNavigate()
@@ -112,42 +88,11 @@ export default function Home() {
   const [categories, setCategories] = useState<ApiCategory[]>([])
   const [manufacturers, setManufacturers] = useState<ApiManufacturer[]>([])
   const [partners, setPartners] = useState<ApiPartner[]>([])
-  // Vehicle drill-down state
-  const [models, setModels] = useState<any[]>([])
-  const [subModels, setSubModels] = useState<any[]>([])
-  const [brandId, setBrandId] = useState('')
-  const [modelId, setModelId] = useState('')
-  const [engineId, setEngineId] = useState('')
-  const [brandName, setBrandName] = useState('')
-  const [modelName, setModelName] = useState('')
-  const [engineName, setEngineName] = useState('')
   // Tabs state
   const [tab, setTab] = useState<0 | 1 | 2>(0)
-
-  // New: hero flow selection state (after model selection)
-  const [heroShowParts, setHeroShowParts] = useState(false)
-
-  // Load persisted vehicle filter
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(FILTER_KEY)
-      if (raw) {
-        const saved: PersistedFilter = JSON.parse(raw)
-        if (saved.brandId) setBrandId(saved.brandId)
-        if (saved.modelId) setModelId(saved.modelId)
-        if (saved.engineId) setEngineId(saved.engineId)
-        if (saved.brandName) setBrandName(saved.brandName)
-        if (saved.modelName) setModelName(saved.modelName)
-        if (saved.engineName) setEngineName(saved.engineName)
-      }
-    } catch {}
-  }, [])
-
-  // Persist vehicle filter when any selection changes
-  useEffect(() => {
-    const saved: PersistedFilter = { brandId, modelId, engineId, brandName, modelName, engineName }
-    try { localStorage.setItem(FILTER_KEY, JSON.stringify(saved)) } catch {}
-  }, [brandId, modelId, engineId, brandName, modelName, engineName])
+  // Shared vehicle filter banner state (hydrated from localStorage)
+  const [vehFilter, setVehFilter] = useState<VehState>(() => getPersistedVehicleFilter())
+  const hasVehicleFilter = Boolean(vehFilter.brandName || vehFilter.modelName || vehFilter.engineName)
 
   useEffect(() => {
     let alive = true
@@ -174,41 +119,6 @@ export default function Home() {
     })()
     return () => { alive = false }
   }, [])
-
-  // Fetch models when brand changes
-  useEffect(() => {
-    let alive = true
-    if (!brandId) { setModels([]); setSubModels([]); return }
-    ;(async () => {
-      try {
-        const res = await getModelsByBrandId(brandId)
-        if (!alive) return
-        setModels(unwrap<any>(res))
-      } catch (_) {
-        setModels([])
-      }
-    })()
-    return () => { alive = false }
-  }, [brandId])
-
-  // Fetch engines (sub-models) when model changes
-  useEffect(() => {
-    let alive = true
-    if (!modelId) { setSubModels([]); return }
-    ;(async () => {
-      try {
-        const res = await getSubModelsByModelId(modelId)
-        if (!alive) return
-        setSubModels(unwrap<any>(res))
-        // After user picks a model, reveal parts to continue
-        setHeroShowParts(true)
-      } catch (_) {
-        setSubModels([])
-        setHeroShowParts(true)
-      }
-    })()
-    return () => { alive = false }
-  }, [modelId])
 
   // Helper to slugify
   const toSlug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
@@ -238,82 +148,6 @@ export default function Home() {
     brandSlug: undefined,
     partSlug: undefined,
   })) as Offer[]
-
-  // Form state and options using API drill-down
-  const brandOptions = useMemo(() => (
-    brands
-      .map((b) => ({ value: String((b as any)?.brand_id ?? (b as any)?.id ?? ''), label: brandNameOf(b) }))
-      .filter((o) => o.value && o.label)
-      .sort((a,b)=>a.label.localeCompare(b.label))
-  ), [brands])
-
-  const modelOptions = useMemo(() => (
-    models
-      .map((m) => ({ value: String((m as any)?.id ?? (m as any)?.model_id ?? ''), label: modelNameOf(m) }))
-      .filter((o) => o.value && o.label)
-      .sort((a,b)=>a.label.localeCompare(b.label))
-  ), [models])
-
-  const engineOptions = useMemo(() => (
-    subModels
-      .map((e) => ({ value: String((e as any)?.id ?? (e as any)?.sub_model_id ?? ''), label: engineNameOf(e) }))
-      .filter((o) => o.value && o.label)
-      .sort((a,b)=>a.label.localeCompare(b.label))
-  ), [subModels])
-
-  // Lookup maps for labels by id
-  const brandLabelById = useMemo(() => {
-    const m = new Map<string,string>()
-    for (const o of brandOptions) m.set(o.value, o.label)
-    return (id: string) => m.get(id) || ''
-  }, [brandOptions])
-  const modelLabelById = useMemo(() => {
-    const m = new Map<string,string>()
-    for (const o of modelOptions) m.set(o.value, o.label)
-    return (id: string) => m.get(id) || ''
-  }, [modelOptions])
-  const engineLabelById = useMemo(() => {
-    const m = new Map<string,string>()
-    for (const o of engineOptions) m.set(o.value, o.label)
-    return (id: string) => m.get(id) || ''
-  }, [engineOptions])
-
-  const onSearchParts = async (e: React.FormEvent) => {
-    e.preventDefault()
-    const term = [brandName, modelName, engineName].filter(Boolean).join(' ').trim()
-    if (!term) return
-    const list = await liveSearch(term)
-    const arr = Array.isArray(list) ? list : (list as any)?.data
-    const items = Array.isArray(arr) ? arr : []
-    const brandSlug = (brandName || '').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'') || 'gapa'
-    const partSlug = (modelName || 'part').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'')
-    if (items.length === 0) {
-      // Cache a suggestion from featured for SearchError/inline use
-      const s = featuredAsProducts[0]
-      const suggest = s
-        ? { id: s.id, title: s.title, image: s.image, rating: s.rating, brandSlug: s.brandSlug, partSlug: s.partSlug }
-        : undefined
-      if (suggest) {
-        try { localStorage.setItem('gapa:last-suggest', JSON.stringify(suggest)) } catch {}
-      }
-      // Navigate to CarPartDetails to handle inline error and related suggestions
-      navigate(`/parts/${brandSlug}/${partSlug}?q=${encodeURIComponent(term)}`)
-      return
-    }
-    const first = items[0]
-    const pid = String(first?.id || first?.product_id || '')
-    const brand = String(first?.brand || first?.manufacturer || brandName || 'gapa')
-    const part = String(first?.name || first?.product_name || modelName || 'part')
-    navigate(`/parts/${brand.toLowerCase().replace(/[^a-z0-9]+/g,'-')}/${part.toLowerCase().replace(/[^a-z0-9]+/g,'-')}?pid=${encodeURIComponent(pid)}`)
-  }
-  const onSearchReg = (e: React.FormEvent) => {
-    e.preventDefault()
-    // Placeholder: Registration search not yet defined in API
-    // Keep UX consistent
-    const term = [brandName, modelName, engineName].filter(Boolean).join(' ').trim()
-    if (!term) return
-    alert(`Searching parts for reg: ${term}`)
-  }
 
   // Tabs a11y helpers
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([])
@@ -416,14 +250,6 @@ export default function Home() {
     navigate(`/parts?${params.toString()}`)
   }
 
-  // When user picks a part in hero flow, navigate to CarPartDetails without pid to let them pick a product
-  const onPickHeroPart = (cat: any) => {
-    const name = String((cat as any)?.title || (cat as any)?.name || 'parts')
-    const brandSlug = (brandName || 'gapa').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'')
-    const partSlug = name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'')
-    navigate(`/parts/${brandSlug}/${partSlug}`)
-  }
-
   return (
     <div className="min-h-screen bg-white">
       {/* Hero: left promo + right form */}
@@ -443,129 +269,12 @@ export default function Home() {
             </a>
           </div>
 
-          {/* Right form card */}
-          <div className="rounded-[8px] md:justify-self-end md:min-w-[400px] bg-white p-4 shadow-md ring-1 ring-black/10 md:p-5">
-            {/* Parts search form */}
-            <form onSubmit={onSearchParts} className="space-y-5">
-              <div className="relative">
-                {/* vertical guide */}
-                <span className="pointer-events-none absolute left-2 top-4 bottom-3 hidden w-[5px] bg-[#5A1E78] sm:block" aria-hidden />
-
-                {/* Rows */}
-                <div className="space-y-5 font-semibold">
-                  {[
-                    {
-                      label: 'Select Maker',
-                      value: brandId,
-                      options: brandOptions,
-                      disabled: false,
-                      onChange: (val: string) => {
-                        setBrandId(val)
-                        setBrandName(brandLabelById(val))
-                        // Reset downstream selections
-                        setModelId(''); setModelName('')
-                        setEngineId(''); setEngineName('')
-                      }
-                    },
-                    {
-                      label: 'Select Model',
-                      value: modelId,
-                      options: modelOptions,
-                      disabled: !!(!brandId),
-                      onChange: (val: string) => {
-                        setModelId(val)
-                        setModelName(modelLabelById(val))
-                        setEngineId(''); setEngineName('')
-                      }
-                    },
-                    {
-                      label: 'Select Engine',
-                      value: engineId,
-                      options: engineOptions,
-                      disabled: !!(!modelId),
-                      onChange: (val: string) => {
-                        setEngineId(val)
-                        setEngineName(engineLabelById(val))
-                      }
-                    },
-                  ].map((f, idx) => (
-                      <div key={idx} className="grid grid-cols-[20px_1fr] items-center gap-3">
-                        <div className="hidden sm:block z-20">
-                          <StepBadge n={idx + 1} />
-                        </div>
-                        <div className="relative">
-                          <select
-                            aria-label={f.label}
-                            value={f.value}
-                            onChange={(e) => f.onChange((e.target as HTMLSelectElement).value)}
-                            disabled={f.disabled}
-                            className="h-12 w-full appearance-none rounded-md bg-gray-100 px-3 pr-9 text-sm text-gray-800 outline-none ring-1 ring-gray-200 focus:bg-white focus:ring-gray-300 disabled:opacity-60"
-                          >
-                            <option value="" disabled hidden>
-                              {f.label}
-                            </option>
-                            {f.options.map((o: any) => (
-                              <option key={`${f.label}-${o.value}`} value={o.value}>{o.label}</option>
-                            ))}
-                          </select>
-                          <span className="pointer-events-none absolute inset-y-0 right-3 inline-flex items-center text-gray-500">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <polyline points="6 9 12 15 18 9" />
-                            </svg>
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                </div>
-              </div>
-
-              <button type="submit" className="flex h-11 w-full items-center justify-center gap-2 rounded-md bg-[#F7CD3A] text-sm font-semibold text-[#201A2B] ring-1 ring-black/5">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="11" cy="11" r="8" />
-                  <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                </svg>
-                Search
-              </button>
-            </form>
-
-            {/* Reg search (separate form to avoid nesting) */}
-            <div className="pt-4 space-y-3">
-              <label className="mb-5 block text-xs font-semibold uppercase tracking-wide text-gray-700">Enter your registration below</label>
-              <form onSubmit={onSearchReg} className="flex gap-2">
-                <input
-                  value={[brandName, modelName, engineName].filter(Boolean).join(' ')}
-                  onChange={() => { /* read-only from drill-down; keep UX simple */ }}
-                  placeholder="Your Reg"
-                  className="h-10 w-full rounded-md bg-gray-100 px-3 text-sm text-gray-800 outline-none ring-1 ring-gray-200 focus:bg-white focus:ring-gray-300"
-                  readOnly
-                />
-                <button type="submit" className="h-10 rounded-md bg-accent px-4 text-sm font-semibold text-[#201A2B] ring-1 ring-black/5">
-                  Search
-                </button>
-              </form>
-              <a href="#" className="mt-2 block text-sm font-medium text-brand underline">Can't Find Your Car in the Catalogue?</a>
-            </div>
-
-            {/* Next step: pick a car part after selecting model */}
-            {heroShowParts && modelId && (
-              <div className="mt-5">
-                <div className="mb-2 text-[12px] font-bold tracking-wide text-white">
-                  <span className="inline-block rounded bg-brand px-2 py-1">PICK A CAR PART</span>
-                </div>
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                  {categories.slice(0, 9).map((c, i) => {
-                    const name = String((c as any)?.title || (c as any)?.name || 'Category')
-                    const img = categoryImageFrom(c) || normalizeApiImage(pickImage(c) || '') || logoImg
-                    return (
-                      <button key={`${String((c as any)?.id ?? i)}-${i}`} onClick={() => onPickHeroPart(c)} className="group rounded-md p-2 ring-1 ring-black/10 hover:bg-gray-50 text-left">
-                        <span className="flex h-10 w-10 items-center justify-center overflow-hidden rounded bg-[#F6F5FA] ring-1 ring-black/10">
-                          <img src={img} alt="" className="h-full w-full object-contain" onError={(e)=>{(e.currentTarget as HTMLImageElement).src=logoImg}} />
-                        </span>
-                        <span className="mt-1 block truncate text-[12px] font-medium text-gray-800">{name}</span>
-                      </button>
-                    )
-                  })}
-                </div>
+          {/* Right: shared vehicle filter card */}
+          <div className="md:justify-self-end">
+            <VehicleFilter className="md:min-w-[400px] shadow-md" onSearch={() => navigate('/parts')} onChange={setVehFilter} />
+            {hasVehicleFilter && (
+              <div className="mt-3 rounded-md bg-[#F7CD3A]/15 px-3 py-2 text-[12px] text-gray-800 ring-1 ring-[#F7CD3A]/30">
+                Selected vehicle: <strong>{[vehFilter.brandName, vehFilter.modelName, vehFilter.engineName].filter(Boolean).join(' › ')}</strong>
               </div>
             )}
           </div>

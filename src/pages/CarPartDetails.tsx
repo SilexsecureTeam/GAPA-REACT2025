@@ -1,26 +1,17 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { getAllProducts, liveSearch, getRelatedProducts, type ApiProduct, getAllBrands, getModelsByBrandId, getSubModelsByModelId, getProductById, getAllCategories, type ApiCategory, addToCartApi } from '../services/api'
+import { getAllProducts, liveSearch, getRelatedProducts, type ApiProduct, getProductById, getAllCategories, type ApiCategory, addToCartApi } from '../services/api'
 import { normalizeApiImage, pickImage, productImageFrom, categoryImageFrom } from '../services/images'
 import logoImg from '../assets/gapa-logo.png'
 import { useAuth } from '../services/auth'
 import { addGuestCartItem } from '../services/cart'
 import TopBrands from '../components/TopBrands'
+import VehicleFilter from '../components/VehicleFilter'
+import { getPersistedVehicleFilter, setPersistedVehicleFilter, vehicleMatches as sharedVehicleMatches, type VehicleFilterState as VehState } from '../services/vehicle'
 
 // Helpers
 const toSlug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
 const titleCase = (s: string) => s.replace(/-/g, ' ').replace(/\b\w/g, (m) => m.toUpperCase())
-
-// Persisted vehicle filter key (shared with Home)
-const FILTER_KEY = 'gapa:veh-filter'
-type PersistedFilter = {
-  brandId?: string
-  modelId?: string
-  engineId?: string
-  brandName?: string
-  modelName?: string
-  engineName?: string
-}
 
 // Derive brand and category names from product
 function brandOf(p: any): string {
@@ -95,246 +86,6 @@ function mapApiToUi(p: any) {
   return { id, brand: brandName, brandLogo: brandLogo || logoImg, name, articleNo, price, image, gallery: gallery.length ? gallery : [image], rating, reviews, inStock, attributes, description }
 }
 
-// Vehicle filter using API drill-down (brands -> models -> engines) like Home hero
-function VehicleFilter({ onNavigate }: { onNavigate: (url: string) => void }) {
-  const [loadingBrands, setLoadingBrands] = useState(true)
-  const [brands, setBrands] = useState<any[]>([])
-  const [models, setModels] = useState<any[]>([])
-  const [subModels, setSubModels] = useState<any[]>([])
-
-  const [brandId, setBrandId] = useState('')
-  const [modelId, setModelId] = useState('')
-  const [engineId, setEngineId] = useState('')
-  const [brandName, setBrandName] = useState('')
-  const [modelName, setModelName] = useState('')
-  const [engineName, setEngineName] = useState('')
-
-  const [busy, setBusy] = useState(false)
-
-  // Hydrate from persisted state
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(FILTER_KEY)
-      if (raw) {
-        const saved: PersistedFilter = JSON.parse(raw)
-        if (saved.brandId) setBrandId(saved.brandId)
-        if (saved.modelId) setModelId(saved.modelId)
-        if (saved.engineId) setEngineId(saved.engineId)
-        if (saved.brandName) setBrandName(saved.brandName)
-        if (saved.modelName) setModelName(saved.modelName)
-        if (saved.engineName) setEngineName(saved.engineName)
-      }
-    } catch { /* ignore */ }
-  }, [])
-
-  // Persist on change
-  useEffect(() => {
-    const saved: PersistedFilter = { brandId, modelId, engineId, brandName, modelName, engineName }
-    try { localStorage.setItem(FILTER_KEY, JSON.stringify(saved)) } catch { /* ignore */ }
-  }, [brandId, modelId, engineId, brandName, modelName, engineName])
-
-  useEffect(() => {
-    let alive = true
-    ;(async () => {
-      try {
-        setLoadingBrands(true)
-        const res = await getAllBrands()
-        if (!alive) return
-        setBrands(Array.isArray(res) ? res : [])
-      } catch {
-        if (!alive) return
-        setBrands([])
-      } finally {
-        if (alive) setLoadingBrands(false)
-      }
-    })()
-    return () => { alive = false }
-  }, [])
-
-  // Fetch models when brand changes
-  useEffect(() => {
-    let alive = true
-    if (!brandId) { setModels([]); setSubModels([]); setModelId(''); setEngineId(''); setModelName(''); setEngineName(''); return }
-    ;(async () => {
-      try {
-        const res = await getModelsByBrandId(brandId)
-        if (!alive) return
-        setModels(Array.isArray(res) ? res : [])
-      } catch {
-        if (!alive) return
-        setModels([])
-      }
-    })()
-    return () => { alive = false }
-  }, [brandId])
-
-  // Fetch engines (sub-models) when model changes
-  useEffect(() => {
-    let alive = true
-    if (!modelId) { setSubModels([]); setEngineId(''); setEngineName(''); return }
-    ;(async () => {
-      try {
-        const res = await getSubModelsByModelId(modelId)
-        if (!alive) return
-        setSubModels(Array.isArray(res) ? res : [])
-      } catch {
-        if (!alive) return
-        setSubModels([])
-      }
-    })()
-    return () => { alive = false }
-  }, [modelId])
-
-  // Options with human-readable labels
-  const brandOptions = useMemo(() => (
-    (brands || [])
-      .map((b) => ({ value: String((b as any)?.brand_id ?? (b as any)?.id ?? ''), label: String((b as any)?.name || (b as any)?.title || '') }))
-      .filter((o) => o.value && o.label)
-      .sort((a,b)=>a.label.localeCompare(b.label))
-  ), [brands])
-
-  const modelOptions = useMemo(() => (
-    (models || [])
-      .map((m) => ({ value: String((m as any)?.id ?? (m as any)?.model_id ?? ''), label: String((m as any)?.name || (m as any)?.model_name || (m as any)?.model || '') }))
-      .filter((o) => o.value && o.label)
-      .sort((a,b)=>a.label.localeCompare(b.label))
-  ), [models])
-
-  const engineOptions = useMemo(() => (
-    (subModels || [])
-      .map((e) => ({ value: String((e as any)?.id ?? (e as any)?.sub_model_id ?? ''), label: String((e as any)?.name || (e as any)?.engine || (e as any)?.trim || (e as any)?.submodel_name || (e as any)?.sub_model_name || '') }))
-      .filter((o) => o.value && o.label)
-      .sort((a,b)=>a.label.localeCompare(b.label))
-  ), [subModels])
-
-  // Label mappers and sync when options load
-  const brandLabelById = useMemo(() => {
-    const m = new Map<string,string>()
-    for (const o of brandOptions) m.set(o.value, o.label)
-    return (id: string) => m.get(id) || ''
-  }, [brandOptions])
-  const modelLabelById = useMemo(() => {
-    const m = new Map<string,string>()
-    for (const o of modelOptions) m.set(o.value, o.label)
-    return (id: string) => m.get(id) || ''
-  }, [modelOptions])
-  const engineLabelById = useMemo(() => {
-    const m = new Map<string,string>()
-    for (const o of engineOptions) m.set(o.value, o.label)
-    return (id: string) => m.get(id) || ''
-  }, [engineOptions])
-
-  useEffect(() => {
-    if (brandId && !brandName) setBrandName(brandLabelById(brandId))
-  }, [brandId, brandName, brandLabelById])
-  useEffect(() => {
-    if (modelId && !modelName) setModelName(modelLabelById(modelId))
-  }, [modelId, modelName, modelLabelById])
-  useEffect(() => {
-    if (engineId && !engineName) setEngineName(engineLabelById(engineId))
-  }, [engineId, engineName, engineLabelById])
-
-  const handleReset = () => {
-    setBrandId(''); setModelId(''); setEngineId('')
-    setBrandName(''); setModelName(''); setEngineName('')
-    try { localStorage.removeItem(FILTER_KEY) } catch { /* ignore */ }
-  }
-
-  const doSearch = async () => {
-    if (busy) return
-    const term = [brandName, modelName, engineName].filter(Boolean).join(' ').trim()
-    if (!term) return
-    setBusy(true)
-    try {
-      const res = await liveSearch(term)
-      const list = Array.isArray(res) ? res : (res as any)?.data
-      const items = Array.isArray(list) ? list : []
-      const brandSlug = brandName ? toSlug(brandName) : 'gapa'
-      const partSlug = modelName ? toSlug(modelName) : 'parts'
-      if (items.length === 0) {
-        onNavigate(`/parts/${brandSlug}/${partSlug}?q=${encodeURIComponent(term)}`)
-      } else {
-        const first = items[0]
-        const pid = String(first?.id || first?.product_id || '')
-        onNavigate(`/parts/${brandSlug}/${partSlug}?pid=${encodeURIComponent(pid)}`)
-      }
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  return (
-    <div className="rounded-xl bg-white p-4 ring-1 ring-black/10">
-      <h4 className="text-[12px] font-bold tracking-wide text-white">
-        <span className="inline-block rounded bg-brand px-2 py-1">SELECT VEHICLE</span>
-      </h4>
-      <div className="mt-3 space-y-4">
-        <div className="space-y-3">
-          <div className="relative">
-            <select
-              value={brandId}
-              onChange={(e)=>{
-                const id = (e.target as HTMLSelectElement).value
-                setBrandId(id)
-                const label = brandOptions.find(o=>o.value===id)?.label || ''
-                setBrandName(label)
-              }}
-              disabled={loadingBrands}
-              className="h-11 w-full appearance-none rounded-md bg-gray-100 px-3 pr-10 text-sm text-gray-800 outline-none ring-1 ring-gray-200 focus:bg-white focus:ring-gray-300 disabled:opacity-60"
-            >
-              <option value="" disabled hidden>Select Maker</option>
-              {brandOptions.map((o)=> (<option key={o.value} value={o.value}>{o.label}</option>))}
-            </select>
-            <span className="pointer-events-none absolute inset-y-0 right-3 inline-flex items-center text-gray-500">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
-            </span>
-          </div>
-          <div className="relative">
-            <select
-              value={modelId}
-              onChange={(e)=>{
-                const id = (e.target as HTMLSelectElement).value
-                setModelId(id)
-                const label = modelOptions.find(o=>o.value===id)?.label || ''
-                setModelName(label)
-              }}
-              disabled={!brandId}
-              className="h-11 w-full appearance-none rounded-md bg-gray-100 px-3 pr-10 text-sm text-gray-800 outline-none ring-1 ring-gray-200 focus:bg-white focus:ring-gray-300 disabled:opacity-60"
-            >
-              <option value="" disabled hidden>Select Model</option>
-              {modelOptions.map((o)=> (<option key={o.value} value={o.value}>{o.label}</option>))}
-            </select>
-            <span className="pointer-events-none absolute inset-y-0 right-3 inline-flex items-center text-gray-500">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
-            </span>
-          </div>
-          <div className="relative">
-            <select
-              value={engineId}
-              onChange={(e)=>{
-                const id = (e.target as HTMLSelectElement).value
-                setEngineId(id)
-                const label = engineOptions.find(o=>o.value===id)?.label || ''
-                setEngineName(label)
-              }}
-              disabled={!brandId || !modelId}
-              className="h-11 w-full appearance-none rounded-md bg-gray-100 px-3 pr-10 text-sm text-gray-800 outline-none ring-1 ring-gray-200 focus:bg-white focus:ring-gray-300 disabled:opacity-60"
-            >
-              <option value="" hidden>{engineOptions.length ? 'Select Engine' : 'Base'}</option>
-              {engineOptions.map((o)=> (<option key={o.value} value={o.value}>{o.label}</option>))}
-            </select>
-            <span className="pointer-events-none absolute inset-y-0 right-3 inline-flex items-center text-gray-500">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
-            </span>
-          </div>
-        </div>
-        <button onClick={doSearch} disabled={busy || !brandId || !modelId} className="inline-flex h-10 w-full items-center justify-center rounded-md bg-[#F7CD3A] text-[14px] font-semibold text-gray-900 ring-1 ring-black/10 disabled:opacity-60">{busy ? 'Searching…' : 'Search'}</button>
-        <button onClick={handleReset} className="h-9 w-full rounded-md bg-gray-100 text-[12px] font-medium ring-1 ring-black/10">Reset vehicle</button>
-      </div>
-    </div>
-  )
-}
-
 export default function CarPartDetails() {
   const navigate = useNavigate()
   const { brand, part } = useParams<{ brand?: string; part?: string }>()
@@ -348,6 +99,11 @@ export default function CarPartDetails() {
   const [selected, setSelected] = useState<ReturnType<typeof mapApiToUi> | null>(null)
   const [selectedRaw, setSelectedRaw] = useState<any | null>(null)
   const [categories, setCategories] = useState<ApiCategory[]>([])
+
+  // NEW: shared vehicle filter state
+  const [vehFilter, setVehFilter] = useState<VehState>(() => getPersistedVehicleFilter())
+  const hasVehicleFilter = useMemo(() => Boolean(vehFilter.brandName || vehFilter.modelName || vehFilter.engineName), [vehFilter])
+  const productMatchesVehicle = (p: any) => sharedVehicleMatches(p, vehFilter)
 
   // Load catalog + categories
   useEffect(() => {
@@ -456,12 +212,11 @@ export default function CarPartDetails() {
   const [fHeight, setFHeight] = useState<string[]>([])
   const [fBoltCircle, setFBoltCircle] = useState<string[]>([])
 
-  // Apply facets
+  // Apply facets + vehicle compatibility
   const filtered = useMemo(() => {
     const list = scoped
     const hasAny = fDiameter.length || fType.length || fMaterial.length || fSurface.length || fHeight.length || fBoltCircle.length
-    if (!hasAny) return list
-    return list.filter((p) => {
+    const byFacets = hasAny ? list.filter((p) => {
       const A = attrsFrom(p)
       const byLabel = (labelIncludes: string) => A.filter(a => a.label.toLowerCase().includes(labelIncludes))
       const hasVal = (arr: Attr[], sel: string[]) => sel.length === 0 || arr.some(a => sel.includes(a.value))
@@ -472,8 +227,10 @@ export default function CarPartDetails() {
       const okHeight = hasVal(byLabel('height'), fHeight)
       const okBolt = hasVal(byLabel('bolt hole circle'), fBoltCircle)
       return okDiameter && okType && okMaterial && okSurface && okHeight && okBolt
-    })
-  }, [scoped, fDiameter, fType, fMaterial, fSurface, fHeight, fBoltCircle])
+    }) : list
+    // Apply vehicle compatibility
+    return byFacets.filter(productMatchesVehicle)
+  }, [scoped, fDiameter, fType, fMaterial, fSurface, fHeight, fBoltCircle, vehFilter])
 
   const zeroResults = !loading && filtered.length === 0
 
@@ -534,6 +291,7 @@ export default function CarPartDetails() {
   }, [products, q, scoped, selectedRaw, brand, part])
 
   const finalRelated = (related && related.length) ? related : frontendRelated
+  const compatibleRelated = useMemo(() => finalRelated.filter(productMatchesVehicle), [finalRelated, vehFilter])
 
   // When a user clicks a result, request details, then navigate and update pid
   const onViewProduct = async (id: string, p: any) => {
@@ -589,25 +347,84 @@ export default function CarPartDetails() {
     return undefined
   }, [selectedRaw, categories, part])
 
-  const ProductPanel = ({ ui }: { ui: ReturnType<typeof mapApiToUi> }) => {
-    const [qty, setQty] = useState(2)
+  // Selected product compatibility
+  const selectedCompatible = useMemo(() => {
+    return selectedRaw ? productMatchesVehicle(selectedRaw) : true
+  }, [selectedRaw, vehFilter])
+
+  const ProductPanel = ({ ui, isSelected }: { ui: ReturnType<typeof mapApiToUi>; isSelected?: boolean }) => {
+    // Derive pairs flag and selected raw source for the main (selected) product
+    const rawSrc = (isSelected && selectedRaw) ? ((selectedRaw as any).part ? (selectedRaw as any).part : selectedRaw) : undefined
+    const rawPairsVal = rawSrc ? (rawSrc?.pairs ?? rawSrc?.sold_in_pairs ?? rawSrc?.pair ?? rawSrc?.is_pair) : undefined
+    const pairsStr = String(rawPairsVal ?? '').trim().toLowerCase()
+    const pairsYes = Boolean(isSelected && (rawPairsVal === true || pairsStr === 'yes' || pairsStr === 'true' || pairsStr === '1'))
+
+    const [qty, setQty] = useState(() => (pairsYes ? 2 : 1))
     const [activeIdx, setActiveIdx] = useState(0)
     const { user } = useAuth()
     const [adding, setAdding] = useState(false)
     const [showPopup, setShowPopup] = useState(false)
 
-    const inc = () => setQty((v) => Math.min(v + 1, 99))
-    const dec = () => setQty((v) => Math.max(v - 1, 1))
+    // Parse compatible vehicles and OEM codes from the raw selected product
+    const compatList = useMemo(() => {
+      if (!isSelected || !rawSrc) return [] as string[]
+      const src: any = rawSrc
+      const comp = src?.compatibility ?? src?.compatibilities ?? src?.vehicle_compatibility ?? src?.vehicleCompatibility ?? src?.fitment ?? src?.fitments
+      const out: string[] = []
+      const pushItem = (item: any) => {
+        if (!item) return
+        if (typeof item === 'string') {
+          const parts = item.split(/[\n;,]+/).map((s) => s.trim()).filter(Boolean)
+          if (parts.length > 1) { out.push(...parts); return }
+          out.push(item.trim())
+          return
+        }
+        if (Array.isArray(item)) { item.forEach(pushItem); return }
+        if (typeof item === 'object') {
+          const brand = String((item as any)?.brand ?? (item as any)?.make ?? (item as any)?.brandName ?? '').trim()
+          const model = String((item as any)?.model ?? (item as any)?.modelName ?? (item as any)?.type ?? '').trim()
+          const engine = String((item as any)?.engine ?? (item as any)?.engineName ?? (item as any)?.variant ?? '').trim()
+          const year = String((item as any)?.year ?? (item as any)?.years ?? '').trim()
+          const composed = [brand, model, engine, year].filter(Boolean).join(' ')
+          if (composed) out.push(composed)
+          else out.push(JSON.stringify(item))
+          return
+        }
+        out.push(String(item))
+      }
+      pushItem(comp)
+      return Array.from(new Set(out))
+    }, [isSelected, rawSrc])
+
+    const oemList = useMemo(() => {
+      if (!isSelected || !rawSrc) return [] as string[]
+      const src: any = rawSrc
+      const o = src?.oem ?? src?.oem_no ?? src?.oem_number ?? src?.oem_numbers ?? src?.oemNumbers ?? src?.oem_list ?? src?.oemList
+      const out: string[] = []
+      const push = (v: any) => {
+        if (!v) return
+        if (typeof v === 'string') { v.split(/[\n,;]+/).map((s) => s.trim()).filter(Boolean).forEach((s) => out.push(s)); return }
+        if (Array.isArray(v)) { v.forEach(push); return }
+        if (typeof v === 'object') { Object.values(v).map((x) => String(x).trim()).filter(Boolean).forEach((x) => out.push(x)); return }
+        out.push(String(v))
+      }
+      push(o)
+      return Array.from(new Set(out))
+    }, [isSelected, rawSrc])
+
+    const inc = () => setQty((v) => (pairsYes ? 2 : Math.min(v + 1, 99)))
+    const dec = () => setQty((v) => (pairsYes ? 2 : Math.max(v - 1, 1)))
     const mainImage = ui.gallery[activeIdx] || ui.image
 
     const onAddToCart = async () => {
       if (adding) return
       setAdding(true)
       try {
+        const effQty = isSelected ? (pairsYes ? 2 : 1) : qty
         if (user && user.id) {
-          await addToCartApi({ user_id: user.id, product_id: ui.id, quantity: qty })
+          await addToCartApi({ user_id: user.id, product_id: ui.id, quantity: effQty })
         } else {
-          addGuestCartItem(ui.id, qty)
+          addGuestCartItem(ui.id, effQty)
         }
         setShowPopup(true)
         // Open global cart popup
@@ -624,6 +441,12 @@ export default function CarPartDetails() {
 
     return (
       <div className="rounded-xl bg-white p-4 ring-1 ring-black/10">
+        {/* Warning when product doesn't match selected vehicle */}
+        {hasVehicleFilter && !selectedCompatible && (
+          <div className="mb-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-[13px] text-amber-800">
+            This product may not fit your selected vehicle. See compatible alternatives below or reset your vehicle.
+          </div>
+        )}
         <div className="grid gap-6 lg:grid-cols-[360px_1fr_280px]">
           <aside className="rounded-lg bg-white">
             <div className="flex items-center justify-center rounded-lg bg-[#F6F5FA] p-6">
@@ -656,6 +479,28 @@ export default function CarPartDetails() {
               <div className="mt-2 text-[12px] text-orange-700">⚠ WARNING <button className="underline">More</button></div>
             </div>
             {ui.description && <div className="pt-2 text-[13px] text-gray-700">{ui.description}</div>}
+
+            {/* View Compatible Vehicles */}
+            {isSelected && compatList.length > 0 && (
+              <details className="mt-2 rounded-md border border-black/10  p-3">
+                <summary className="cursor-pointer list-none text-[13px] font-semibold text-gray-900">View Compatible Vehicles</summary>
+                <ul className="mt-2 list-disc pl-5 text-[12px] text-gray-800">
+                  {compatList.map((c, i) => (<li key={i}>{c}</li>))}
+                </ul>
+              </details>
+            )}
+
+            {/* View OEM codes */}
+            {isSelected && oemList.length > 0 && (
+              <details className="mt-2 rounded-md border border-black/10 p-3">
+                <summary className="cursor-pointer list-none text-[13px] font-semibold text-gray-900">View OEM</summary>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {oemList.map((code, i) => (
+                    <span key={i} className="inline-flex items-center rounded bg-white px-2 py-1 text-[12px] ring-1 ring-black/10">{code}</span>
+                  ))}
+                </div>
+              </details>
+            )}
           </div>
 
           <aside className="rounded-lg bg-white">
@@ -664,10 +509,13 @@ export default function CarPartDetails() {
               <div className="mt-1 text-[10px] text-gray-600">Incl. 20% VAT, excl delivery cost</div>
             </div>
             <div className="mt-4 flex items-center justify-center gap-2">
-              <button aria-label="Decrease" onClick={dec} className="inline-flex h-7 w-7 items-center justify-center rounded-md ring-1 ring-black/10 text-gray-700">‹</button>
+              <button aria-label="Decrease" onClick={dec} disabled={Boolean(isSelected && pairsYes)} className="inline-flex h-7 w-7 items-center justify-center rounded-md ring-1 ring-black/10 text-gray-700 disabled:opacity-50">‹</button>
               <div className="inline-flex h-7 items-center justify-center rounded-md border border-black/10 px-2 text-[12px]">{qty}</div>
-              <button aria-label="Increase" onClick={inc} className="inline-flex h-7 w-7 items-center justify-center rounded-md ring-1 ring-black/10 text-gray-700">›</button>
+              <button aria-label="Increase" onClick={inc} disabled={Boolean(isSelected && pairsYes)} className="inline-flex h-7 w-7 items-center justify-center rounded-md ring-1 ring-black/10 text-gray-700 disabled:opacity-50">›</button>
             </div>
+            {isSelected && pairsYes && (
+              <div className="mt-1 text-center text-[11px] text-gray-600">Ships in pairs. Add to cart will add 2 units.</div>
+            )}
             <button onClick={onAddToCart} disabled={adding} className="mt-3 inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-[#F7CD3A] text-[14px] font-semibold text-gray-900 ring-1 ring-black/10 hover:bg-[#f9d658] disabled:opacity-60">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="21" r="1" /><circle cx="20" cy="21" r="1" /><path d="M1 1h4l2.68 12.39a2 2 0 0 0 2 1.61h7.72a2 2 0 0 0 2-1.61L23 6H6" /></svg>
               {adding ? 'Adding…' : 'Add to cart'}
@@ -701,10 +549,22 @@ export default function CarPartDetails() {
           </ol>
         </nav>
 
+        {/* Selected vehicle banner */}
+        {hasVehicleFilter && (
+          <div className="mt-3 rounded-md bg-[#F7CD3A]/15 px-3 py-2 text-[12px] text-gray-800 ring-1 ring-[#F7CD3A]/30">
+            Selected vehicle: <strong>{[vehFilter.brandName, vehFilter.modelName, vehFilter.engineName].filter(Boolean).join(' › ')}</strong>
+            <button
+              className="ml-2 inline-flex items-center rounded bg-gray-100 px-2 py-0.5 text-[11px] font-medium ring-1 ring-black/10"
+              onClick={() => { setPersistedVehicleFilter({}); setVehFilter({}); }}
+            >Reset</button>
+          </div>
+        )}
+
         <div className="mt-4 grid grid-cols-1 gap-6 md:grid-cols-[260px_minmax(0,1fr)]">
           {/* Sidebar: vehicle filter + attribute facets */}
           <aside className="sticky top-34 self-start space-y-4">
-            <VehicleFilter onNavigate={(url)=>navigate(url)} />
+            {/* Shared Vehicle Filter; updates in place via onChange (no navigation) */}
+            <VehicleFilter onChange={setVehFilter} />
 
             {/* Attribute filters */}
             <div className="rounded-xl bg-white p-4 ring-1 ring-black/10">
@@ -763,9 +623,20 @@ export default function CarPartDetails() {
               </div>
             )}
 
+            {/* Zero compatible results banner (when filtering list) */}
+            {(!pid && hasVehicleFilter && zeroResults) && (
+              <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-[13px] text-amber-800">
+                No compatible products found for your selected vehicle in this section.
+                <button
+                  className="ml-2 inline-flex items-center rounded bg-white px-2 py-0.5 text-[11px] font-medium ring-1 ring-amber-300"
+                  onClick={() => { setPersistedVehicleFilter({}); setVehFilter({}); }}
+                >Reset vehicle</button>
+              </div>
+            )}
+
             {/* Selected product details panel */}
             {pid && selected && (
-              <ProductPanel ui={selected} />
+              <ProductPanel ui={selected} isSelected />
             )}
 
             {/* If no selection yet, show list of names the way CarParts links to details */}
@@ -786,11 +657,11 @@ export default function CarPartDetails() {
               )
             )}
 
-            {/* Related products rendered with same panel UI */}
-            {(finalRelated.length > 0) && (
+            {/* Related products rendered with same panel UI (filtered by compatibility) */}
+            {(compatibleRelated.length > 0) && (
               <section className="mt-6 space-y-4">
                 <h3 className="text-[16px] font-semibold text-gray-900">Related Products</h3>
-                {finalRelated.slice(0, 6).map((p, i) => {
+                {compatibleRelated.slice(0, 6).map((p, i) => {
                   // Use product_id for navigation keys
                   const id = String((p as any)?.product_id ?? (p as any)?.id ?? i)
                   const ui = mapApiToUi(p)
@@ -801,6 +672,13 @@ export default function CarPartDetails() {
                   )
                 })}
               </section>
+            )}
+
+            {/* If no related compatible products */}
+            {(hasVehicleFilter && compatibleRelated.length === 0 && (related.length || frontendRelated.length)) && (
+              <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-[13px] text-amber-800">
+                No related products are compatible with your selected vehicle. Try resetting the vehicle filter.
+              </div>
             )}
           </div>
         </div>
