@@ -2,10 +2,13 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import logo from '../assets/gapa-logo.png';
 import icon1 from '../assets/h1.png'
+import gapafix from '../assets/gapa-fix.svg'
+import cartImg from '../assets/cart.svg'
+
 // Removed unused icons h2-h7
 import { useAuth } from '../services/auth'
 import { getAllCategories, type ApiCategory, getAllBrands, type ApiBrand, getSubCategories, getSubSubCategories } from '../services/api'
-import { categoryImageFrom, normalizeApiImage, pickImage, brandImageFrom } from '../services/images'
+import { categoryImageFrom, normalizeApiImage, pickImage, brandImageFrom, subCategoryImageFrom, subSubCategoryImageFrom } from '../services/images'
 
 export default function Header() {
   // Live timer to Sept 1, 12am displayed as HH:MM:SS (no labels)
@@ -105,7 +108,7 @@ export default function Header() {
       const mapped = arr.map((sc: any, i: number) => ({
         id: String(sc?.sub_cat_id ?? sc?.id ?? sc?.sub_category_id ?? i),
         name: String(sc?.sub_title || sc?.title || sc?.name || 'Sub Category'),
-        image: categoryImageFrom(sc) || normalizeApiImage(pickImage(sc) || '') || '/gapa-logo.png'
+        image: subCategoryImageFrom(sc) || normalizeApiImage(pickImage(sc) || '') || '/gapa-logo.png'
       }))
       setSubCats(mapped)
     } catch (_) {
@@ -123,7 +126,7 @@ export default function Header() {
       const mapped = arr.map((ssc: any, i: number) => ({
         id: String(ssc?.sub_sub_cat_id ?? ssc?.id ?? ssc?.sub_sub_category_id ?? ssc?.subsubcatID ?? i),
         name: String(ssc?.sub_sub_title || ssc?.title || ssc?.name || 'Type'),
-        image: categoryImageFrom(ssc) || normalizeApiImage(pickImage(ssc) || '') || '/gapa-logo.png'
+        image: subSubCategoryImageFrom(ssc) || normalizeApiImage(pickImage(ssc) || '') || '/gapa-logo.png'
       }))
       setSubSubCats(mapped)
     } catch (_) {
@@ -248,21 +251,14 @@ export default function Header() {
           <div className="flex items-center justify-end gap-3 sm:gap-4">
             {/* Gapa Fix */}
             <a href="#" className="hidden md:inline-flex items-center gap-2 text-[14px] text-gray-900">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-700">
-                <path d="M14.7 6.3a2 2 0 0 1 2.8 2.8L10 16.6 7 17l.4-3 7.3-7.7z" />
-                <path d="M16 7l1 1" />
-              </svg>
+              <img src={gapafix} alt="" />
               <span className="font-medium">Gapa Fix</span>
               <span className="mx-2 inline-block h-5 w-px bg-black/20" aria-hidden />
             </a>
 
             {/* Cart */}
             <Link to={{ pathname: location.pathname, search: location.search, hash: '#cart' }} replace className="hidden md:inline-flex items-center gap-2 text-[14px] text-gray-900">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-700">
-                <circle cx="9" cy="21" r="1" />
-                <circle cx="20" cy="21" r="1" />
-                <path d="M1 1h4l2.68 12.39a2 2 0 0 0 2 1.61h7.72a2 2 0 0 0 2-1.61L23 6H6" />
-              </svg>
+              <img src={cartImg} alt="" />
               <span className="font-medium">My Cart</span>
             </Link>
 

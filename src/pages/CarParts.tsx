@@ -3,7 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import FallbackLoader from '../components/FallbackLoader'
 import ProductCard, { type Product as UiProduct } from '../components/ProductCard'
 import { getAllCategories, getAllProducts, type ApiCategory, type ApiProduct, getSubCategories, getSubSubCategories, getProductsBySubSubCategory, liveSearch, addToCartApi } from '../services/api'
-import { normalizeApiImage, pickImage, productImageFrom, categoryImageFrom } from '../services/images'
+import { normalizeApiImage, pickImage, productImageFrom, categoryImageFrom, subCategoryImageFrom, subSubCategoryImageFrom } from '../services/images'
 import logoImg from '../assets/gapa-logo.png'
 import TopBrands from '../components/TopBrands'
 import { useAuth } from '../services/auth'
@@ -254,7 +254,7 @@ function CarPartsInner() {
         const mapped = arr.map((sc: any, i: number) => ({
           id: String(sc?.sub_cat_id ?? sc?.id ?? sc?.sub_category_id ?? i),
           name: String(sc?.sub_title || sc?.title || sc?.name || 'Sub Category'),
-          image: categoryImageFrom(sc) || normalizeApiImage(pickImage(sc) || '') || logoImg,
+          image: subCategoryImageFrom(sc) || normalizeApiImage(pickImage(sc) || '') || logoImg,
         }))
         setSubCats(mapped)
       } catch (_) {
@@ -279,7 +279,7 @@ function CarPartsInner() {
         const mapped = arr.map((ssc: any, i: number) => ({
           id: String(ssc?.sub_sub_cat_id ?? ssc?.subsubcatID ?? ssc?.id ?? ssc?.sub_sub_category_id ?? i),
           name: String(ssc?.sub_sub_title || ssc?.title || ssc?.name || 'Type'),
-          image: categoryImageFrom(ssc) || normalizeApiImage(pickImage(ssc) || '') || logoImg,
+          image: subSubCategoryImageFrom(ssc) || normalizeApiImage(pickImage(ssc) || '') || logoImg,
         }))
         setSubSubCats(mapped)
       } catch (_) {
@@ -349,9 +349,6 @@ function CarPartsInner() {
   const INITIAL_VISIBLE = 10
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
 
-  // Categories dropdown state
-  const [openIdx, setOpenIdx] = useState<number | null>(null)
-
   useEffect(() => {
     let alive = true
     async function load() {
@@ -384,7 +381,7 @@ function CarPartsInner() {
   useEffect(() => {
     let alive = true
     if (categories.length === 0) {
-      ;(async () => {
+      ; (async () => {
         try {
           const c = await getAllCategories()
           if (!alive) return
@@ -446,24 +443,24 @@ function CarPartsInner() {
     return { name: displayName, image: img || logoImg }
   }
 
-  // Build categories menu model from grouped data (now includes product images)
-  const catMenu = useMemo(() => {
-    return grouped.map(([name, list]) => {
-      const sample = list[0]
-      const info = catInfoFor(sample as any)
-      return {
-        name: info.name || name,
-        image: info.image,
-        items: list.slice(0, 12).map((p, i) => ({
-          id: String((p as any)?.id ?? (p as any)?.product_id ?? i),
-          title: String((p as any)?.name || (p as any)?.title || (p as any)?.product_name || 'Car Part'),
-          image: productImageFrom(p) || normalizeApiImage(pickImage(p) || '') || logoImg,
-          brandSlug: toSlug(brandOf(p)) || 'gapa',
-          partSlug: toSlug(categoryOf(p)) || 'parts',
-        }))
-      }
-    })
-  }, [grouped, categories])
+  // Build categories menu model from grouped data (removed unused catMenu)
+  // const catMenu = useMemo(() => {
+  //   return grouped.map(([name, list]) => {
+  //     const sample = list[0]
+  //     const info = catInfoFor(sample as any)
+  //     return {
+  //       name: info.name || name,
+  //       image: info.image,
+  //       items: list.slice(0, 12).map((p, i) => ({
+  //         id: String((p as any)?.id ?? (p as any)?.product_id ?? i),
+  //         title: String((p as any)?.name || (p as any)?.title || (p as any)?.product_name || 'Car Part'),
+  //         image: productImageFrom(p) || normalizeApiImage(pickImage(p) || '') || logoImg,
+  //         brandSlug: toSlug(brandOf(p)) || 'gapa',
+  //         partSlug: toSlug(categoryOf(p)) || 'parts',
+  //       }))
+  //     }
+  //   })
+  // }, [grouped, categories])
 
   // Top categories for pill section (by item count)
   const topCats = useMemo(() => {
@@ -624,10 +621,10 @@ function CarPartsInner() {
           {/* Sidebar + content */}
           <div className="mt-6 grid gap-6 md:grid-cols-[280px_1fr]">
             {/* <aside className="rounded-xl bg-white p-4 ring-1 h-max sticky top-4 self-start"> */}
-              {/* <h3 className="text-[14px] font-semibold text-gray-900">Select vehicle</h3> */}
-              {/* <div className="mt-3"> */}
-                <VehicleFilter onSearch={(url)=>navigate(url)} onChange={setVehFilter} />
-              {/* </div> */}
+            {/* <h3 className="text-[14px] font-semibold text-gray-900">Select vehicle</h3> */}
+            <div className="mt-3">
+              <VehicleFilter onSearch={(url) => navigate(url)} onChange={setVehFilter} />
+            </div>
             {/* </aside> */}
 
             <div>
@@ -639,16 +636,16 @@ function CarPartsInner() {
                 ) : subCats.length === 0 ? (
                   <div className="mt-3 text-sm text-gray-600">No sub categories found.</div>
                 ) : (
-                  <ul className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  <ul className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-4">
                     {subCats.map((sc) => (
-                      <li key={sc.id}>
+                      <li key={sc.id} className='w-full'>
                         <button
                           onClick={() => setParams({ catId: activeCatId, subCatId: sc.id, subSubCatId: '' })}
-                          className={`rounded-2xl bg-white p-4 text-left ring-black/10 transition hover:shadow ${activeSubCatId===sc.id ? 'outline-2 outline-[#F7CD3A]' : ''}`}
-                          aria-pressed={activeSubCatId===sc.id}
+                          className={`w-full rounded-2xl bg-white p-4 text-left ring-black/10 transition hover:shadow ${activeSubCatId === sc.id ? 'outline-2 outline-[#F7CD3A]' : ''}`}
+                          aria-pressed={activeSubCatId === sc.id}
                         >
-                          <div className="flex flex-col items-center gap-3">
-                            <div className="shrink-0 h-30 overflow-hidden rounded-lg bg-[#F6F5FA] ring-1 ring-black/10">
+                          <div className="flex w-full flex-col items-center gap-3">
+                            <div className="overflow-hidden rounded-lg bg-[#F6F5FA] ring-1 ring-black/10">
                               <img src={sc.image} alt="" className="h-full w-full object-contain" onError={(e) => { (e.currentTarget as HTMLImageElement).src = logoImg }} />
                             </div>
                             <div className="min-w-0">
@@ -680,9 +677,12 @@ function CarPartsInner() {
                             <li key={`pill-${ssc.id}`}>
                               <button
                                 onClick={() => setParams({ catId: activeCatId, subCatId: activeSubCatId, subSubCatId: ssc.id })}
-                                className={`w-full rounded-full border px-3 py-2 text-left transition ${activeSubSubCatId===ssc.id ? 'border-[#F7CD3A] bg-[#F7CD3A]/20' : 'border-black/10 hover:bg-black/5'}`}
-                                aria-pressed={activeSubSubCatId===ssc.id}
+                                className={`w-full flex items-center gap-3 rounded-full border px-3 py-2 text-left transition ${activeSubSubCatId === ssc.id ? 'border-[#F7CD3A] bg-[#F7CD3A]/20' : 'border-black/10 hover:bg-black/5'}`}
+                                aria-pressed={activeSubSubCatId === ssc.id}
                               >
+                                <div className="shrink-0 w-6 h-6 rounded-full overflow-hidden bg-[#F6F5FA] ring-1 ring-black/10">
+                                  <img src={ssc.image} alt="" className="h-full w-full object-contain" onError={(e) => { (e.currentTarget as HTMLImageElement).src = logoImg }} />
+                                </div>
                                 <span className="truncate block">{ssc.name}</span>
                               </button>
                             </li>
@@ -872,7 +872,7 @@ function CarPartsInner() {
 
         {/* Quick vehicle filter on catalogue page */}
         <div className="mt-4 max-w-sm">
-          <VehicleFilter onSearch={(url)=>navigate(url)} onChange={setVehFilter} />
+          <VehicleFilter onSearch={(url) => navigate(url)} onChange={setVehFilter} />
         </div>
 
         {/* Car Accessories grid (restored) */}
@@ -888,7 +888,7 @@ function CarPartsInner() {
         </div>
 
         {/* Categories hover dropdown menu */}
-        {!loading && catMenu.length > 0 && (
+        {/* {!loading && catMenu.length > 0 && (
           <nav className="relative mt-4" onMouseLeave={() => setOpenIdx(null)}>
             <div className="flex items-center gap-2 overflow-x-auto rounded-lg bg-white p-2 ring-1 ring-black/10">
               {catMenu.map((c, i) => (
@@ -932,7 +932,7 @@ function CarPartsInner() {
               ))}
             </div>
           </nav>
-        )}
+        )} */}
 
         {/* Results */}
         {loading ? (

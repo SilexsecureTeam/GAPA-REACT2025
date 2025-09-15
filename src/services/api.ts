@@ -198,7 +198,17 @@ export const ADDRESS_ENDPOINTS = {
   updateAddress: '/updateAddress', // POST urlencoded: address, user_id
   getAllStates: '/getAllStates',
   getStatesByLocation: (location: string) => `/get-states?location=${encodeURIComponent(location)}`,
+  // new delivery-related
+  deliveryRate: '/delivery-rate',
+  paymentsuccess: '/product/paymentsuccessfull',
 } as const
+
+// Optional alternate base for some legacy endpoints (e.g., get-price)
+const GAPA_LIVE_BASE = (import.meta as any)?.env?.VITE_GAPA_LIVE_BASE as string | undefined
+function absUrl(path: string) {
+  if (!path) return path
+  return path.startsWith('http') ? path : `${path.startsWith('/') ? '' : '/'}${path}`
+}
 
 // Generic unwrap for variable API array envelopes
 export function unwrapArray<T = any>(res: any): T[] {
@@ -404,9 +414,34 @@ export async function getStatesByLocation(location: string = 'gapa') {
   return unwrapArray<ApiState>(res)
 }
 
+export async function getDeliveryRate() {
+  const res = await apiRequest<any>(ADDRESS_ENDPOINTS.deliveryRate)
+  const rateStr = (res && (res.results?.rate ?? res.rate ?? res.price ?? res.amount)) ?? 0
+  const num = Number(rateStr)
+  return isNaN(num) ? 0 : num
+}
+
+export async function getPriceByState(stateId: string | number) {
+  // Prefer env-provided base for this endpoint
+  const base = (GAPA_LIVE_BASE && GAPA_LIVE_BASE.trim()) ? GAPA_LIVE_BASE.trim().replace(/\/$/, '') : undefined
+  const url = base ? `${base}/get-price/${encodeURIComponent(String(stateId))}` : `/get-price/${encodeURIComponent(String(stateId))}`
+  return apiRequest<any>(absUrl(url))
+}
+
 export async function updateDeliveryAddress(payload: { user_id: string | number; address: string }) {
   const form = new URLSearchParams()
   form.set('user_id', String(payload.user_id))
   form.set('address', payload.address)
   return apiRequest<any>(ADDRESS_ENDPOINTS.updateAddress, { method: 'POST', body: form, auth: true })
+}
+
+// ----- Payment helpers -----
+export async function paymentSuccessfull(payload: { shipping_cost: number; address: string; userId?: string | number; txn_id: string; pickup_location_id?: string }) {
+  const form = new FormData()
+  form.set('shipping_cost', String(payload.shipping_cost ?? 0))
+  form.set('pickup_location_id', payload.pickup_location_id || '')
+  form.set('address', payload.address)
+  if (payload.userId !== undefined) form.set('userId', String(payload.userId))
+  form.set('txn_id', payload.txn_id)
+  return apiRequest<any>(ADDRESS_ENDPOINTS.paymentsuccess, { method: 'POST', body: form, auth: true })
 }

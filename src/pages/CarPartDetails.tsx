@@ -5,9 +5,8 @@ import { normalizeApiImage, pickImage, productImageFrom, categoryImageFrom } fro
 import logoImg from '../assets/gapa-logo.png'
 import { useAuth } from '../services/auth'
 import { addGuestCartItem } from '../services/cart'
-import TopBrands from '../components/TopBrands'
 import VehicleFilter from '../components/VehicleFilter'
-import { getPersistedVehicleFilter, setPersistedVehicleFilter, vehicleMatches as sharedVehicleMatches, type VehicleFilterState as VehState } from '../services/vehicle'
+import { getPersistedVehicleFilter, vehicleMatches as sharedVehicleMatches, type VehicleFilterState as VehState } from '../services/vehicle'
 
 // Helpers
 const toSlug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
@@ -171,66 +170,8 @@ export default function CarPartDetails() {
     })
   }, [products, brand, part])
 
-  // Facet values computed from scoped list
-  const facetValues = useMemo(() => {
-    const vals = {
-      diameter: new Set<string>(),
-      type: new Set<string>(),
-      material: new Set<string>(),
-      surface: new Set<string>(),
-      height: new Set<string>(),
-      boltCircle: new Set<string>(),
-    }
-    for (const p of scoped) {
-      for (const a of attrsFrom(p)) {
-        const L = a.label.toLowerCase()
-        const V = a.value
-        if (L.includes('diameter')) vals.diameter.add(V)
-        else if (L.includes('brake disc type') || L.includes('type')) vals.type.add(V)
-        else if (L.includes('material')) vals.material.add(V)
-        else if (L.includes('surface')) vals.surface.add(V)
-        else if (L.startsWith('height')) vals.height.add(V)
-        else if (L.includes('bolt hole circle')) vals.boltCircle.add(V)
-      }
-    }
-    const sortVals = (s: Set<string>) => Array.from(s).sort((a,b)=>a.localeCompare(b, undefined, { numeric: true }))
-    return {
-      diameter: sortVals(vals.diameter),
-      type: sortVals(vals.type),
-      material: sortVals(vals.material),
-      surface: sortVals(vals.surface),
-      height: sortVals(vals.height),
-      boltCircle: sortVals(vals.boltCircle),
-    }
-  }, [scoped])
-
-  // Facet selections
-  const [fDiameter, setFDiameter] = useState<string[]>([])
-  const [fType, setFType] = useState<string[]>([])
-  const [fMaterial, setFMaterial] = useState<string[]>([])
-  const [fSurface, setFSurface] = useState<string[]>([])
-  const [fHeight, setFHeight] = useState<string[]>([])
-  const [fBoltCircle, setFBoltCircle] = useState<string[]>([])
-
-  // Apply facets + vehicle compatibility
-  const filtered = useMemo(() => {
-    const list = scoped
-    const hasAny = fDiameter.length || fType.length || fMaterial.length || fSurface.length || fHeight.length || fBoltCircle.length
-    const byFacets = hasAny ? list.filter((p) => {
-      const A = attrsFrom(p)
-      const byLabel = (labelIncludes: string) => A.filter(a => a.label.toLowerCase().includes(labelIncludes))
-      const hasVal = (arr: Attr[], sel: string[]) => sel.length === 0 || arr.some(a => sel.includes(a.value))
-      const okDiameter = hasVal(byLabel('diameter'), fDiameter)
-      const okType = hasVal(byLabel('brake disc type').concat(byLabel('type')), fType)
-      const okMaterial = hasVal(byLabel('material'), fMaterial)
-      const okSurface = hasVal(byLabel('surface'), fSurface)
-      const okHeight = hasVal(byLabel('height'), fHeight)
-      const okBolt = hasVal(byLabel('bolt hole circle'), fBoltCircle)
-      return okDiameter && okType && okMaterial && okSurface && okHeight && okBolt
-    }) : list
-    // Apply vehicle compatibility
-    return byFacets.filter(productMatchesVehicle)
-  }, [scoped, fDiameter, fType, fMaterial, fSurface, fHeight, fBoltCircle, vehFilter])
+  // Apply vehicle compatibility only (facets disabled in this view)
+  const filtered = useMemo(() => scoped.filter(productMatchesVehicle), [scoped, vehFilter])
 
   const zeroResults = !loading && filtered.length === 0
 
@@ -352,9 +293,9 @@ export default function CarPartDetails() {
     return selectedRaw ? productMatchesVehicle(selectedRaw) : true
   }, [selectedRaw, vehFilter])
 
-  const ProductPanel = ({ ui, isSelected }: { ui: ReturnType<typeof mapApiToUi>; isSelected?: boolean }) => {
+  const ProductPanel = ({ ui, isSelected, raw }: { ui: ReturnType<typeof mapApiToUi>; isSelected?: boolean; raw?: any }) => {
     // Derive pairs flag and selected raw source for the main (selected) product
-    const rawSrc = (isSelected && selectedRaw) ? ((selectedRaw as any).part ? (selectedRaw as any).part : selectedRaw) : undefined
+    const rawSrc = raw ? (raw?.part ? raw.part : raw) : ((isSelected && selectedRaw) ? ((selectedRaw as any).part ? (selectedRaw as any).part : selectedRaw) : undefined)
     const rawPairsVal = rawSrc ? (rawSrc?.pairs ?? rawSrc?.sold_in_pairs ?? rawSrc?.pair ?? rawSrc?.is_pair) : undefined
     const pairsStr = String(rawPairsVal ?? '').trim().toLowerCase()
     const pairsYes = Boolean(isSelected && (rawPairsVal === true || pairsStr === 'yes' || pairsStr === 'true' || pairsStr === '1'))
@@ -365,39 +306,69 @@ export default function CarPartDetails() {
     const [adding, setAdding] = useState(false)
     const [showPopup, setShowPopup] = useState(false)
 
-    // Parse compatible vehicles and OEM codes from the raw selected product
+    // Parse compatible vehicles and OEM codes from the raw product
     const compatList = useMemo(() => {
-      if (!isSelected || !rawSrc) return [] as string[]
+      if (!rawSrc) return [] as string[]
       const src: any = rawSrc
       const comp = src?.compatibility ?? src?.compatibilities ?? src?.vehicle_compatibility ?? src?.vehicleCompatibility ?? src?.fitment ?? src?.fitments
       const out: string[] = []
       const pushItem = (item: any) => {
         if (!item) return
-        if (typeof item === 'string') {
-          const parts = item.split(/[\n;,]+/).map((s) => s.trim()).filter(Boolean)
-          if (parts.length > 1) { out.push(...parts); return }
-          out.push(item.trim())
-          return
-        }
+        if (typeof item === 'string') { item.split(/\n+/).map((s)=>s.trim()).filter(Boolean).forEach((s)=>out.push(s)); return }
         if (Array.isArray(item)) { item.forEach(pushItem); return }
-        if (typeof item === 'object') {
-          const brand = String((item as any)?.brand ?? (item as any)?.make ?? (item as any)?.brandName ?? '').trim()
-          const model = String((item as any)?.model ?? (item as any)?.modelName ?? (item as any)?.type ?? '').trim()
-          const engine = String((item as any)?.engine ?? (item as any)?.engineName ?? (item as any)?.variant ?? '').trim()
-          const year = String((item as any)?.year ?? (item as any)?.years ?? '').trim()
-          const composed = [brand, model, engine, year].filter(Boolean).join(' ')
-          if (composed) out.push(composed)
-          else out.push(JSON.stringify(item))
-          return
-        }
+        if (typeof item === 'object') { Object.values(item).forEach(pushItem as any); return }
         out.push(String(item))
       }
       pushItem(comp)
       return Array.from(new Set(out))
-    }, [isSelected, rawSrc])
+    }, [rawSrc])
+
+    // Build hierarchical tree (maker > model > details) from compat list
+    type CompatTree = Record<string, Record<string, string[]>>
+    const compatTree = useMemo<CompatTree>(() => {
+      const tree: CompatTree = {}
+      let currentMaker = 'Other'
+      const up = (s: string) => s.trim().toUpperCase()
+      const stripBullets = (s: string) => s.replace(/^[\s\t•·\-\u2022]+/, '').trim()
+      const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+      for (let raw of compatList) {
+        if (!raw) continue
+        let s = stripBullets(raw).replace(/\s+/g, ' ')
+        if (!s) continue
+        const isMakerHeader = /^[A-Z][A-Z\s\-&/]+$/.test(s) && !/[()]/.test(s) && !/\d{2}\.\d{4}/.test(s) && s.length <= 40
+        if (isMakerHeader) { currentMaker = s; if (!tree[currentMaker]) tree[currentMaker] = {}; continue }
+        // If line repeats maker at start, strip it; else try to guess maker from first 1-2 tokens
+        const tokens = s.split(/\s+/)
+        if (currentMaker && new RegExp('^' + esc(currentMaker) + '\\b', 'i').test(up(s))) {
+          s = s.replace(new RegExp('^' + esc(currentMaker) + '\\s+', 'i'), '')
+        } else {
+          const guess = tokens[0]
+          currentMaker = guess
+          if (!tree[currentMaker]) tree[currentMaker] = {}
+          s = s.replace(new RegExp('^' + esc(guess) + '\\s+', 'i'), '')
+        }
+        // Derive model (before first '(' or 'YEAR OF CONSTRUCTION' or comma)
+        let model = s
+        let rest = ''
+        const upper = s.toUpperCase()
+        const yearIdx = upper.indexOf('YEAR OF CONSTRUCTION')
+        const parenIdx = s.indexOf('(')
+        const commaIdx = s.indexOf(',')
+        const stopIdx = yearIdx >= 0 ? yearIdx : (parenIdx >= 0 ? parenIdx : (commaIdx >= 0 ? commaIdx : -1))
+        if (stopIdx > 0) {
+          model = s.slice(0, stopIdx).trim()
+          rest = s.slice(stopIdx).trim()
+        }
+        if (!model) model = s
+        if (!tree[currentMaker][model]) tree[currentMaker][model] = []
+        if (rest) tree[currentMaker][model].push(rest)
+      }
+      return tree
+    }, [compatList])
 
     const oemList = useMemo(() => {
-      if (!isSelected || !rawSrc) return [] as string[]
+      if (!rawSrc) return [] as string[]
       const src: any = rawSrc
       const o = src?.oem ?? src?.oem_no ?? src?.oem_number ?? src?.oem_numbers ?? src?.oemNumbers ?? src?.oem_list ?? src?.oemList
       const out: string[] = []
@@ -410,7 +381,9 @@ export default function CarPartDetails() {
       }
       push(o)
       return Array.from(new Set(out))
-    }, [isSelected, rawSrc])
+    }, [rawSrc])
+
+    const [copiedOEM, setCopiedOEM] = useState<number | null>(null)
 
     const inc = () => setQty((v) => (pairsYes ? 2 : Math.min(v + 1, 99)))
     const dec = () => setQty((v) => (pairsYes ? 2 : Math.max(v - 1, 1)))
@@ -448,7 +421,7 @@ export default function CarPartDetails() {
           </div>
         )}
         <div className="grid gap-6 lg:grid-cols-[360px_1fr_280px]">
-          <aside className="rounded-lg bg-white">
+          <aside className="rounded-lg bg-[#F6F5FA] p-6">
             <div className="flex items-center justify-center rounded-lg bg-[#F6F5FA] p-6">
               <img src={mainImage} alt={ui.name} className="h-[320px] w-auto object-contain" onError={(e)=>{(e.currentTarget as HTMLImageElement).src=logoImg}} />
             </div>
@@ -478,29 +451,6 @@ export default function CarPartDetails() {
               ))}
               <div className="mt-2 text-[12px] text-orange-700">⚠ WARNING <button className="underline">More</button></div>
             </div>
-            {ui.description && <div className="pt-2 text-[13px] text-gray-700">{ui.description}</div>}
-
-            {/* View Compatible Vehicles */}
-            {isSelected && compatList.length > 0 && (
-              <details className="mt-2 rounded-md border border-black/10  p-3">
-                <summary className="cursor-pointer list-none text-[13px] font-semibold text-gray-900">View Compatible Vehicles</summary>
-                <ul className="mt-2 list-disc pl-5 text-[12px] text-gray-800">
-                  {compatList.map((c, i) => (<li key={i}>{c}</li>))}
-                </ul>
-              </details>
-            )}
-
-            {/* View OEM codes */}
-            {isSelected && oemList.length > 0 && (
-              <details className="mt-2 rounded-md border border-black/10 p-3">
-                <summary className="cursor-pointer list-none text-[13px] font-semibold text-gray-900">View OEM</summary>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {oemList.map((code, i) => (
-                    <span key={i} className="inline-flex items-center rounded bg-white px-2 py-1 text-[12px] ring-1 ring-black/10">{code}</span>
-                  ))}
-                </div>
-              </details>
-            )}
           </div>
 
           <aside className="rounded-lg bg-white">
@@ -524,6 +474,77 @@ export default function CarPartDetails() {
           </aside>
         </div>
 
+        {/* Full-width sections: Description, Compatible Vehicles, OEM Numbers */}
+        <div className="mt-5 space-y-4">
+          {ui.description && (
+            <section className="rounded-lg bg-[#F6F5FA] p-4 ring-1 ring-black/10">
+              <h3 className="text-[14px] font-semibold text-gray-900">Description</h3>
+              <p className="mt-2 text-[13px] leading-relaxed text-gray-700">{ui.description}</p>
+            </section>
+          )}
+
+          {Object.keys(compatTree).length > 0 && (
+            <section className="rounded-lg bg-white p-4 ring-1 ring-black/10">
+              <div className="flex items-center justify-between">
+                <h3 className="text-[14px] font-semibold text-gray-900">Compatible Vehicles</h3>
+                <span className="text-[12px] text-gray-600">{compatList.length} entries</span>
+              </div>
+              <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+                {Object.keys(compatTree).sort().map((maker) => {
+                  const models = compatTree[maker] || {}
+                  return (
+                    <details key={maker} className="rounded-md border border-black/10 bg-[#F6F5FA] p-3" open>
+                      <summary className="cursor-pointer list-none text-[13px] font-semibold text-gray-900">{maker} <span className="ml-1 text-[11px] font-normal text-gray-600">({Object.keys(models).length} models)</span></summary>
+                      <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                        {Object.keys(models).sort().map((model) => {
+                          const detailsList = models[model]
+                          return (
+                            <div key={maker + '::' + model} className="rounded-md bg-white p-2 ring-1 ring-black/5">
+                              <div className="text-[12px] font-medium text-gray-900">{model}</div>
+                              {detailsList && detailsList.length > 0 ? (
+                                <ul className="mt-1 list-disc pl-5 text-[12px] text-gray-800">
+                                  {detailsList.map((d, i) => (<li key={i}>{d}</li>))}
+                                </ul>
+                              ) : (
+                                <div className="mt-1 text-[12px] text-gray-600">No additional details</div>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </details>
+                  )
+                })}
+              </div>
+            </section>
+          )}
+
+          {oemList.length > 0 && (
+            <section className="rounded-lg bg-white p-4 ring-1 ring-black/10">
+              <h3 className="text-[14px] font-semibold text-gray-900">OEM Numbers</h3>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {oemList.map((code, i) => (
+                  <span key={i} className="inline-flex items-center gap-2 rounded bg-[#F6F5FA] px-2 py-1 text-[12px] ring-1 ring-black/10">
+                    <span>{code}</span>
+                    <button
+                      type="button"
+                      className="inline-flex items-center rounded bg-white px-1.5 py-0.5 text-[11px] ring-1 ring-black/10 hover:bg-gray-50"
+                      onClick={async () => {
+                        try {
+                          await navigator.clipboard.writeText(code)
+                          setCopiedOEM(i)
+                          setTimeout(() => setCopiedOEM((prev) => (prev === i ? null : prev)), 1200)
+                        } catch {}
+                      }}
+                      aria-label={`Copy ${code}`}
+                    >{copiedOEM === i ? 'Copied' : 'Copy'}</button>
+                  </span>
+                ))}
+              </div>
+            </section>
+          )}
+        </div>
+
         {/* Fixed popup confirmation */}
         {showPopup && (
           <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 transform rounded-lg bg-gray-900 px-4 py-3 text-white shadow-lg ring-1 ring-black/20">
@@ -537,169 +558,96 @@ export default function CarPartDetails() {
     )
   }
 
+  // Page layout
   return (
-    <div className="bg-white !pt-10">
-      <section className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
-        {/* Breadcrumb */}
-        <nav aria-label="Breadcrumb" className="text-[13px] text-gray-600">
-          <ol className="flex flex-wrap items-center gap-2 sm:gap-3">
-            <li><Link to="/parts" className="hover:underline">Car Parts</Link></li>
-            {brand && (<><li aria-hidden>›</li><li><Link to={`/parts/${brand}`} className="hover:underline">{titleCase(brand)}</Link></li></>)}
-            {part && (<><li aria-hidden>›</li><li className="font-semibold text-brand">{breadcrumbPartLabel}</li></>)}
-          </ol>
-        </nav>
+    <div className="mx-auto max-w-6xl px-3 py-4">
+      {/* Breadcrumbs */}
+      <nav className="mb-4 text-[12px] text-gray-600">
+        <Link to="/" className="hover:text-gray-900">Home</Link>
+        <span className="mx-1">/</span>
+        <Link to="/parts" className="hover:text-gray-900">Car Parts</Link>
+        <span className="mx-1">/</span>
+        <span className="text-gray-900">{breadcrumbPartLabel}</span>
+      </nav>
 
-        {/* Selected vehicle banner */}
-        {hasVehicleFilter && (
-          <div className="mt-3 rounded-md bg-[#F7CD3A]/15 px-3 py-2 text-[12px] text-gray-800 ring-1 ring-[#F7CD3A]/30">
-            Selected vehicle: <strong>{[vehFilter.brandName, vehFilter.modelName, vehFilter.engineName].filter(Boolean).join(' › ')}</strong>
-            <button
-              className="ml-2 inline-flex items-center rounded bg-gray-100 px-2 py-0.5 text-[11px] font-medium ring-1 ring-black/10"
-              onClick={() => { setPersistedVehicleFilter({}); setVehFilter({}); }}
-            >Reset</button>
-          </div>
-        )}
-
-        <div className="mt-4 grid grid-cols-1 gap-6 md:grid-cols-[260px_minmax(0,1fr)]">
-          {/* Sidebar: vehicle filter + attribute facets */}
-          <aside className="sticky top-34 self-start space-y-4">
-            {/* Shared Vehicle Filter; updates in place via onChange (no navigation) */}
-            <VehicleFilter onChange={setVehFilter} />
-
-            {/* Attribute filters */}
-            <div className="rounded-xl bg-white p-4 ring-1 ring-black/10">
-              <div className="text-[12px] font-bold tracking-wide text-white"><span className="inline-block rounded bg-brand px-2 py-1">FILTERS</span></div>
-              <div className="mt-3 space-y-4 text-[13px] text-gray-800">
-                {([
-                  ['DIAMETER (MM)', facetValues.diameter, fDiameter, setFDiameter],
-                  ['BRAKE DISC TYPE', facetValues.type, fType, setFType],
-                  ['MATERIAL', facetValues.material, fMaterial, setFMaterial],
-                  ['SURFACE', facetValues.surface, fSurface, setFSurface],
-                  ['HEIGHT (MM)', facetValues.height, fHeight, setFHeight],
-                  ['BOLT HOLE CIRCLE (MM)', facetValues.boltCircle, fBoltCircle, setFBoltCircle],
-                ] as const).map(([label, options, sel, setSel]) => (
-                  <div key={label}>
-                    <div className="text-[12px] font-semibold text-gray-900">{label}</div>
-                    <div className="mt-2 space-y-2">
-                      {options.length === 0 ? (
-                        <div className="text-[12px] text-gray-500">No options</div>
-                      ) : options.map((opt) => {
-                        const id = `${label}-${opt}`
-                        const checked = sel.includes(opt)
-                        return (
-                          <label key={id} className="flex cursor-pointer items-center gap-2">
-                            <input type="checkbox" className="h-4 w-4 rounded border-gray-300" checked={checked} onChange={(e)=>{
-                              const next = new Set(sel)
-                              if (e.currentTarget.checked) next.add(opt)
-                              else next.delete(opt)
-                              setSel(Array.from(next))
-                            }} />
-                            <span className="text-[12px] text-gray-700">{opt}</span>
-                          </label>
-                        )
-                      })}
-                    </div>
-                  </div>
-                ))}
-                <button onClick={()=>{ setFDiameter([]); setFType([]); setFMaterial([]); setFSurface([]); setFHeight([]); setFBoltCircle([]) }} className="mt-2 h-9 w-full rounded-md bg-gray-100 text-[12px] font-medium ring-1 ring-black/10">Clear all</button>
-              </div>
+      <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
+        <aside>
+          <VehicleFilter onChange={(s)=> setVehFilter(s)} />
+          {categoryImage && (
+            <div className="mt-4 rounded-lg bg-[#F6F5FA] p-3 ring-1 ring-black/10">
+              <img src={categoryImage} alt="Category" className="mx-auto h-28 w-auto object-contain" onError={(e)=>{(e.currentTarget as HTMLImageElement).src=logoImg}} />
             </div>
-          </aside>
+          )}
+        </aside>
 
-          {/* Main content */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                {categoryImage && (<img src={categoryImage} alt="Category" className="h-6 w-6 rounded bg-[#F6F5FA] object-contain ring-1 ring-black/10" onError={(e)=>{(e.currentTarget as HTMLImageElement).style.display='none'}} />)}
-                <h1 className="text-[18px] font-semibold text-gray-900">{part ? titleCase(part) : 'All Parts'} {brand ? `· ${titleCase(brand)}` : ''}</h1>
+        <main className="space-y-6">
+          {selected && selectedRaw ? (
+            <ProductPanel ui={selected} isSelected raw={selectedRaw} />
+          ) : (
+            <section className="rounded-xl bg-white p-4 ring-1 ring-black/10">
+              <div className="mb-3 flex items-center justify-between">
+                <h3 className="text-[14px] font-semibold text-gray-900">Results</h3>
+                <span className="text-[12px] text-gray-600">{results.length} items</span>
               </div>
-              <div className="text-[12px] text-gray-600">{loading ? 'Loading…' : `${results.length} item${results.length===1?'':'s'}`}</div>
-            </div>
-
-            {/* Inline search error banner */}
-            {(q && zeroResults) && (
-              <div className="rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-700">
-                We couldn't find results for “{q}”. Showing related products instead.
-              </div>
-            )}
-
-            {/* Zero compatible results banner (when filtering list) */}
-            {(!pid && hasVehicleFilter && zeroResults) && (
-              <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-[13px] text-amber-800">
-                No compatible products found for your selected vehicle in this section.
-                <button
-                  className="ml-2 inline-flex items-center rounded bg-white px-2 py-0.5 text-[11px] font-medium ring-1 ring-amber-300"
-                  onClick={() => { setPersistedVehicleFilter({}); setVehFilter({}); }}
-                >Reset vehicle</button>
-              </div>
-            )}
-
-            {/* Selected product details panel */}
-            {pid && selected && (
-              <ProductPanel ui={selected} isSelected />
-            )}
-
-            {/* If no selection yet, show list of names the way CarParts links to details */}
-            {!pid && !loading && (
-              results.length === 0 ? (
-                <div className="rounded-lg border border-black/10 bg-white p-4 text-sm text-gray-700">No products found in this section.</div>
+              {zeroResults ? (
+                <div className="text-[13px] text-gray-700">No products match your selection.</div>
               ) : (
-                <div className="grid grid-cols-1 gap-4">
-                  <div className="rounded-md bg-[#FBF5E9] p-3 text-[13px] text-gray-800 ring-1 ring-black/10">
-                    Select a product below to view details and related products.
-                  </div>
+                <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-3">
                   {results.map((r) => (
-                    <div key={r.id} className="rounded-md bg-white p-3 ring-1 ring-black/10">
-                      <button onClick={() => onViewProduct(r.id, r.raw)} className="block text-left text-[14px] font-semibold text-brand hover:underline">{r.title}</button>
-                    </div>
+                    <button key={r.id} onClick={() => onViewProduct(r.id, r.raw)} className="text-left">
+                      <div className="rounded-lg bg-white p-2 ring-1 ring-black/10 hover:shadow">
+                        <div className="flex items-center justify-center rounded bg-[#F6F5FA] p-3">
+                          <img src={r.image} alt={r.title} className="h-28 w-auto object-contain" onError={(e)=>{(e.currentTarget as HTMLImageElement).src=logoImg}} />
+                        </div>
+                        <div className="mt-2 text-[12px] font-medium text-gray-900 line-clamp-2">{r.title}</div>
+                        <div className="mt-1 text-[12px] text-gray-600">₦{r.price.toLocaleString('en-NG')}</div>
+                      </div>
+                    </button>
                   ))}
                 </div>
-              )
-            )}
+              )}
+            </section>
+          )}
 
-            {/* Related products rendered with same panel UI (filtered by compatibility) */}
-            {(compatibleRelated.length > 0) && (
-              <section className="mt-6 space-y-4">
-                <h3 className="text-[16px] font-semibold text-gray-900">Related Products</h3>
-                {compatibleRelated.slice(0, 6).map((p, i) => {
-                  // Use product_id for navigation keys
-                  const id = String((p as any)?.product_id ?? (p as any)?.id ?? i)
-                  const ui = mapApiToUi(p)
-                  return (
-                    <div key={id}>
-                      <ProductPanel ui={ui} />
-                    </div>
-                  )
-                })}
-              </section>
-            )}
-
-            {/* If no related compatible products */}
-            {(hasVehicleFilter && compatibleRelated.length === 0 && (related.length || frontendRelated.length)) && (
-              <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-[13px] text-amber-800">
-                No related products are compatible with your selected vehicle. Try resetting the vehicle filter.
+          {/* Compatible alternatives first if available */}
+          {selected && compatibleRelated.length > 0 && (
+            <section className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-[14px] font-semibold text-gray-900">Compatible Alternatives</h3>
+                <span className="text-[12px] text-gray-600">{compatibleRelated.length}</span>
               </div>
-            )}
-          </div>
-        </div>
-      </section>
+              {compatibleRelated.map((p: any) => {
+                const id = String((p?.product_id ?? p?.id) ?? '')
+                const ui = mapApiToUi(p)
+                return (
+                  <div key={id}>
+                    <ProductPanel ui={ui} raw={p} />
+                  </div>
+                )
+              })}
+            </section>
+          )}
 
-      {/* Top brands to filter within this section */}
-      {(() => {
-        const onBrandSelect = (brandName: string) => {
-          const brandSlug = toSlug(brandName) || 'gapa'
-          const targetPart = part ? toSlug(part) : (selectedRaw ? toSlug(categoryOf(selectedRaw)) : 'parts')
-          // Clear selection and query, then navigate to brand-scoped list view
-          setSearchParams((prev) => {
-            const next = new URLSearchParams(prev)
-            next.delete('pid')
-            next.delete('q')
-            return next
-          }, { replace: true })
-          navigate(`/parts/${brandSlug}/${targetPart}`)
-        }
-        return <TopBrands title="Top brands" onSelect={onBrandSelect} />
-      })()}
+          {/* More related */}
+          {selected && finalRelated.length > 0 && (
+            <section className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-[14px] font-semibold text-gray-900">Related Products</h3>
+                <span className="text-[12px] text-gray-600">{finalRelated.length}</span>
+              </div>
+              {finalRelated.map((p: any) => {
+                const id = String((p?.product_id ?? p?.id) ?? '')
+                const ui = mapApiToUi(p)
+                return (
+                  <div key={id}>
+                    <ProductPanel ui={ui} raw={p} />
+                  </div>
+                )
+              })}
+            </section>
+          )}
+        </main>
+      </div>
     </div>
   )
 }

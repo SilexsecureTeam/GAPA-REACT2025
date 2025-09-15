@@ -124,6 +124,17 @@ export function categoryImageFrom(obj: any): string | undefined {
   return absoluteOr('/uploads/category', v) || normalizeApiImage(pickImage(obj))
 }
 
+// New explicit helpers for sub-category and sub-sub-category images
+export function subCategoryImageFrom(obj: any): string | undefined {
+  const v = firstOf(obj, ['image', 'icon', 'thumbnail', 'img_url', 'img', 'sub_category_image'])
+  return absoluteOr('/uploads/sub_category', v) || categoryImageFrom(obj)
+}
+
+export function subSubCategoryImageFrom(obj: any): string | undefined {
+  const v = firstOf(obj, ['image', 'icon', 'thumbnail', 'img_url', 'img', 'sub_sub_category_image'])
+  return absoluteOr('/uploads/sub_sub_category', v) || categoryImageFrom(obj)
+}
+
 export function modelImageFrom(obj: any): string | undefined {
   const v = firstOf(obj, ['image', 'img_url', 'thumbnail', 'photo', 'picture', 'img'])
   return absoluteOr('/uploads/models', v)

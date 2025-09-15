@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../services/auth'
-import { getCartForUser, removeCartItem, updateCartQuantity, getProductById, getAllStatesApi, getStatesByLocation, updateDeliveryAddress } from '../services/api'
+import { getCartForUser, removeCartItem, updateCartQuantity, getProductById, getAllStatesApi, getStatesByLocation, updateDeliveryAddress, /* getUserCartTotal, */ getPriceByState, getDeliveryRate, paymentSuccessfull } from '../services/api'
 import { getGuestCart, setGuestCart, type GuestCart } from '../services/cart'
 import { normalizeApiImage, pickImage, productImageFrom } from '../services/images'
 import logoImg from '../assets/gapa-logo.png'
+import toast from 'react-hot-toast'
+import deliveryGig from '../assets/deliveryGig.png'
 
 type UICartItem = {
   productId: string
@@ -22,11 +24,14 @@ type Address = {
   address2: string
   city: string
   region: string
+  regionId?: string | number
   country: string
   postcode: string
+  deliveryLocationId?: string | number
+  deliveryLocationName?: string
 }
 
-type PaymentMethod = 'card' | 'pod'
+type PaymentMethod = 'card' | 'pod' | 'paystack'
 
 function useCartData() {
   const { user } = useAuth()
@@ -86,12 +91,18 @@ export default function Checkout() {
   const progress = (step / (steps.length - 1)) * 100
 
   const subtotal = useMemo(() => items.reduce((s, it) => s + it.price * it.quantity, 0), [items])
+  // Delivery pricing state
+  const [deliveryPrice, setDeliveryPrice] = useState<number>(0)
+  const [deliveryLoading, setDeliveryLoading] = useState<boolean>(false)
+  const [defaultDeliveryRate, setDefaultDeliveryRate] = useState<number | null>(null)
+
+  const total = useMemo(() => subtotal + (deliveryPrice || 0), [subtotal, deliveryPrice])
 
   // Address + Payment state
   const [address, setAddress] = useState<Address>(() => {
     const saved = localStorage.getItem('checkoutAddress')
     const base: Address = {
-      fullName: '', email: '', phone: '', address1: '', address2: '', city: '', region: '', country: '', postcode: ''
+      fullName: '', email: '', phone: '', address1: '', address2: '', city: '', region: '', regionId: undefined, country: 'Nigeria', postcode: ''
     }
     try {
       if (saved) return { ...base, ...(JSON.parse(saved) as Partial<Address>) }
@@ -107,8 +118,9 @@ export default function Checkout() {
   const [loginForm, setLoginForm] = useState({ emailOrPhone: '', password: '' })
 
   // States list
-  const [states, setStates] = useState<{ id?: string | number; name?: string; state?: string }[]>([])
+  const [states, setStates] = useState<{ id?: string | number; name?: string; state?: string; title?: string }[]>([])
   const [statesLoading, setStatesLoading] = useState(false)
+  const [locations, setLocations] = useState<{ id: string | number; location: string; price: number }[]>([])
 
   useEffect(() => {
     // Prefill from user profile if available and nothing saved yet
@@ -121,9 +133,11 @@ export default function Checkout() {
         next.email = next.email || String(u?.email || '')
         next.phone = next.phone || String(u?.phone || '')
         next.address1 = next.address1 || String(u?.shipping_address || u?.address || '')
-        next.city = next.city || String(u?.shipping_city || u?.city || '')
+        // city now derived from delivery location; keep if previously stored
+        next.city = next.city || ''
+        // region/regionId hydrate by matching title later
         next.region = next.region || String(u?.shipping_region || u?.region || '')
-        next.country = next.country || String(u?.shipping_country || u?.country || '')
+        next.country = 'Nigeria'
         next.postcode = next.postcode || String(u?.shipping_postbox || u?.postbox || '')
       }
       return next
@@ -143,16 +157,80 @@ export default function Checkout() {
       }
     }
     loadStates()
+
+    // Load default delivery rate as fallback
+    ;(async () => {
+      try {
+        const rateNum = await getDeliveryRate()
+        if (!isNaN(rateNum) && rateNum > 0) setDefaultDeliveryRate(rateNum)
+      } catch {}
+    })()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id])
+
+  // When states load and we have a saved region name but no regionId, hydrate regionId
+  useEffect(() => {
+    if (!address.regionId && address.region && states.length) {
+      const match = states.find((s) => (s.title || s.name || s.state || '') === address.region)
+      if (match?.id != null) setAddress((a) => ({ ...a, regionId: match.id }))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [states])
+
+  // Fetch delivery LOCATIONS when regionId changes; user will select a location which determines price
+  useEffect(() => {
+    const fetchLocations = async () => {
+      setLocations([])
+      setAddress(a => ({ ...a, deliveryLocationId: undefined, deliveryLocationName: undefined }))
+      if (!address.regionId) { setDeliveryPrice(0); return }
+      setDeliveryLoading(true)
+      try {
+        const res = await getPriceByState(address.regionId)
+        // Expect shape: { price: [ { id, location, price } ] }
+        let arr: any[] = []
+        if (Array.isArray((res as any)?.price)) arr = (res as any).price
+        else if (Array.isArray((res as any)?.results?.price)) arr = (res as any).results.price
+        else if (Array.isArray((res as any)?.data?.price)) arr = (res as any).data.price
+        const mapped = arr.map((it) => ({
+          id: it.id ?? it.location_id ?? it._id ?? String(it.location || 'loc'),
+          location: String(it.location || it.title || it.name || 'Location'),
+          price: Number(it.price ?? it.amount ?? 0) || 0,
+        })) as { id: string | number; location: string; price: number }[]
+        setLocations(mapped)
+        // If no specific locations/prices returned, fallback to default delivery rate
+        if (!mapped.length) {
+          setDeliveryPrice(Math.max(0, Math.round(defaultDeliveryRate || 0)))
+        } else {
+          // Auto-select if there is exactly one location
+          if (mapped.length === 1) {
+            const only = mapped[0]
+            setAddress(a => ({ ...a, deliveryLocationId: only.id, deliveryLocationName: only.location }))
+            setDeliveryPrice(Math.max(0, Math.round(only.price || 0)))
+          } else {
+            setDeliveryPrice(0) // wait for user to pick location
+          }
+        }
+      } catch {
+        setLocations([])
+        setDeliveryPrice(Math.max(0, Math.round(defaultDeliveryRate || 0)))
+      } finally {
+        setDeliveryLoading(false)
+      }
+    }
+    fetchLocations()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [address.regionId])
 
   useEffect(() => { localStorage.setItem('checkoutAddress', JSON.stringify(address)) }, [address])
   useEffect(() => { localStorage.setItem('checkoutPayment', payment) }, [payment])
 
   const addressValid = useMemo(() => {
-    const req = ['fullName','email','phone','address1','city','region'] as (keyof Address)[]
-    return req.every((k) => String(address[k] || '').trim().length > 1)
-  }, [address])
+    const req = ['fullName','email','phone','address1','region'] as (keyof Address)[]
+    const baseValid = req.every((k) => String((address as any)[k] || '').trim().length > 1)
+    // If locations are available, ensure a selection was made
+    const locValid = locations.length === 0 || Boolean(address.deliveryLocationId)
+    return baseValid && locValid
+  }, [address, locations.length])
 
   const onInc = async (productId: string) => {
     const current = items.find(i => i.productId === productId)
@@ -211,14 +289,70 @@ export default function Checkout() {
   const handleContinueFromAddress = async () => {
     // Persist address to backend if logged in
     if (user && (user as any).id) {
-      const payloadAddress = [address.address1, address.address2, address.city, address.region, address.country, address.postcode].filter(Boolean).join(', ')
+      const payloadAddress = [address.address1, address.address2, address.region, address.postcode, address.deliveryLocationName].filter(Boolean).join(', ')
       try {
         await updateDeliveryAddress({ user_id: (user as any).id, address: payloadAddress })
       } catch {
-        // non-blocking, proceed anyway
+        // non-blocking
       }
     }
+    // Ensure deliveryPrice is set; if still 0 and we have a default rate, use it
+    if (!deliveryPrice && defaultDeliveryRate) setDeliveryPrice(defaultDeliveryRate)
     setStep((s) => s + 1)
+  }
+
+  // Paystack Integration
+  const PAYSTACK_KEY = (import.meta as any)?.env?.VITE_PAYSTACK_PUBLIC_KEY as string | undefined
+  async function ensurePaystackScript() {
+    if ((window as any).PaystackPop) return
+    await new Promise<void>((resolve, reject) => {
+      const s = document.createElement('script')
+      s.src = 'https://js.paystack.co/v1/inline.js'
+      s.async = true
+      s.onload = () => resolve()
+      s.onerror = () => reject(new Error('Failed to load Paystack'))
+      document.body.appendChild(s)
+    })
+  }
+  function buildAddressString() {
+    return [address.fullName, address.address1, address.address2, address.deliveryLocationName, address.region, address.postcode].filter(Boolean).join(', ')
+  }
+  async function startPaystackCheckout() {
+    if (!PAYSTACK_KEY) { toast.error('Payment is not configured'); return }
+    try {
+      await ensurePaystackScript()
+      const amountKobo = Math.max(0, Math.round((subtotal + (deliveryPrice || 0)) * 100))
+      const email = address.email || (user as any)?.email || 'user@example.com'
+      const ref = `GAPA_${Date.now()}`
+      const handler = (window as any).PaystackPop.setup({
+        key: PAYSTACK_KEY,
+        email,
+        amount: amountKobo,
+        currency: 'NGN',
+        ref,
+        callback: async (response: any) => {
+          try {
+            await paymentSuccessfull({
+              shipping_cost: deliveryPrice || 0,
+              address: buildAddressString(),
+              userId: (user as any)?.id,
+              txn_id: response?.reference || ref,
+              pickup_location_id: address.deliveryLocationId ? String(address.deliveryLocationId) : undefined,
+            })
+            toast.success('Payment successful')
+            navigate('/order-success')
+          } catch (e: any) {
+            toast.error(e?.message || 'Failed to confirm payment')
+          }
+        },
+        onClose: function(){
+          toast('Payment cancelled')
+        }
+      })
+      handler.openIframe()
+    } catch (e: any) {
+      toast.error(e?.message || 'Unable to start payment')
+    }
   }
 
   const goNext = () => {
@@ -243,6 +377,10 @@ export default function Checkout() {
       return
     }
     if (step === paymentStepIndex) {
+      if (payment === 'paystack') {
+        void startPaystackCheckout()
+        return
+      }
       setStep(step + 1)
       return
     }
@@ -395,28 +533,54 @@ export default function Checkout() {
                   <input value={address.address2} onChange={(e)=>setAddress(a=>({ ...a, address2: e.target.value }))} className="mt-1 w-full rounded-md border border-black/10 px-3 py-2 text-[14px] outline-none focus:ring-2 focus:ring-brand" placeholder="Apartment, suite, etc." />
                 </label>
                 <label className="text-[13px] text-gray-700">
-                  City
-                  <input value={address.city} onChange={(e)=>setAddress(a=>({ ...a, city: e.target.value }))} className="mt-1 w-full rounded-md border border-black/10 px-3 py-2 text-[14px] outline-none focus:ring-2 focus:ring-brand" />
-                </label>
-                <label className="text-[13px] text-gray-700">
                   State
-                  <select value={address.region} onChange={(e)=>setAddress(a=>({ ...a, region: e.target.value }))} className="mt-1 h-10 w-full rounded-md border border-black/10 bg-white px-3 text-[14px] outline-none focus:ring-2 focus:ring-brand">
+                  <select value={String(address.regionId || '')} onChange={(e)=>{
+                    const id = e.target.value
+                    const st = states.find((s) => String(s.id ?? '') === id)
+                    const label = (st?.title || st?.name || st?.state || '') as string
+                    setAddress(a=>({ ...a, regionId: id, region: label }))
+                  }} className="mt-1 h-10 w-full rounded-md border border-black/10 bg-white px-3 text-[14px] outline-none focus:ring-2 focus:ring-brand">
                     <option value="">{statesLoading ? 'Loading states…' : 'Select state'}</option>
                     {states.map((s) => {
-                      const label = (s.name || s.state || '') as string
-                      return <option key={(s.id ?? label) as any} value={label}>{label}</option>
+                      const label = (s.title || s.name || s.state || '') as string
+                      const id = String(s.id ?? label)
+                      return <option key={id} value={id}>{label}</option>
                     })}
                   </select>
                 </label>
+                {/* Delivery location (derived from get-price by state). City input removed. */}
                 <label className="text-[13px] text-gray-700">
-                  Country
-                  <input value={address.country} onChange={(e)=>setAddress(a=>({ ...a, country: e.target.value }))} className="mt-1 w-full rounded-md border border-black/10 px-3 py-2 text-[14px] outline-none focus:ring-2 focus:ring-brand" placeholder="Nigeria" />
+                  Delivery location
+                  <select disabled={!address.regionId || deliveryLoading || locations.length===0} value={String(address.deliveryLocationId || '')} onChange={(e)=>{
+                    const val = e.target.value
+                    const loc = locations.find(l => String(l.id) === val)
+                    setAddress(a=>({ ...a, deliveryLocationId: val || undefined, deliveryLocationName: loc?.location }))
+                    if (loc) setDeliveryPrice(Math.max(0, Math.round(loc.price || 0)))
+                    else if (locations.length===0 && defaultDeliveryRate) setDeliveryPrice(defaultDeliveryRate)
+                    else setDeliveryPrice(0)
+                  }} className="mt-1 h-10 w-full rounded-md border border-black/10 bg-white px-3 text-[14px] outline-none focus:ring-2 focus:ring-brand">
+                    <option value="">{deliveryLoading ? 'Loading locations…' : (locations.length? 'Select location' : 'No specific locations; default rate applies')}</option>
+                    {locations.map((l) => {
+                      const id = String(l.id)
+                      return <option key={id} value={id}>{l.location}</option>
+                    })}
+                  </select>
                 </label>
+                {/* Country removed (Nigeria only) */}
                 <label className="text-[13px] text-gray-700">
                   Postcode
                   <input value={address.postcode} onChange={(e)=>setAddress(a=>({ ...a, postcode: e.target.value }))} className="mt-1 w-full rounded-md border border-black/10 px-3 py-2 text-[14px] outline-none focus:ring-2 focus:ring-brand" />
                 </label>
               </div>
+              {/* GIG Logistics banner - no delivery method selection */}
+              <div className="mt-4 flex items-center gap-3 rounded-md border bg-black border-black/10 p-3">
+                <img src={deliveryGig} alt="GIG Logistics" className="h-8 w-auto" />
+                <div>
+                  <div className="text-sm font-semibold text-[#F6F5FA]">Delivery handled by GIG Logistics</div>
+                  <div className="text-[12px] text-[#F6F5FA]">No need to select a delivery method.</div>
+                </div>
+              </div>
+              
               <div className="mt-4 flex gap-2">
                 <button onClick={goBack} className="inline-flex h-10 items-center justify-center rounded-md bg-gray-100 px-4 text-[14px] font-semibold text-gray-900 ring-1 ring-black/10">Back</button>
                 <button onClick={goNext} disabled={!addressValid} className="inline-flex h-10 items-center justify-center rounded-md bg-[#F7CD3A] px-4 text-[14px] font-semibold text-gray-900 ring-1 ring-black/10 disabled:opacity-60">Continue</button>
@@ -429,6 +593,8 @@ export default function Checkout() {
               <div className="mt-3 space-y-2 text-[14px]">
                 <div className="flex items-center justify-between"><span className="text-gray-600">Items</span><span className="font-semibold">{items.length}</span></div>
                 <div className="flex items-center justify-between"><span className="text-gray-600">Subtotal</span><span className="font-semibold">₦{subtotal.toLocaleString('en-NG')}</span></div>
+                <div className="flex items-center justify-between"><span className="text-gray-600">Delivery</span><span className="font-semibold">{deliveryPrice>0? `₦${deliveryPrice.toLocaleString('en-NG')}` : '-'}</span></div>
+                <div className="flex items-center justify-between border-t border-black/10 pt-2"><span className="text-gray-600">Total</span><span className="font-semibold">₦{total.toLocaleString('en-NG')}</span></div>
               </div>
             </aside>
           </div>
@@ -454,10 +620,21 @@ export default function Checkout() {
                     <div className="text-[12px] text-gray-600">Cash/card on delivery where available</div>
                   </div>
                 </label>
+                <label className={`flex cursor-pointer items-center gap-3 rounded-md border p-3 ${payment==='paystack' ? 'border-brand ring-1 ring-brand/50' : 'border-black/10'}`}>
+                  <input type="radio" name="pay" checked={payment==='paystack'} onChange={()=>setPayment('paystack' as any)} />
+                  <div>
+                    <div className="text-sm font-semibold text-gray-900">Pay with Paystack</div>
+                    <div className="text-[12px] text-gray-600">Fast and secure via Paystack</div>
+                  </div>
+                </label>
+              </div>
+              <div className="mt-4 flex items-center justify-between text-[14px]">
+                <span className="text-gray-600">Total</span>
+                <span className="font-semibold">₦{total.toLocaleString('en-NG')}</span>
               </div>
               <div className="mt-4 flex gap-2">
                 <button onClick={goBack} className="inline-flex h-10 items-center justify-center rounded-md bg-gray-100 px-4 text-[14px] font-semibold text-gray-900 ring-1 ring-black/10">Back</button>
-                <button onClick={()=>setStep(step+1)} className="inline-flex h-10 items-center justify-center rounded-md bg-[#F7CD3A] px-4 text-[14px] font-semibold text-gray-900 ring-1 ring-black/10">Continue</button>
+                <button onClick={goNext} className="inline-flex h-10 items-center justify-center rounded-md bg-[#F7CD3A] px-4 text-[14px] font-semibold text-gray-900 ring-1 ring-black/10">{payment==='paystack' ? 'Pay with Paystack' : 'Continue'}</button>
               </div>
             </div>
 
@@ -467,6 +644,8 @@ export default function Checkout() {
               <div className="mt-3 space-y-2 text-[14px]">
                 <div className="flex items-center justify-between"><span className="text-gray-600">Items</span><span className="font-semibold">{items.length}</span></div>
                 <div className="flex items-center justify-between"><span className="text-gray-600">Subtotal</span><span className="font-semibold">₦{subtotal.toLocaleString('en-NG')}</span></div>
+                <div className="flex items-center justify-between"><span className="text-gray-600">Delivery</span><span className="font-semibold">{deliveryPrice>0? `₦${deliveryPrice.toLocaleString('en-NG')}` : '-'}</span></div>
+                <div className="flex items-center justify-between border-t border-black/10 pt-2"><span className="text-gray-600">Total</span><span className="font-semibold">₦{total.toLocaleString('en-NG')}</span></div>
               </div>
             </aside>
           </div>
@@ -489,21 +668,27 @@ export default function Checkout() {
                 <div>
                   <div className="text-sm font-semibold text-gray-900">Shipping Address</div>
                   <div className="mt-1 text-[14px] text-gray-700">
-                    {[address.fullName, address.address1, address.address2, address.city, address.region, address.country, address.postcode].filter(Boolean).join(', ')}
+                    {[address.fullName, address.address1, address.address2, address.deliveryLocationName, address.region, /*country removed*/ address.postcode].filter(Boolean).join(', ')}
                   </div>
                 </div>
                 <div>
                   <div className="text-sm font-semibold text-gray-900">Payment</div>
-                  <div className="mt-1 text-[14px] text-gray-700">{payment === 'card' ? 'Pay with Card' : 'Pay on Delivery'}</div>
+                  <div className="mt-1 text-[14px] text-gray-700">{payment === 'card' ? 'Pay with Card' : payment==='paystack' ? 'Pay with Paystack' : 'Pay on Delivery'}</div>
                 </div>
+                <div className="flex items-center justify-between text-[14px]"><span className="text-gray-600">Subtotal</span><span className="font-semibold">₦{subtotal.toLocaleString('en-NG')}</span></div>
+                <div className="flex items-center justify-between text-[14px]"><span className="text-gray-600">Delivery</span><span className="font-semibold">{deliveryPrice>0? `₦${deliveryPrice.toLocaleString('en-NG')}` : '-'}</span></div>
                 <div className="flex items-center justify-between border-t border-black/10 pt-3 text-[14px]">
-                  <span className="text-gray-600">Subtotal</span>
-                  <span className="font-semibold">₦{subtotal.toLocaleString('en-NG')}</span>
+                  <span className="text-gray-600">Total</span>
+                  <span className="font-semibold">₦{total.toLocaleString('en-NG')}</span>
                 </div>
               </div>
               <div className="mt-4 flex gap-2">
                 <button onClick={goBack} className="inline-flex h-10 items-center justify-center rounded-md bg-gray-100 px-4 text-[14px] font-semibold text-gray-900 ring-1 ring-black/10">Back</button>
-                <button onClick={()=>navigate('/order-success')} className="inline-flex h-10 items-center justify-center rounded-md bg-[#F7CD3A] px-4 text-[14px] font-semibold text-gray-900 ring-1 ring-black/10">Place Order</button>
+                {payment==='paystack' ? (
+                  <button onClick={()=>void startPaystackCheckout()} className="inline-flex h-10 items-center justify-center rounded-md bg-[#F7CD3A] px-4 text-[14px] font-semibold text-gray-900 ring-1 ring-black/10">Pay with Paystack</button>
+                ) : (
+                  <button onClick={()=>navigate('/order-success')} className="inline-flex h-10 items-center justify-center rounded-md bg-[#F7CD3A] px-4 text-[14px] font-semibold text-gray-900 ring-1 ring-black/10">Place Order</button>
+                )}
               </div>
             </div>
 
@@ -513,6 +698,8 @@ export default function Checkout() {
               <div className="mt-3 space-y-2 text-[14px]">
                 <div className="flex items-center justify-between"><span className="text-gray-600">Items</span><span className="font-semibold">{items.length}</span></div>
                 <div className="flex items-center justify-between"><span className="text-gray-600">Subtotal</span><span className="font-semibold">₦{subtotal.toLocaleString('en-NG')}</span></div>
+                <div className="flex items-center justify-between"><span className="text-gray-600">Delivery</span><span className="font-semibold">{deliveryPrice>0? `₦${deliveryPrice.toLocaleString('en-NG')}` : '-'}</span></div>
+                <div className="flex items-center justify-between border-t border-black/10 pt-2"><span className="text-gray-600">Total</span><span className="font-semibold">₦{total.toLocaleString('en-NG')}</span></div>
               </div>
             </aside>
           </div>
@@ -525,7 +712,6 @@ export default function Checkout() {
 // Inline login form
 import { login, register } from '../services/api'
 import { useAuth as useAuthCtx } from '../services/auth'
-import toast from 'react-hot-toast'
 
 function LoginInline(props: { loading: boolean; error: string | null; value: { emailOrPhone: string; password: string }; onChange: (v: { emailOrPhone: string; password: string }) => void; onLoading: (v: boolean) => void; onError: (v: string | null) => void; onSuccess: () => void }) {
   const { setSession } = useAuthCtx()
