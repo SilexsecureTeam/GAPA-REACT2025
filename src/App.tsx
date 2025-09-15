@@ -28,6 +28,7 @@ import AccountSettings from './pages/AccountSettings'
 import About from './pages/About'
 import Contact from './pages/Contact'
 import GapaToaster from './components/GapaToaster'
+import OrderSuccess from './pages/OrderSuccess'
 
 function App() {
   const location = useLocation()
@@ -89,6 +90,7 @@ function App() {
           <Route path="/parts/:brand/:part" element={<CarPartDetails />} />
           <Route path="/parts/:part" element={<CarPartDetails />} />
           <Route path="/checkout" element={<Checkout />} />
+          <Route path="/order-success" element={<OrderSuccess />} />
           {/* New static pages */}
           <Route path="/privacy-policy" element={<PrivacyPolicy />} />
           <Route path="/terms" element={<TermsAndConditions />} />

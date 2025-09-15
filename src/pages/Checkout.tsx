@@ -339,8 +339,10 @@ export default function Checkout() {
               txn_id: response?.reference || ref,
               pickup_location_id: address.deliveryLocationId ? String(address.deliveryLocationId) : undefined,
             })
+            try { setGuestCart({ items: [] }) } catch {}
             toast.success('Payment successful')
-            navigate('/order-success')
+            const amountNgn = (amountKobo / 100) || 0
+            navigate(`/order-success?ref=${encodeURIComponent(response?.reference || ref)}&amount=${encodeURIComponent(String(amountNgn))}`)
           } catch (e: any) {
             toast.error(e?.message || 'Failed to confirm payment')
           }
