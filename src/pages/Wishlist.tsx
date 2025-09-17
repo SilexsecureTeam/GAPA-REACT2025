@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import FallbackLoader from '../components/FallbackLoader'
 import ProductCard, { type Product as UiProduct } from '../components/ProductCard'
 import useWishlist from '../hooks/useWishlist'
-import { getProductById, type ApiProduct } from '../services/api'
+import { getProductById, type ApiProduct, getAllProducts } from '../services/api'
 import { normalizeApiImage, pickImage, productImageFrom } from '../services/images'
 import logoImg from '../assets/gapa-logo.png'
 
@@ -32,24 +32,45 @@ function mapToUiProduct(p: ApiProduct, i: number): UiProduct {
 
 export default function Wishlist() {
   const navigate = useNavigate()
-  const { ids, toggle } = useWishlist()
+  const { ids, toggle, loaded } = useWishlist()
   const [loading, setLoading] = useState(false)
   const [items, setItems] = useState<ApiProduct[]>([])
+  const [attemptedFallback, setAttemptedFallback] = useState(false)
 
   // Unique ids
-  const uniqueIds = useMemo(() => Array.from(new Set(ids.map(String))), [ids])
+  const uniqueIds = useMemo(() => Array.from(new Set(ids.map(String))).filter(Boolean), [ids])
 
   useEffect(() => {
     let alive = true
+    if (!loaded) return
     if (!uniqueIds.length) { setItems([]); return }
     ;(async () => {
+      setLoading(true)
       try {
-        setLoading(true)
+        // 1. Try fetching each product individually (may require auth)
         const results = await Promise.allSettled(uniqueIds.map((id) => getProductById(id)))
         if (!alive) return
-        const ok = results
-          .map((r) => (r.status === 'fulfilled' ? r.value : null))
-          .filter(Boolean) as ApiProduct[]
+        let ok = results.map(r => r.status === 'fulfilled' ? r.value : null).filter(Boolean) as ApiProduct[]
+
+        // 2. If none (likely due to auth), or missing some, fallback to public catalogue
+        if (ok.length < uniqueIds.length && !attemptedFallback) {
+          try {
+            const all = await getAllProducts()
+            if (!alive) return
+            const map = new Map<string, ApiProduct>()
+            for (const p of all) {
+              const pid = String((p as any)?.product_id ?? (p as any)?.id ?? '')
+              if (pid) map.set(pid, p)
+            }
+            const recovered: ApiProduct[] = []
+            for (const id of uniqueIds) {
+              const found = map.get(id)
+              if (found && !ok.find(p => String((p as any)?.product_id ?? (p as any)?.id) === id)) recovered.push(found)
+            }
+            ok = [...ok, ...recovered]
+          } catch { /* ignore fallback errors */ }
+          setAttemptedFallback(true)
+        }
         setItems(ok)
       } catch {
         if (!alive) return
@@ -59,14 +80,15 @@ export default function Wishlist() {
       }
     })()
     return () => { alive = false }
-  }, [uniqueIds])
+  }, [uniqueIds, attemptedFallback, loaded])
 
   const uiProducts: UiProduct[] = useMemo(() => items.map(mapToUiProduct), [items])
 
   const handleClearAll = () => {
-    // Toggle all off
     uniqueIds.forEach((id) => toggle(id))
   }
+
+  const showInitialLoader = !loaded || (loading && loaded)
 
   return (
     <div className="bg-white !pt-10">
@@ -88,7 +110,7 @@ export default function Wishlist() {
           </ol>
         </nav>
 
-        {loading ? (
+        {showInitialLoader ? (
           <div className="mt-6"><FallbackLoader label="Loading wishlist…" /></div>
         ) : uniqueIds.length === 0 ? (
           <div className="mt-6 rounded-xl bg-white p-6 text-center ring-1 ring-black/10">
@@ -96,6 +118,15 @@ export default function Wishlist() {
             <div className="mt-3">
               <button onClick={() => navigate('/parts')} className="inline-flex h-10 items-center justify-center rounded-md bg-[#F7CD3A] px-5 text-[14px] font-semibold text-gray-900 ring-1 ring-black/10">
                 Browse parts
+              </button>
+            </div>
+          </div>
+        ) : uiProducts.length === 0 ? (
+          <div className="mt-6 rounded-xl bg-white p-6 text-center ring-1 ring-black/10">
+            <div className="text-[14px] text-gray-700">We couldn't load your saved items. They may require login or are no longer available.</div>
+            <div className="mt-3">
+              <button onClick={() => navigate('/parts')} className="inline-flex h-10 items-center justify-center rounded-md bg-[#F7CD3A] px-5 text-[14px] font-semibold text-gray-900 ring-1 ring-black/10">
+                Explore parts
               </button>
             </div>
           </div>

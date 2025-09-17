@@ -10,6 +10,9 @@ import { useAuth } from '../services/auth'
 import { addGuestCartItem } from '../services/cart'
 import VehicleFilter from '../components/VehicleFilter'
 import { getPersistedVehicleFilter, setPersistedVehicleFilter, vehicleMatches as sharedVehicleMatches, type VehicleFilterState as VehState } from '../services/vehicle'
+import useWishlist from '../hooks/useWishlist'
+import WishlistButton from '../components/WishlistButton'
+import { toast } from 'react-hot-toast'
 
 // Error boundary to surface runtime errors on the page
 class ErrorBoundary extends React.Component<{ children?: React.ReactNode }, { hasError: boolean; error?: Error | null; info?: React.ErrorInfo | null }> {
@@ -609,6 +612,9 @@ function CarPartsInner() {
     }
   }
 
+  // Wishlist hook
+  const wishlist = useWishlist()
+
   // Map product for card display (match Tools)
   const mapProduct = (p: any, i: number) => ({
     id: String((p as any)?.product_id ?? (p as any)?.id ?? i),
@@ -830,8 +836,12 @@ function CarPartsInner() {
                     <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
                       {filteredSubProducts.map((p, i) => {
                         const ui = mapProduct(p, i)
+                        const wished = wishlist.has(ui.id)
                         return (
                           <div key={ui.id} className="relative rounded-xl bg-white ring-1 ring-black/10">
+                            <div className="absolute right-3 top-3 z-10">
+                              <WishlistButton size={18} active={wished} onToggle={(active) => { wishlist.toggle(ui.id); if (active) toast.success('Added to wishlist') }} />
+                            </div>
                             <div className="p-4">
                               {/* Image */}
                               <button onClick={() => onViewProduct(p)} className="block w-full">
@@ -963,8 +973,12 @@ function CarPartsInner() {
                   <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
                     {filteredSearchResults.map((p: ApiProduct, i: number) => {
                       const ui = toUiProduct(p, i)
+                      const wished = wishlist.has(ui.id)
                       return (
-                        <li key={ui.id}>
+                        <li key={ui.id} className="relative">
+                          <div className="absolute right-2 top-2 z-10">
+                            <WishlistButton size={18} active={wished} onToggle={(active) => { wishlist.toggle(ui.id); if (active) toast.success('Added to wishlist') }} />
+                          </div>
                           <ProductCard product={ui} />
                         </li>
                       )
@@ -1059,9 +1073,13 @@ function CarPartsInner() {
                           const title = String((p as any)?.part_name || (p as any)?.name || (p as any)?.title || (p as any)?.product_name || 'Car Part')
                           const brandSlug = toSlug(brandOf(p)) || 'gapa'
                           const partSlug = toSlug(categoryOf(p)) || 'parts'
+                          const wished = wishlist.has(id)
                           return (
-                            <li key={`${catName}-${id}-${i}`} className="truncate">
-                              <Link to={`/parts/${encodeURIComponent(brandSlug)}/${encodeURIComponent(partSlug)}?pid=${encodeURIComponent(id)}`} className="text-[14px] text-brand hover:underline">{title}</Link>
+                            <li key={`${catName}-${id}-${i}`} className="truncate relative group pr-6">
+                              <Link to={`/parts/${encodeURIComponent(brandSlug)}/${encodeURIComponent(partSlug)}?pid=${encodeURIComponent(id)}`} className="text-[14px] text-brand hover:underline line-clamp-2">{title}</Link>
+                              <span className="absolute right-0 top-0">
+                                <WishlistButton size={16} active={wished} onToggle={(active) => { wishlist.toggle(id); if (active) toast.success('Added to wishlist') }} />
+                              </span>
                             </li>
                           )
                         })}

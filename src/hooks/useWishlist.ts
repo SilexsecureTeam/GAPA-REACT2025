@@ -3,9 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 const KEY = 'wishlist'
 
 export default function useWishlist() {
-  const [ids, setIds] = useState<string[]>([])
-
-  // Parse helper
+  // Local parser kept stable across renders
   const parse = (raw: string | null): string[] => {
     if (!raw) return []
     try {
@@ -18,19 +16,29 @@ export default function useWishlist() {
     }
   }
 
-  // Load from localStorage
+  // Pre-hydrate from localStorage (prevents initial empty flash)
+  const initial: string[] = (() => {
+    if (typeof window === 'undefined') return []
+    try { return parse(localStorage.getItem(KEY)) } catch { return [] }
+  })()
+
+  const [ids, setIds] = useState<string[]>(initial)
+  const [loaded, setLoaded] = useState<boolean>(false)
+
+  // One-time load (in case initial ran before storage populated – defensive)
   useEffect(() => {
-    setIds(parse(localStorage.getItem(KEY)))
+    try { setIds(parse(localStorage.getItem(KEY))) } catch {}
+    setLoaded(true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Persist
+  // Persist whenever ids change (after hydration)
   useEffect(() => {
-    try {
-      localStorage.setItem(KEY, JSON.stringify(ids))
-    } catch {}
-  }, [ids])
+    if (!loaded) return
+    try { localStorage.setItem(KEY, JSON.stringify(ids)) } catch {}
+  }, [ids, loaded])
 
-  // Cross-tab and cross-hook sync
+  // Cross-tab sync
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {
       if (e.key === KEY) {
@@ -47,6 +55,6 @@ export default function useWishlist() {
     setIds((prev) => (prev.includes(key) ? prev.filter((x) => x !== key) : Array.from(new Set([...prev, key]))))
   }, [])
 
-  const value = useMemo(() => ({ ids, has, toggle }), [ids, has, toggle])
+  const value = useMemo(() => ({ ids, has, toggle, loaded }), [ids, has, toggle, loaded])
   return value
 }
