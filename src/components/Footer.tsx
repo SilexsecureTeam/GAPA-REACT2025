@@ -146,16 +146,16 @@ export default function Footer() {
             <h4 className="text-sm font-bold tracking-wide ">My Account</h4>
             <ul className="mt-3 space-y-2 text-sm">
               <li><Link className="hover:text-white" to="/account-settings">Account Settings</Link></li>
-              <li><a className="hover:text-white" href="#">My Cart</a></li>
-              <li><a className="hover:text-white" href="#">Wishlist</a></li>
-              <li><a className="hover:text-white" href="#">Order History</a></li>
+              <li><Link className="hover:text-white" to="/checkout">My Cart</Link></li>
+              <li><Link className="hover:text-white" to="/wishlist">Wishlist</Link></li>
+              <li><Link className="hover:text-white" to="/order-history">Order History</Link></li>
             </ul>
           </div>
           <div>
             <h4 className="text-sm font-bold tracking-wide">Services</h4>
             <ul className="mt-3 space-y-2 text-sm">
-              <li><a className="hover:text-white" href="#">Car Parts</a></li>
-              <li><a className="hover:text-white" href="#">Engine Oil</a></li>
+              <li><Link className="hover:text-white" to="/parts">Car Parts</Link></li>
+              <li><Link className="hover:text-white" to="/engine-oil">Engine Oil</Link></li>
               <li><a className="hover:text-white" href="#">Car Care</a></li>
               <li><a className="hover:text-white" href="#">Car Accessories</a></li>
             </ul>

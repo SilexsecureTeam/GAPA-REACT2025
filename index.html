@@ -2,9 +2,18 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <title>Gapa - React</title>
+
+    <!-- Expose Paystack key at runtime without using %VITE_*% placeholder -->
+    <script type="module">
+      const key = import.meta.env?.VITE_PAYSTACK_PUBLIC_KEY;
+      if (key && typeof key === 'string') {
+        window.PAYSTACK_PUBLIC_KEY = key;
+        window.VITE_PAYSTACK_PUBLIC_KEY = key;
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>

@@ -7,6 +7,16 @@ import { normalizeApiImage, pickImage, productImageFrom } from '../services/imag
 import logoImg from '../assets/gapa-logo.png'
 import toast from 'react-hot-toast'
 import deliveryGig from '../assets/deliveryGig.png'
+// Add optional secrets fallback (dev convenience only)
+import { PAYSTACK_PUBLIC_KEY as SECRET_PAYSTACK_KEY } from '../secrets'
+
+function sanitizeKey(val: any): string | undefined {
+  const s = typeof val === 'string' ? val.trim() : ''
+  if (!s) return undefined
+  // Ignore Vite placeholders if not replaced
+  if (s.startsWith('%VITE_') && s.endsWith('%')) return undefined
+  return s
+}
 
 type UICartItem = {
   productId: string
@@ -91,12 +101,14 @@ export default function Checkout() {
   const progress = (step / (steps.length - 1)) * 100
 
   const subtotal = useMemo(() => items.reduce((s, it) => s + it.price * it.quantity, 0), [items])
+  // VAT: 7.5% of subtotal
+  const vat = useMemo(() => Math.max(0, Math.round(subtotal * 0.075)), [subtotal])
   // Delivery pricing state
   const [deliveryPrice, setDeliveryPrice] = useState<number>(0)
   const [deliveryLoading, setDeliveryLoading] = useState<boolean>(false)
   const [defaultDeliveryRate, setDefaultDeliveryRate] = useState<number | null>(null)
 
-  const total = useMemo(() => subtotal + (deliveryPrice || 0), [subtotal, deliveryPrice])
+  const total = useMemo(() => subtotal + vat + (deliveryPrice || 0), [subtotal, vat, deliveryPrice])
 
   // Address + Payment state
   const [address, setAddress] = useState<Address>(() => {
@@ -302,7 +314,14 @@ export default function Checkout() {
   }
 
   // Paystack Integration
-  const PAYSTACK_KEY = (import.meta as any)?.env?.VITE_PAYSTACK_PUBLIC_KEY as string | undefined
+  const PAYSTACK_KEY = (
+    sanitizeKey((import.meta as any)?.env?.VITE_PAYSTACK_PUBLIC_KEY)
+    || sanitizeKey((import.meta as any)?.env?.PAYSTACK_PUBLIC_KEY)
+    || sanitizeKey(typeof window !== 'undefined' ? (window as any).VITE_PAYSTACK_PUBLIC_KEY : undefined)
+    || sanitizeKey(typeof window !== 'undefined' ? (window as any).PAYSTACK_PUBLIC_KEY : undefined)
+    || sanitizeKey(typeof document !== 'undefined' ? (document.querySelector('meta[name="paystack-public-key"]') as HTMLMetaElement | null)?.content : undefined)
+    || sanitizeKey(SECRET_PAYSTACK_KEY)
+  ) as string | undefined
   async function ensurePaystackScript() {
     if ((window as any).PaystackPop) return
     await new Promise<void>((resolve, reject) => {
@@ -317,20 +336,17 @@ export default function Checkout() {
   function buildAddressString() {
     return [address.fullName, address.address1, address.address2, address.deliveryLocationName, address.region, address.postcode].filter(Boolean).join(', ')
   }
+
   async function startPaystackCheckout() {
     if (!PAYSTACK_KEY) { toast.error('Payment is not configured'); return }
     try {
       await ensurePaystackScript()
-      const amountKobo = Math.max(0, Math.round((subtotal + (deliveryPrice || 0)) * 100))
+      const amountKobo = Math.max(0, Math.round((subtotal + vat + (deliveryPrice || 0)) * 100))
       const email = address.email || (user as any)?.email || 'user@example.com'
       const ref = `GAPA_${Date.now()}`
-      const handler = (window as any).PaystackPop.setup({
-        key: PAYSTACK_KEY,
-        email,
-        amount: amountKobo,
-        currency: 'NGN',
-        ref,
-        callback: async (response: any) => {
+      // Use a plain function for Paystack callback; delegate to async logic inside
+      function paystackCallback(response: any) {
+        ;(async () => {
           try {
             await paymentSuccessfull({
               shipping_cost: deliveryPrice || 0,
@@ -346,7 +362,15 @@ export default function Checkout() {
           } catch (e: any) {
             toast.error(e?.message || 'Failed to confirm payment')
           }
-        },
+        })().catch(()=>{})
+      }
+      const handler = (window as any).PaystackPop.setup({
+        key: PAYSTACK_KEY,
+        email,
+        amount: amountKobo,
+        currency: 'NGN',
+        ref,
+        callback: paystackCallback,
         onClose: function(){
           toast('Payment cancelled')
         }
@@ -458,11 +482,11 @@ export default function Checkout() {
               <h3 className="text-[16px] font-semibold text-gray-900">Order Summary</h3>
               <div className="mt-3 space-y-2 text-[14px]">
                 <div className="flex items-center justify-between"><span className="text-gray-600">Subtotal</span><span className="font-semibold">₦{subtotal.toLocaleString('en-NG')}</span></div>
-                <div className="flex items-center justify-between"><span className="text-gray-600">VAT (incl.)</span><span className="font-semibold">Included</span></div>
+                <div className="flex items-center justify-between"><span className="text-gray-600">VAT (7.5%)</span><span className="font-semibold">₦{vat.toLocaleString('en-NG')}</span></div>
                 <div className="flex items-center justify-between"><span className="text-gray-600">Delivery</span><span className="font-semibold">Calculated at next step</span></div>
               </div>
               <button onClick={goNext} disabled={items.length===0} className="mt-4 inline-flex h-10 w-full items-center justify-center rounded-md bg-[#F7CD3A] text-[14px] font-semibold text-gray-900 ring-1 ring-black/10 disabled:opacity-60">Continue</button>
-              <button onClick={()=>navigate('/parts')} className="mt-2 inline-flex h-10 w-full items-center justify-center rounded-md bg-gray-100 text-[14px] font-semibold text-gray-900 ring-1 ring-black/10">Back to shopping</button>
+              <button onClick={()=>navigate('/parts')} className="mt-2 inline-flex h-10 w-full items-center justify-center rounded-md bg-gray-100 text:[14px] font-semibold text-gray-900 ring-1 ring-black/10">Back to shopping</button>
             </aside>
           </div>
         )}
@@ -502,6 +526,7 @@ export default function Checkout() {
               <div className="mt-3 space-y-2 text-[14px]">
                 <div className="flex items-center justify-between"><span className="text-gray-600">Items</span><span className="font-semibold">{items.length}</span></div>
                 <div className="flex items-center justify-between"><span className="text-gray-600">Subtotal</span><span className="font-semibold">₦{subtotal.toLocaleString('en-NG')}</span></div>
+                <div className="flex items-center justify-between"><span className="text-gray-600">VAT (7.5%)</span><span className="font-semibold">₦{vat.toLocaleString('en-NG')}</span></div>
               </div>
             </aside>
           </div>
@@ -595,6 +620,7 @@ export default function Checkout() {
               <div className="mt-3 space-y-2 text-[14px]">
                 <div className="flex items-center justify-between"><span className="text-gray-600">Items</span><span className="font-semibold">{items.length}</span></div>
                 <div className="flex items-center justify-between"><span className="text-gray-600">Subtotal</span><span className="font-semibold">₦{subtotal.toLocaleString('en-NG')}</span></div>
+                <div className="flex items-center justify-between"><span className="text-gray-600">VAT (7.5%)</span><span className="font-semibold">₦{vat.toLocaleString('en-NG')}</span></div>
                 <div className="flex items-center justify-between"><span className="text-gray-600">Delivery</span><span className="font-semibold">{deliveryPrice>0? `₦${deliveryPrice.toLocaleString('en-NG')}` : '-'}</span></div>
                 <div className="flex items-center justify-between border-t border-black/10 pt-2"><span className="text-gray-600">Total</span><span className="font-semibold">₦{total.toLocaleString('en-NG')}</span></div>
               </div>
@@ -634,6 +660,11 @@ export default function Checkout() {
                 <span className="text-gray-600">Total</span>
                 <span className="font-semibold">₦{total.toLocaleString('en-NG')}</span>
               </div>
+              <div className="mt-2 space-y-1 text-[12px] text-gray-600">
+                <div className="flex items-center justify-between"><span>Subtotal</span><span>₦{subtotal.toLocaleString('en-NG')}</span></div>
+                <div className="flex items-center justify-between"><span>VAT (7.5%)</span><span>₦{vat.toLocaleString('en-NG')}</span></div>
+                <div className="flex items-center justify-between"><span>Delivery</span><span>{deliveryPrice>0? `₦${deliveryPrice.toLocaleString('en-NG')}` : '-'}</span></div>
+              </div>
               <div className="mt-4 flex gap-2">
                 <button onClick={goBack} className="inline-flex h-10 items-center justify-center rounded-md bg-gray-100 px-4 text-[14px] font-semibold text-gray-900 ring-1 ring-black/10">Back</button>
                 <button onClick={goNext} className="inline-flex h-10 items-center justify-center rounded-md bg-[#F7CD3A] px-4 text-[14px] font-semibold text-gray-900 ring-1 ring-black/10">{payment==='paystack' ? 'Pay with Paystack' : 'Continue'}</button>
@@ -646,6 +677,7 @@ export default function Checkout() {
               <div className="mt-3 space-y-2 text-[14px]">
                 <div className="flex items-center justify-between"><span className="text-gray-600">Items</span><span className="font-semibold">{items.length}</span></div>
                 <div className="flex items-center justify-between"><span className="text-gray-600">Subtotal</span><span className="font-semibold">₦{subtotal.toLocaleString('en-NG')}</span></div>
+                <div className="flex items-center justify-between"><span className="text-gray-600">VAT (7.5%)</span><span className="font-semibold">₦{vat.toLocaleString('en-NG')}</span></div>
                 <div className="flex items-center justify-between"><span className="text-gray-600">Delivery</span><span className="font-semibold">{deliveryPrice>0? `₦${deliveryPrice.toLocaleString('en-NG')}` : '-'}</span></div>
                 <div className="flex items-center justify-between border-t border-black/10 pt-2"><span className="text-gray-600">Total</span><span className="font-semibold">₦{total.toLocaleString('en-NG')}</span></div>
               </div>
@@ -678,6 +710,7 @@ export default function Checkout() {
                   <div className="mt-1 text-[14px] text-gray-700">{payment === 'card' ? 'Pay with Card' : payment==='paystack' ? 'Pay with Paystack' : 'Pay on Delivery'}</div>
                 </div>
                 <div className="flex items-center justify-between text-[14px]"><span className="text-gray-600">Subtotal</span><span className="font-semibold">₦{subtotal.toLocaleString('en-NG')}</span></div>
+                <div className="flex items-center justify-between text-[14px]"><span className="text-gray-600">VAT (7.5%)</span><span className="font-semibold">₦{vat.toLocaleString('en-NG')}</span></div>
                 <div className="flex items-center justify-between text-[14px]"><span className="text-gray-600">Delivery</span><span className="font-semibold">{deliveryPrice>0? `₦${deliveryPrice.toLocaleString('en-NG')}` : '-'}</span></div>
                 <div className="flex items-center justify-between border-t border-black/10 pt-3 text-[14px]">
                   <span className="text-gray-600">Total</span>
@@ -700,6 +733,7 @@ export default function Checkout() {
               <div className="mt-3 space-y-2 text-[14px]">
                 <div className="flex items-center justify-between"><span className="text-gray-600">Items</span><span className="font-semibold">{items.length}</span></div>
                 <div className="flex items-center justify-between"><span className="text-gray-600">Subtotal</span><span className="font-semibold">₦{subtotal.toLocaleString('en-NG')}</span></div>
+                <div className="flex items-center justify-between"><span className="text-gray-600">VAT (7.5%)</span><span className="font-semibold">₦{vat.toLocaleString('en-NG')}</span></div>
                 <div className="flex items-center justify-between"><span className="text-gray-600">Delivery</span><span className="font-semibold">{deliveryPrice>0? `₦${deliveryPrice.toLocaleString('en-NG')}` : '-'}</span></div>
                 <div className="flex items-center justify-between border-t border-black/10 pt-2"><span className="text-gray-600">Total</span><span className="font-semibold">₦{total.toLocaleString('en-NG')}</span></div>
               </div>

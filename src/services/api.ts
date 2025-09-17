@@ -203,6 +203,12 @@ export const ADDRESS_ENDPOINTS = {
   paymentsuccess: '/product/paymentsuccessfull',
 } as const
 
+// Orders endpoints
+export const ORDER_ENDPOINTS = {
+  getUserOrders: (userId: string | number) => `/product/getUserOrders/${encodeURIComponent(String(userId))}`,
+  getUserOrderItems: (orderId: string | number) => `/product/getUserOrdersIteams/${encodeURIComponent(String(orderId))}`,
+} as const
+
 // Optional alternate base for some legacy endpoints (e.g., get-price)
 const GAPA_LIVE_BASE = (import.meta as any)?.env?.VITE_GAPA_LIVE_BASE as string | undefined
 function absUrl(path: string) {
@@ -444,4 +450,18 @@ export async function paymentSuccessfull(payload: { shipping_cost: number; addre
   if (payload.userId !== undefined) form.set('userId', String(payload.userId))
   form.set('txn_id', payload.txn_id)
   return apiRequest<any>(ADDRESS_ENDPOINTS.paymentsuccess, { method: 'POST', body: form, auth: true })
+}
+
+// ----- Orders helpers -----
+export type ApiOrder = Record<string, any>
+export type ApiOrderItem = Record<string, any>
+
+export async function getUserOrders(userId: string | number) {
+  const res = await apiRequest<any>(ORDER_ENDPOINTS.getUserOrders(userId), { method: 'GET', auth: true })
+  return unwrapArray<ApiOrder>(res)
+}
+
+export async function getUserOrderItems(orderId: string | number) {
+  const res = await apiRequest<any>(ORDER_ENDPOINTS.getUserOrderItems(orderId), { method: 'GET', auth: true })
+  return unwrapArray<ApiOrderItem>(res)
 }

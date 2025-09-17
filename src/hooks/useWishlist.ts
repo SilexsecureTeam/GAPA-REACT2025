@@ -5,12 +5,22 @@ const KEY = 'wishlist'
 export default function useWishlist() {
   const [ids, setIds] = useState<string[]>([])
 
+  // Parse helper
+  const parse = (raw: string | null): string[] => {
+    if (!raw) return []
+    try {
+      const val = JSON.parse(raw)
+      if (!Array.isArray(val)) return []
+      const arr = val.map((x) => String(x)).filter(Boolean)
+      return Array.from(new Set(arr))
+    } catch {
+      return []
+    }
+  }
+
   // Load from localStorage
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(KEY)
-      if (raw) setIds(JSON.parse(raw))
-    } catch {}
+    setIds(parse(localStorage.getItem(KEY)))
   }, [])
 
   // Persist
@@ -20,9 +30,21 @@ export default function useWishlist() {
     } catch {}
   }, [ids])
 
-  const has = useCallback((id: string) => ids.includes(id), [ids])
+  // Cross-tab and cross-hook sync
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === KEY) {
+        setIds(parse(e.newValue))
+      }
+    }
+    window.addEventListener('storage', onStorage)
+    return () => window.removeEventListener('storage', onStorage)
+  }, [])
+
+  const has = useCallback((id: string) => ids.includes(String(id)), [ids])
   const toggle = useCallback((id: string) => {
-    setIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
+    const key = String(id)
+    setIds((prev) => (prev.includes(key) ? prev.filter((x) => x !== key) : Array.from(new Set([...prev, key]))))
   }, [])
 
   const value = useMemo(() => ({ ids, has, toggle }), [ids, has, toggle])

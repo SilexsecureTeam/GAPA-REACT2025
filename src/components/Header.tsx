@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import logo from '../assets/gapa-logo.png';
 import icon1 from '../assets/h1.png'
@@ -7,8 +7,9 @@ import cartImg from '../assets/cart.svg'
 
 // Removed unused icons h2-h7
 import { useAuth } from '../services/auth'
-import { getAllCategories, type ApiCategory, getAllBrands, type ApiBrand, getSubCategories, getSubSubCategories } from '../services/api'
+import { getAllCategories, type ApiCategory, getAllBrands, type ApiBrand, getSubCategories, getSubSubCategories, getUserCartTotal } from '../services/api'
 import { categoryImageFrom, normalizeApiImage, pickImage, brandImageFrom, subCategoryImageFrom, subSubCategoryImageFrom } from '../services/images'
+import { getGuestCart } from '../services/cart'
 
 export default function Header() {
   // Live timer to Sept 1, 12am displayed as HH:MM:SS (no labels)
@@ -42,6 +43,22 @@ export default function Header() {
   const [brandsOpen, setBrandsOpen] = useState(false)
   const [brandsLoading, setBrandsLoading] = useState(false)
   const [brandsMenu, setBrandsMenu] = useState<Array<{ id: string; name: string; image: string }>>([])
+
+  // Cart count state (online + guest)
+  const [cartCount, setCartCount] = useState<number>(0)
+
+  // Hover-delay timer for category dropdown (2 seconds)
+  const hoverTimerRef = useRef<number | null>(null)
+  const clearHoverTimer = () => { if (hoverTimerRef.current) { window.clearTimeout(hoverTimerRef.current); hoverTimerRef.current = null } }
+  const openCategoryWithDelay = (idx: number, catId: string | number) => {
+    clearHoverTimer()
+    hoverTimerRef.current = window.setTimeout(async () => {
+      setBrandsOpen(false)
+      setCarPartsOpen(true)
+      setActiveCatIdx(idx)
+      await fetchSubCats(catId)
+    }, 2000)
+  }
 
   useEffect(() => {
     const id = setInterval(() => {
@@ -84,12 +101,12 @@ export default function Header() {
       const arr = Array.isArray(cats) ? (cats as ApiCategory[]) : []
       const list = arr.map((c, i) => ({
         id: String((c as any)?.id ?? (c as any)?.category_id ?? i),
-        name: String((c as any)?.title || (c as any)?.name || 'Category'),
+        name: capitalizeTitle(String((c as any)?.title || (c as any)?.name || 'Category')),
         image: categoryImageFrom(c) || normalizeApiImage(pickImage(c) || '') || '/gapa-logo.png'
-      })).sort((a,b)=>a.name.localeCompare(b.name))
+      }))
+      // Keep API order (no sorting)
       setCatMenu(list)
       setActiveCatIdx(0)
-      // preload first category's subcats
       if (list.length) void fetchSubCats(list[0].id)
     } catch (_) {
       // ignore
@@ -157,6 +174,41 @@ export default function Header() {
     }
   }
 
+  // Load and update cart count
+  useEffect(() => {
+    let cancelled = false
+    async function refreshCartCount() {
+      try {
+        if (user && user.id) {
+          const res = await getUserCartTotal()
+          // API may return { total_cart: number } or { total: number } or raw number
+          let total = 0
+          if (typeof res === 'number') total = res
+          else if (res && typeof res === 'object') {
+            const anyRes: any = res
+            total = Number(anyRes.total_cart ?? anyRes.total ?? anyRes.count ?? 0)
+          }
+          if (!cancelled) setCartCount(Number.isFinite(total) ? total : 0)
+        } else {
+          const guest = getGuestCart()
+          const total = guest.items.reduce((sum, it) => sum + (Number(it.quantity) || 0), 0)
+          if (!cancelled) setCartCount(total)
+        }
+      } catch {
+        if (!cancelled) setCartCount(0)
+      }
+    }
+
+    refreshCartCount()
+
+    // Also listen for changes in localStorage for guest cart updates
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === 'guestCart') refreshCartCount()
+    }
+    window.addEventListener('storage', onStorage)
+    return () => { cancelled = true; window.removeEventListener('storage', onStorage) }
+  }, [user])
+
   useEffect(() => {
     ensureCatMenuLoaded()
   }, [])
@@ -172,12 +224,19 @@ export default function Header() {
   // Close menus on route change using location instead of navigate.listen
   useEffect(() => {
     // Close menus when the pathname or hash changes
+    clearHoverTimer()
     setCarPartsOpen(false)
     setBrandsOpen(false)
   }, [location.pathname, location.hash])
 
   // Close all menus helper
-  const closeMenus = () => { setCarPartsOpen(false); setBrandsOpen(false) }
+  const closeMenus = () => { clearHoverTimer(); setCarPartsOpen(false); setBrandsOpen(false) }
+
+  // Helper: capitalize first letter and lower-case rest
+  const capitalizeTitle = (s: string) => {
+    const lower = (s || '').toLowerCase()
+    return lower ? lower.charAt(0).toUpperCase() + lower.slice(1) : s
+  }
 
   return (
     <header className="fixed w-full top-0 z-50 shadow-sm" onKeyDown={(e) => { if (e.key === 'Escape') { closeMenus() } }}>
@@ -257,9 +316,14 @@ export default function Header() {
             </a>
 
             {/* Cart */}
-            <Link to={{ pathname: location.pathname, search: location.search, hash: '#cart' }} replace className="hidden md:inline-flex items-center gap-2 text-[14px] text-gray-900">
+            <Link to={{ pathname: location.pathname, search: location.search, hash: '#cart' }} replace className="hidden md:inline-flex items-center gap-2 text-[14px] text-gray-900 relative">
               <img src={cartImg} alt="" />
               <span className="font-medium">My Cart</span>
+              {cartCount > 0 && (
+                <span aria-label={`Cart item count: ${cartCount}`} className="absolute -right-3 -top-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1.5 text-[11px] font-bold text-white ring-2 ring-white">
+                  {cartCount}
+                </span>
+              )}
             </Link>
 
             {/* Auth */}
@@ -291,16 +355,16 @@ export default function Header() {
       </div>
 
       {/* Category bar with dropdowns */}
-      <nav className="relative bg-brand overflow-visible text-white" onMouseLeave={() => { setCarPartsOpen(false); setBrandsOpen(false) }}>
+      <nav className="relative bg-brand overflow-visible text-white" onMouseLeave={() => { clearHoverTimer(); setCarPartsOpen(false); setBrandsOpen(false) }}>
         <div
           className="mx-auto flex h-11 sm:h-12 max-w-7xl items-center justify-between gap-4 overflow-x-auto px-2 sm:px-4"
         >
           {/* Car Brands first */}
           <div className="relative">
             <button
-              onMouseEnter={async () => { setBrandsOpen(true); setCarPartsOpen(false); await ensureBrandsMenuLoaded() }}
-              onFocus={async () => { setBrandsOpen(true); setCarPartsOpen(false); await ensureBrandsMenuLoaded() }}
-              onClick={async (e) => { e.preventDefault(); const willOpen = !brandsOpen; setBrandsOpen(willOpen); setCarPartsOpen(false); if (willOpen) await ensureBrandsMenuLoaded() }}
+              onMouseEnter={async () => { clearHoverTimer(); setBrandsOpen(true); setCarPartsOpen(false); await ensureBrandsMenuLoaded() }}
+              onFocus={async () => { clearHoverTimer(); setBrandsOpen(true); setCarPartsOpen(false); await ensureBrandsMenuLoaded() }}
+              onClick={async (e) => { e.preventDefault(); clearHoverTimer(); const willOpen = !brandsOpen; setBrandsOpen(willOpen); setCarPartsOpen(false); if (willOpen) await ensureBrandsMenuLoaded() }}
               className={`group inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-md px-2.5 py-1.5 text-[13px] sm:text-[14px] font-medium ${
                 brandsOpen ? 'bg-white/10 text-white' : 'text-white/90 hover:text-white hover:bg-white/10'
               }`}
@@ -324,10 +388,11 @@ export default function Header() {
             return (
               <div key={c.id} className="relative">
                 <button
-                  onMouseEnter={async () => { setBrandsOpen(false); setCarPartsOpen(true); setActiveCatIdx(idx); await fetchSubCats(c.id) }}
-                  onFocus={async () => { setBrandsOpen(false); setCarPartsOpen(true); setActiveCatIdx(idx); await fetchSubCats(c.id) }}
+                  onMouseEnter={() => { openCategoryWithDelay(idx, c.id) }}
+                  onFocus={() => { openCategoryWithDelay(idx, c.id) }}
                   onClick={(e) => {
                     e.preventDefault()
+                    clearHoverTimer()
                     setBrandsOpen(false)
                     // Brakes and Tyres keep special routes; others use drilldown
                     if (isBrakes) navigate('/brakes')

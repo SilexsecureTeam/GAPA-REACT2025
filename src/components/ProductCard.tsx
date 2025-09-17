@@ -4,6 +4,7 @@ import useWishlist from '../hooks/useWishlist'
 import { Link } from 'react-router-dom'
 import { normalizeApiImage } from '../services/images'
 import  logoImg from '../assets/gapa-logo.png'
+import { toast } from 'react-hot-toast'
 
 export type Product = {
   id: string
@@ -41,7 +42,7 @@ export default function ProductCard({ product }: ProductCardProps) {
           <Link to={to} className="block truncate text-[14px] font-semibold text-gray-900 hover:underline">{product.title}</Link>
           <Rating value={product.rating} className="mt-1" />
         </div>
-        <WishlistButton active={isFav} onToggle={() => wishlist.toggle(product.id)} />
+        <WishlistButton active={isFav} onToggle={(active) => { wishlist.toggle(product.id); if (active) toast.success('Added to wishlist') }} />
       </div>
       <div className="mb-4">
         <Link to={to} className="inline-flex items-center gap-1 text-[14px] text-gray-700 hover:text-gray-900">

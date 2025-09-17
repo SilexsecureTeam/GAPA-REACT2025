@@ -7,6 +7,9 @@ import { useAuth } from '../services/auth'
 import { addGuestCartItem } from '../services/cart'
 import VehicleFilter from '../components/VehicleFilter'
 import { getPersistedVehicleFilter, vehicleMatches as sharedVehicleMatches, type VehicleFilterState as VehState } from '../services/vehicle'
+import WishlistButton from '../components/WishlistButton'
+import useWishlist from '../hooks/useWishlist'
+import { toast } from 'react-hot-toast'
 
 // Helpers
 const toSlug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
@@ -98,6 +101,9 @@ export default function CarPartDetails() {
   const [selected, setSelected] = useState<ReturnType<typeof mapApiToUi> | null>(null)
   const [selectedRaw, setSelectedRaw] = useState<any | null>(null)
   const [categories, setCategories] = useState<ApiCategory[]>([])
+
+  // Wishlist
+  const { has: wishlistHas, toggle: wishlistToggle } = useWishlist()
 
   // NEW: shared vehicle filter state
   const [vehFilter, setVehFilter] = useState<VehState>(() => getPersistedVehicleFilter())
@@ -306,6 +312,13 @@ export default function CarPartDetails() {
     const [adding, setAdding] = useState(false)
     const [showPopup, setShowPopup] = useState(false)
 
+    // Wishlist status for this item
+    const wished = wishlistHas(ui.id)
+
+    // NEW: collapsible toggles for compatibility and OEM sections (closed by default)
+    const [compatExpanded, setCompatExpanded] = useState(false)
+    const [oemExpanded, setOemExpanded] = useState(false)
+
     // Parse compatible vehicles and OEM codes from the raw product
     const compatList = useMemo(() => {
       if (!rawSrc) return [] as string[]
@@ -437,8 +450,11 @@ export default function CarPartDetails() {
           <div className="space-y-3">
             <div className="flex items-start gap-2">
               <img src={ui.brandLogo} alt={ui.brand} className="h-6 w-auto" onError={(e)=>{(e.currentTarget as HTMLImageElement).src=logoImg}} />
-              <div className="ml-auto text-right text-[12px] text-gray-500">
-                <div>Article No: {ui.articleNo}</div>
+              <div className="ml-auto flex items-center gap-2">
+                <WishlistButton ariaLabel={wished ? 'Remove from wishlist' : 'Add to wishlist'} size={22} active={wished} onToggle={(active) => { wishlistToggle(ui.id); if (active) toast.success('Added to wishlist') }} />
+                <div className="text-right text-[12px] text-gray-500">
+                  <div>Article No: {ui.articleNo}</div>
+                </div>
               </div>
             </div>
             <h2 className="text-[18px] font-semibold text-gray-900">{ui.name}</h2>
@@ -484,63 +500,92 @@ export default function CarPartDetails() {
           )}
 
           {Object.keys(compatTree).length > 0 && (
-            <section className="rounded-lg bg-white p-4 ring-1 ring-black/10">
-              <div className="flex items-center justify-between">
-                <h3 className="text-[14px] font-semibold text-gray-900">Compatible Vehicles</h3>
-                <span className="text-[12px] text-gray-600">{compatList.length} entries</span>
-              </div>
-              <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
-                {Object.keys(compatTree).sort().map((maker) => {
-                  const models = compatTree[maker] || {}
-                  return (
-                    <details key={maker} className="rounded-md border border-black/10 bg-[#F6F5FA] p-3" open>
-                      <summary className="cursor-pointer list-none text-[13px] font-semibold text-gray-900">{maker} <span className="ml-1 text-[11px] font-normal text-gray-600">({Object.keys(models).length} models)</span></summary>
-                      <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                        {Object.keys(models).sort().map((model) => {
-                          const detailsList = models[model]
-                          return (
-                            <div key={maker + '::' + model} className="rounded-md bg-white p-2 ring-1 ring-black/5">
-                              <div className="text-[12px] font-medium text-gray-900">{model}</div>
-                              {detailsList && detailsList.length > 0 ? (
-                                <ul className="mt-1 list-disc pl-5 text-[12px] text-gray-800">
-                                  {detailsList.map((d, i) => (<li key={i}>{d}</li>))}
-                                </ul>
-                              ) : (
-                                <div className="mt-1 text-[12px] text-gray-600">No additional details</div>
-                              )}
-                            </div>
-                          )
-                        })}
-                      </div>
-                    </details>
-                  )
-                })}
-              </div>
+            <section className="rounded-lg bg-white p-0 ring-1 ring-black/10">
+              <button
+                type="button"
+                onClick={() => setCompatExpanded((v) => !v)}
+                aria-expanded={compatExpanded}
+                className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-[#F6F5FA] transition group"
+              >
+                <span className="text-[14px] font-semibold text-gray-900 flex items-center gap-2">
+                  Compatible Vehicles
+                  <span className="ml-2 text-[12px] text-gray-600">({compatList.length} entries)</span>
+                </span>
+                <svg className={`transition-transform duration-200 ml-2 ${compatExpanded ? 'rotate-180' : ''}`} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
+              </button>
+              {compatExpanded && (
+                <div className="px-4 pb-4">
+                  <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+                    {Object.keys(compatTree).sort().map((maker) => {
+                      const models = compatTree[maker] || {}
+                      return (
+                        <details key={maker} className="rounded-md border border-black/10 bg-[#F6F5FA] p-3" open>
+                          <summary className="cursor-pointer list-none text-[13px] font-semibold text-gray-900 flex items-center">
+                            {maker} <span className="ml-1 text-[11px] font-normal text-gray-600">({Object.keys(models).length} models)</span>
+                          </summary>
+                          <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                            {Object.keys(models).sort().map((model) => {
+                              const detailsList = models[model]
+                              return (
+                                <div key={maker + '::' + model} className="rounded-md bg-white p-2 ring-1 ring-black/5">
+                                  <div className="text-[12px] font-medium text-gray-900">{model}</div>
+                                  {detailsList && detailsList.length > 0 ? (
+                                    <ul className="mt-1 list-disc pl-5 text-[12px] text-gray-800">
+                                      {detailsList.map((d, i) => (<li key={i}>{d}</li>))}
+                                    </ul>
+                                  ) : (
+                                    <div className="mt-1 text-[12px] text-gray-600">No additional details</div>
+                                  )}
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </details>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
             </section>
           )}
 
           {oemList.length > 0 && (
-            <section className="rounded-lg bg-white p-4 ring-1 ring-black/10">
-              <h3 className="text-[14px] font-semibold text-gray-900">OEM Numbers</h3>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {oemList.map((code, i) => (
-                  <span key={i} className="inline-flex items-center gap-2 rounded bg-[#F6F5FA] px-2 py-1 text-[12px] ring-1 ring-black/10">
-                    <span>{code}</span>
-                    <button
-                      type="button"
-                      className="inline-flex items-center rounded bg-white px-1.5 py-0.5 text-[11px] ring-1 ring-black/10 hover:bg-gray-50"
-                      onClick={async () => {
-                        try {
-                          await navigator.clipboard.writeText(code)
-                          setCopiedOEM(i)
-                          setTimeout(() => setCopiedOEM((prev) => (prev === i ? null : prev)), 1200)
-                        } catch {}
-                      }}
-                      aria-label={`Copy ${code}`}
-                    >{copiedOEM === i ? 'Copied' : 'Copy'}</button>
-                  </span>
-                ))}
-              </div>
+            <section className="rounded-lg bg-white p-0 ring-1 ring-black/10">
+              <button
+                type="button"
+                onClick={() => setOemExpanded((v) => !v)}
+                aria-expanded={oemExpanded}
+                className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-[#F6F5FA] transition group"
+              >
+                <span className="text-[14px] font-semibold text-gray-900 flex items-center gap-2">
+                  OEM Numbers
+                  <span className="ml-2 text-[12px] text-gray-600">({oemList.length})</span>
+                </span>
+                <svg className={`transition-transform duration-200 ml-2 ${oemExpanded ? 'rotate-180' : ''}`} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
+              </button>
+              {oemExpanded && (
+                <div className="px-4 pb-4">
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {oemList.map((code, i) => (
+                      <span key={i} className="inline-flex items-center gap-2 rounded bg-[#F6F5FA] px-2 py-1 text-[12px] ring-1 ring-black/10">
+                        <span>{code}</span>
+                        <button
+                          type="button"
+                          className="inline-flex items-center rounded bg-white px-1.5 py-0.5 text-[11px] ring-1 ring-black/10 hover:bg-gray-50"
+                          onClick={async () => {
+                            try {
+                              await navigator.clipboard.writeText(code)
+                              setCopiedOEM(i)
+                              setTimeout(() => setCopiedOEM((prev) => (prev === i ? null : prev)), 1200)
+                            } catch {}
+                          }}
+                          aria-label={`Copy ${code}`}
+                        >{copiedOEM === i ? 'Copied' : 'Copy'}</button>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
             </section>
           )}
         </div>

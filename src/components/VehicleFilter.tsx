@@ -158,7 +158,7 @@ export default function VehicleFilter({ onSearch, onChange, className = '' }: Ve
   const handleSearch = async () => {
     const term = [brandName, modelName, engineName].filter(Boolean).join(' ').trim()
     if (!term) return
-    const url = `/parts`
+    const url = `/parts?drill=1`
     if (onSearch) onSearch(url)
   }
 

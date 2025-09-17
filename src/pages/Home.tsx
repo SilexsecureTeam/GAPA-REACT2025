@@ -12,6 +12,7 @@ import TopBrands from '../components/TopBrands'
 import logoImg from '../assets/gapa-logo.png'
 import VehicleFilter from '../components/VehicleFilter'
 import { getPersistedVehicleFilter, type VehicleFilterState as VehState } from '../services/vehicle'
+import { toast } from 'react-hot-toast'
 
 // Helpers to unwrap API shapes and map images safely
 function unwrap<T = any>(res: any): T[] {
@@ -56,7 +57,7 @@ function OfferCard({ offer }: { offer: Offer }) {
   return (
     <div className="relative rounded-xl bg-white ring-1 ring-black/10">
       <div className="absolute right-3 top-3 z-10">
-        <WishlistButton active={isFav} onToggle={() => wishlist.toggle(offer.id)} ariaLabel="Add to wishlist" />
+        <WishlistButton active={isFav} onToggle={(active) => { wishlist.toggle(offer.id); if (active) toast.success('Added to wishlist') }} ariaLabel="Add to wishlist" />
       </div>
       <div className="p-4">
         <div className="flex h-40 items-center justify-center overflow-hidden rounded-lg ">
@@ -128,7 +129,7 @@ export default function Home() {
     const brandNameLocal = String((it as any)?.brand?.name || (it as any)?.brand || (it as any)?.manufacturer || (it as any)?.maker || '')
     const catName = typeof (it as any)?.category === 'string' ? (it as any)?.category : ((it as any)?.category?.name || (it as any)?.category?.title || (it as any)?.category_name || '')
     return {
-      id: String((it as any)?.id ?? (it as any)?.product_id ?? i),
+      id: String((it as any)?.product_id ?? (it as any)?.id ?? i),
       title: (it as any)?.name || (it as any)?.title || (it as any)?.product_name || 'Car Part',
       image: productImageFrom(it) || normalizeApiImage(pickImage(it) || '') || logoImg,
       rating: Number((it as any)?.rating || 4),
@@ -138,7 +139,7 @@ export default function Home() {
   })
 
   const offers: Offer[] = featured.slice(0, 8).map((it, i) => ({
-    id: String((it as any)?.id ?? (it as any)?.product_id ?? i),
+    id: String((it as any)?.product_id ?? (it as any)?.id ?? i),
     title: (it as any)?.name || (it as any)?.title || (it as any)?.product_name || 'Car Part',
     image: productImageFrom(it) || normalizeApiImage(pickImage(it) || '') || logoImg,
     rating: Number((it as any)?.rating || 4.2),
@@ -271,7 +272,7 @@ export default function Home() {
 
           {/* Right: shared vehicle filter card */}
           <div className="md:justify-self-end">
-            <VehicleFilter className="md:min-w-[400px] shadow-md" onSearch={() => navigate('/parts')} onChange={setVehFilter} />
+            <VehicleFilter className="md:min-w-[400px] shadow-md" onSearch={(url) => navigate(url)} onChange={setVehFilter} />
             {hasVehicleFilter && (
               <div className="mt-3 rounded-md bg-[#F7CD3A]/15 px-3 py-2 text-[12px] text-gray-800 ring-1 ring-[#F7CD3A]/30">
                 Selected vehicle: <strong>{[vehFilter.brandName, vehFilter.modelName, vehFilter.engineName].filter(Boolean).join(' › ')}</strong>
@@ -469,12 +470,12 @@ export default function Home() {
       </section>
 
       {/* Partners */}
-      <section className="mx-auto max-w-7xl px-4 pb-12 sm:px-6">
+      <section className="mx-auto max-w-7xl px-4 pb-12 sm:px-6 no-scrollbar">
         <h3 className="text-[16px] font-semibold text-gray-900">Our Partners</h3>
         {loading ? (
           <FallbackLoader label="Loading partners…" />
         ) : (
-          <div className="mt-3 flex items-center gap-6 overflow-x-auto rounded-xl bg-white px-4 py-3 ring-1 ring-black/10">
+          <div className="mt-3 flex items-center gap-6 no-scrollbar overflow-x-auto rounded-xl bg-white px-4 py-3 ring-1 ring-black/10">
             {partners.slice(0, 12).map((p, i) => {
               const name = String((p as any)?.name || (p as any)?.title || 'Partner')
               const logo = partnerImageFrom(p) || imgOf(p)
