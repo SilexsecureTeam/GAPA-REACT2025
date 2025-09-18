@@ -433,8 +433,8 @@ export default function CarPartDetails() {
             This product may not fit your selected vehicle. See compatible alternatives below or reset your vehicle.
           </div>
         )}
-        <div className="grid gap-6 lg:grid-cols-[360px_1fr_280px]">
-          <aside className="rounded-lg bg-[#F6F5FA] p-6">
+        <div className="grid gap-6 lg:grid-cols-7">
+          <aside className="rounded-lg bg-[#F6F5FA] p-6 lg:col-span-3">
             <div className="flex items-center justify-center rounded-lg bg-[#F6F5FA] p-6">
               <img src={mainImage} alt={ui.name} className="h-[320px] w-auto object-contain" onError={(e)=>{(e.currentTarget as HTMLImageElement).src=logoImg}} />
             </div>
@@ -447,7 +447,7 @@ export default function CarPartDetails() {
             </div>
           </aside>
 
-          <div className="space-y-3">
+          <div className="space-y-3 col-span-2">
             <div className="flex items-start gap-2">
               <img src={ui.brandLogo} alt={ui.brand} className="h-6 w-auto" onError={(e)=>{(e.currentTarget as HTMLImageElement).src=logoImg}} />
               <div className="ml-auto flex items-center gap-2">
@@ -469,7 +469,7 @@ export default function CarPartDetails() {
             </div>
           </div>
 
-          <aside className="rounded-lg bg-white">
+          <aside className="rounded-lg bg-white col-span-2">
             <div className="text-right">
               <div className="text-[22px] font-bold text-gray-900">₦{ui.price.toLocaleString('en-NG')}</div>
               <div className="mt-1 text-[10px] text-gray-600">Incl. 20% VAT, excl delivery cost</div>
@@ -488,10 +488,8 @@ export default function CarPartDetails() {
             </button>
             <div className="mt-2 text-center text-[12px] text-purple-700">{ui.inStock ? 'In Stock' : 'Out of stock'}</div>
           </aside>
-        </div>
-
-        {/* Full-width sections: Description, Compatible Vehicles, OEM Numbers */}
-        <div className="mt-5 space-y-4">
+          {/* Full-width sections: Description, Compatible Vehicles, OEM Numbers */}
+        <div className="mt-5 space-y-4 lg:col-span-4">
           {ui.description && (
             <section className="rounded-lg bg-[#F6F5FA] p-4 ring-1 ring-black/10">
               <h3 className="text-[14px] font-semibold text-gray-900">Description</h3>
@@ -505,22 +503,34 @@ export default function CarPartDetails() {
                 type="button"
                 onClick={() => setCompatExpanded((v) => !v)}
                 aria-expanded={compatExpanded}
-                className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-[#F6F5FA] transition group"
+                className="flex w-full items-center justify-between px-4 py-3"
               >
-                <span className="text-[14px] font-semibold text-gray-900 flex items-center gap-2">
-                  Compatible Vehicles
-                  <span className="ml-2 text-[12px] text-gray-600">({compatList.length} entries)</span>
-                </span>
-                <svg className={`transition-transform duration-200 ml-2 ${compatExpanded ? 'rotate-180' : ''}`} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-[14px] font-semibold text-gray-900">Compatible Vehicles</h3>
+                  <span className="text-[12px] text-gray-600">({compatList.length} entries)</span>
+                </div>
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className={`transition-transform ${compatExpanded ? 'rotate-180' : ''}`}
+                >
+                  <path d="M6 9l6 6 6-6" />
+                </svg>
               </button>
               {compatExpanded && (
                 <div className="px-4 pb-4">
-                  <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <div className="mt-1 grid grid-cols-1 gap-3 md:grid-cols-2">
                     {Object.keys(compatTree).sort().map((maker) => {
                       const models = compatTree[maker] || {}
                       return (
                         <details key={maker} className="rounded-md border border-black/10 bg-[#F6F5FA] p-3" open>
-                          <summary className="cursor-pointer list-none text-[13px] font-semibold text-gray-900 flex items-center">
+                          <summary className="cursor-pointer list-none text-[13px] font-semibold text-gray-900">
                             {maker} <span className="ml-1 text-[11px] font-normal text-gray-600">({Object.keys(models).length} models)</span>
                           </summary>
                           <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -555,17 +565,26 @@ export default function CarPartDetails() {
                 type="button"
                 onClick={() => setOemExpanded((v) => !v)}
                 aria-expanded={oemExpanded}
-                className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-[#F6F5FA] transition group"
+                className="flex w-full items-center justify-between px-4 py-3"
               >
-                <span className="text-[14px] font-semibold text-gray-900 flex items-center gap-2">
-                  OEM Numbers
-                  <span className="ml-2 text-[12px] text-gray-600">({oemList.length})</span>
-                </span>
-                <svg className={`transition-transform duration-200 ml-2 ${oemExpanded ? 'rotate-180' : ''}`} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
+                <h3 className="text-[14px] font-semibold text-gray-900">OEM Numbers</h3>
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className={`transition-transform ${oemExpanded ? 'rotate-180' : ''}`}
+                >
+                  <path d="M6 9l6 6 6-6" />
+                </svg>
               </button>
               {oemExpanded && (
                 <div className="px-4 pb-4">
-                  <div className="mt-2 flex flex-wrap gap-2">
+                  <div className="mt-1 flex flex-wrap gap-2">
                     {oemList.map((code, i) => (
                       <span key={i} className="inline-flex items-center gap-2 rounded bg-[#F6F5FA] px-2 py-1 text-[12px] ring-1 ring-black/10">
                         <span>{code}</span>
@@ -589,6 +608,9 @@ export default function CarPartDetails() {
             </section>
           )}
         </div>
+        </div>
+
+    
 
         {/* Fixed popup confirmation */}
         {showPopup && (

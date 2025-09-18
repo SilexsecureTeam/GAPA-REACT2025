@@ -100,13 +100,47 @@ export default function OrderHistory() {
         )}
 
         {empty && (
-          <div className="mt-10 grid place-content-center rounded-2xl bg-[#F6F5FA] p-10 text-center ring-1 ring-black/10">
-            <div className="mx-auto grid h-16 w-16 place-content-center rounded-full bg-white ring-1 ring-black/10">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-8 w-8 text-gray-400"><path fillRule="evenodd" d="M7.5 3.75A3.75 3.75 0 0 0 3.75 7.5v9A3.75 3.75 0 0 0 7.5 20.25h9a3.75 3.75 0 0 0 3.75-3.75v-9A3.75 3.75 0 0 0 16.5 3.75h-9ZM7.5 6a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3Zm1.5 12.75v-1.5a3.75 3.75 0 0 1 7.5 0v1.5h-7.5Z" clipRule="evenodd" /></svg>
+          <div className="mt-10 overflow-hidden rounded-3xl bg-gradient-to-br from-[#F6F5FA] to-white p-0 ring-1 ring-black/10 shadow-sm">
+            <div className="grid gap-0 md:grid-cols-2">
+              {/* Illustration / Accent side */}
+              <div className="relative hidden md:block">
+                <div className="absolute inset-0 flex items-center justify-center p-8">
+                  <div className="relative -mt-6 w-full max-w-xs">
+                    <div className="absolute -left-6 -top-6 h-20 w-20 rounded-full bg-[#F7CD3A]/30 blur-2xl" />
+                    <div className="absolute -right-4 -bottom-4 h-24 w-24 rounded-full bg-purple-200/40 blur-2xl" />
+                    <div className="relative rounded-2xl bg-white/70 p-6 backdrop-blur-sm ring-1 ring-black/10">
+                      <div className="mx-auto grid h-20 w-20 place-content-center rounded-full bg-[#F7CD3A]/20 ring-1 ring-[#F7CD3A]/40">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-10 w-10 text-[#201A2B]">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2 6h14m-6-6v6m-4 0h8" />
+                        </svg>
+                      </div>
+                      <p className="mt-4 text-center text-[12px] font-medium text-gray-700 leading-relaxed">
+                        Your shopping journey starts here. Discover quality parts, tools & accessories curated for your vehicle.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              {/* Text / Actions side */}
+              <div className="p-8 md:p-10 flex flex-col justify-center">
+                <h2 className="text-xl font-semibold text-gray-900 tracking-tight">No orders found</h2>
+                <p className="mt-2 text-[14px] leading-relaxed text-gray-600 max-w-md">You haven't placed any orders yet. Browse our catalogue to find genuine parts perfectly matched to your vehicle.</p>
+                <ul className="mt-4 space-y-2 text-[12px] text-gray-700">
+                  <li className="flex items-start gap-2"><span className="mt-0.5 inline-block h-1.5 w-1.5 rounded-full bg-[#F7CD3A]" /><span>Track availability & compatibility with your saved vehicle.</span></li>
+                  <li className="flex items-start gap-2"><span className="mt-0.5 inline-block h-1.5 w-1.5 rounded-full bg-[#F7CD3A]" /><span>Fast checkout with secured payment.</span></li>
+                  <li className="flex items-start gap-2"><span className="mt-0.5 inline-block h-1.5 w-1.5 rounded-full bg-[#F7CD3A]" /><span>Earn trust ordering from verified brands.</span></li>
+                </ul>
+                <div className="mt-6 flex flex-wrap items-center gap-3">
+                  <Link to="/parts" className="inline-flex h-11 items-center justify-center rounded-md bg-[#F7CD3A] px-6 text-[14px] font-semibold text-[#201A2B] shadow-sm ring-1 ring-black/10 hover:brightness-105">Browse parts</Link>
+                  <Link to="/" className="inline-flex h-11 items-center justify-center rounded-md bg-white px-5 text-[14px] font-medium text-gray-800 ring-1 ring-black/10 hover:bg-gray-50">Go home</Link>
+                </div>
+                <div className="mt-6 flex flex-wrap gap-4 text-[11px] text-gray-500">
+                  <div className="flex items-center gap-1"><svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6l4 2" /></svg><span>Real‑time order tracking</span></div>
+                  <div className="flex items-center gap-1"><svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg><span>Quality guaranteed</span></div>
+                  <div className="flex items-center gap-1"><svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg><span>Wide product range</span></div>
+                </div>
+              </div>
             </div>
-            <h2 className="mt-4 text-lg font-semibold text-gray-900">You have no orders yet</h2>
-            <p className="mt-1 text-sm text-gray-700">When you place an order, it will appear here.</p>
-            <Link to="/" className="mt-4 inline-flex h-10 items-center justify-center rounded-md bg-[#F7CD3A] px-5 text-[14px] font-semibold text-gray-900 ring-1 ring-black/10">Start shopping</Link>
           </div>
         )}
 
@@ -115,18 +149,19 @@ export default function OrderHistory() {
             {orders.map((o, idx) => {
               const id = String((o as any)?.order_id || (o as any)?.id || idx)
               const state = expanded[id]
+              const isExpanded = Boolean(state)
               return (
                 <div key={id} className="overflow-hidden rounded-2xl ring-1 ring-black/10">
                   <OrderCard order={o} onToggle={onToggle} />
-                  {state && (
+                  {isExpanded && (
                     <div className="border-t border-black/10 bg-[#F6F5FA] p-4">
-                      {state.loading ? (
+                      {state?.loading ? (
                         <div className="text-center text-sm text-gray-600">Loading items…</div>
-                      ) : state.items.length === 0 ? (
+                      ) : (state?.items.length ?? 0) === 0 ? (
                         <div className="text-center text-sm text-gray-600">No items found for this order.</div>
                       ) : (
                         <ul className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                          {state.items.map((it: any, i) => {
+                          {state?.items.map((it: any, i) => {
                             const name = String(it?.product_name || it?.name || it?.title || 'Item')
                             const qty = Number(it?.quantity || it?.qty || 1)
                             const price = Number(it?.price || it?.amount || 0)

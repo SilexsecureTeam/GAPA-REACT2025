@@ -136,16 +136,7 @@ export default function Wishlist() {
             <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
               {uiProducts.map((p) => (
                 <li key={p.id} className="relative">
-                  {/* Remove button overlay */}
-                  <button
-                    type="button"
-                    onClick={() => toggle(p.id)}
-                    aria-label="Remove from wishlist"
-                    title="Remove"
-                    className="absolute right-2 top-2 z-10 inline-flex h-7 w-7 items-center justify-center rounded-full bg-white/90 text-[#350e49] ring-1 ring-black/10 hover:text-[#5A1E78]"
-                  >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6L6 18" /><path d="M6 6l12 12" /></svg>
-                  </button>
+                  {/* Heart icon inside ProductCard handles removal */}
                   <ProductCard product={p} />
                 </li>
               ))}

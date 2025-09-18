@@ -616,15 +616,21 @@ function CarPartsInner() {
   const wishlist = useWishlist()
 
   // Map product for card display (match Tools)
-  const mapProduct = (p: any, i: number) => ({
-    id: String((p as any)?.product_id ?? (p as any)?.id ?? i),
-    title: String((p as any)?.part_name || (p as any)?.name || (p as any)?.title || 'Car Part'),
-    image: productImageFrom(p) || normalizeApiImage(pickImage(p) || '') || logoImg,
-    rating: Number((p as any)?.rating || (p as any)?.stars || 4),
-    reviews: Number((p as any)?.reviews_count || (p as any)?.reviews || 0),
-    brand: brandOf(p) || 'GAPA',
-    price: Number((p as any)?.price || (p as any)?.selling_price || (p as any)?.amount || 0),
-  })
+  const mapProduct = (p: any, i: number) => {
+    const id = String((p as any)?.product_id ?? (p as any)?.id ?? i)
+    const title = String((p as any)?.part_name || (p as any)?.name || (p as any)?.title || 'Car Part')
+    // Prefer explicit img_url over generic image key (API sometimes returns plain filename in image but full path logic depends on img_url)
+    const rawImgUrl = (p as any)?.img_url || (p as any)?.imgUrl
+    // Force builder with only img_url so productImageFrom does not pick the shorter image field first
+    const forcedFromImgUrl = rawImgUrl ? productImageFrom({ img_url: rawImgUrl }) || normalizeApiImage(rawImgUrl) : undefined
+    const fallback = productImageFrom(p) || normalizeApiImage(pickImage(p) || '') || logoImg
+    const image = forcedFromImgUrl || fallback || logoImg
+    const rating = Number((p as any)?.rating || (p as any)?.stars || 4)
+    const reviews = Number((p as any)?.reviews_count || (p as any)?.reviews || 0)
+    const brand = brandOf(p) || 'GAPA'
+    const price = Number((p as any)?.price || (p as any)?.selling_price || (p as any)?.amount || 0)
+    return { id, title, image, rating, reviews, brand, price }
+  }
 
   // Derived values for drill-down (must not be inside conditionals to respect Hooks rules)
   const filteredSubProducts = useMemo(() => {
@@ -973,12 +979,9 @@ function CarPartsInner() {
                   <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
                     {filteredSearchResults.map((p: ApiProduct, i: number) => {
                       const ui = toUiProduct(p, i)
-                      const wished = wishlist.has(ui.id)
+                      // Wishlist handled inside ProductCard; removed external duplicate heart icon
                       return (
-                        <li key={ui.id} className="relative">
-                          <div className="absolute right-2 top-2 z-10">
-                            <WishlistButton size={18} active={wished} onToggle={(active) => { wishlist.toggle(ui.id); if (active) toast.success('Added to wishlist') }} />
-                          </div>
+                        <li key={ui.id}>
                           <ProductCard product={ui} />
                         </li>
                       )

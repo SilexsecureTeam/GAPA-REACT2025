@@ -2,7 +2,7 @@ import Rating from './Rating'
 import WishlistButton from './WishlistButton'
 import useWishlist from '../hooks/useWishlist'
 import { Link } from 'react-router-dom'
-import { normalizeApiImage } from '../services/images'
+import { normalizeApiImage, productImageFrom } from '../services/images'
 import  logoImg from '../assets/gapa-logo.png'
 import { toast } from 'react-hot-toast'
 
@@ -18,9 +18,10 @@ export type Product = {
 
 export type ProductCardProps = {
   product: Product
+  hideWishlistButton?: boolean
 }
 
-export default function ProductCard({ product }: ProductCardProps) {
+export default function ProductCard({ product, hideWishlistButton }: ProductCardProps) {
   const wishlist = useWishlist()
   const isFav = wishlist.has(product.id)
   const toSlug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
@@ -33,7 +34,15 @@ export default function ProductCard({ product }: ProductCardProps) {
   const base = `/parts/${derivedBrand}/${partSlug}`
   const to = `${base}?pid=${encodeURIComponent(product.id)}`
 
-  const imgSrc = normalizeApiImage(product.image) || logoImg
+  // Use productImageFrom path logic if original image looks relative/placeholder
+  const directImg = product.image
+  const imgSrc = productImageFrom({ image: directImg }) || normalizeApiImage(directImg) || logoImg
+
+  const handleToggle = (nextActive: boolean) => {
+    wishlist.toggle(product.id)
+    if (nextActive) toast.success('Added to wishlist')
+    else toast('Removed from wishlist', { icon: '💔' })
+  }
 
   return (
     <div className="group relative rounded-md bg-[#F6F5FA] p-4 ring-1 ring-black/5 transition hover:bg-white hover:shadow-sm">
@@ -42,7 +51,9 @@ export default function ProductCard({ product }: ProductCardProps) {
           <Link to={to} className="block truncate text-[14px] font-semibold text-gray-900 hover:underline">{product.title}</Link>
           <Rating value={product.rating} className="mt-1" />
         </div>
-        <WishlistButton active={isFav} onToggle={(active) => { wishlist.toggle(product.id); if (active) toast.success('Added to wishlist') }} />
+        {!hideWishlistButton && (
+          <WishlistButton active={isFav} onToggle={handleToggle} />
+        )}
       </div>
       <div className="mb-4">
         <Link to={to} className="inline-flex items-center gap-1 text-[14px] text-gray-700 hover:text-gray-900">
@@ -62,8 +73,6 @@ export default function ProductCard({ product }: ProductCardProps) {
           className="h-full w-full object-contain transition-transform duration-300 group-hover:scale-105"
         />
       </Link>
-
-      
     </div>
   )
 }
