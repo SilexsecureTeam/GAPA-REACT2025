@@ -10,6 +10,7 @@ import { getPersistedVehicleFilter, vehicleMatches as sharedVehicleMatches, type
 import WishlistButton from '../components/WishlistButton'
 import useWishlist from '../hooks/useWishlist'
 import { toast } from 'react-hot-toast'
+import TopBrands from '../components/TopBrands'
 
 // Helpers
 const toSlug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
@@ -113,17 +114,17 @@ export default function CarPartDetails() {
   // Load catalog + categories
   useEffect(() => {
     let alive = true
-    ;(async () => {
-      try {
-        setLoading(true)
-        const [all, cats] = await Promise.allSettled([getAllProducts(), getAllCategories()])
-        if (!alive) return
-        if (all.status === 'fulfilled') setProducts(Array.isArray(all.value) ? all.value : [])
-        if (cats.status === 'fulfilled') setCategories(Array.isArray(cats.value) ? cats.value : [])
-      } finally {
-        if (alive) setLoading(false)
-      }
-    })()
+      ; (async () => {
+        try {
+          setLoading(true)
+          const [all, cats] = await Promise.allSettled([getAllProducts(), getAllCategories()])
+          if (!alive) return
+          if (all.status === 'fulfilled') setProducts(Array.isArray(all.value) ? all.value : [])
+          if (cats.status === 'fulfilled') setCategories(Array.isArray(cats.value) ? cats.value : [])
+        } finally {
+          if (alive) setLoading(false)
+        }
+      })()
     return () => { alive = false }
   }, [])
 
@@ -131,32 +132,32 @@ export default function CarPartDetails() {
   useEffect(() => {
     let alive = true
     if (!q || pid) return
-    ;(async () => {
-      try {
-        const res = await liveSearch(q)
-        if (!alive) return
-        const list = Array.isArray(res) ? res : (res as any)?.data
-        const items = Array.isArray(list) ? list : []
-        if (items.length > 0) {
-          const first = items[0]
-          // Prefer product_id
-          const firstId = String((first as any)?.product_id || (first as any)?.id || '')
-          if (firstId) {
-            const brandSlug = brand ? toSlug(brand) : toSlug(brandOf(first)) || 'gapa'
-            const partSlug = part ? toSlug(part) : toSlug(categoryOf(first)) || 'parts'
-            setSearchParams((prev) => {
-              const next = new URLSearchParams(prev)
-              next.set('pid', firstId)
-              next.delete('q')
-              return next
-            }, { replace: true })
-            navigate(`/parts/${brandSlug}/${partSlug}?pid=${encodeURIComponent(firstId)}`, { replace: true })
+      ; (async () => {
+        try {
+          const res = await liveSearch(q)
+          if (!alive) return
+          const list = Array.isArray(res) ? res : (res as any)?.data
+          const items = Array.isArray(list) ? list : []
+          if (items.length > 0) {
+            const first = items[0]
+            // Prefer product_id
+            const firstId = String((first as any)?.product_id || (first as any)?.id || '')
+            if (firstId) {
+              const brandSlug = brand ? toSlug(brand) : toSlug(brandOf(first)) || 'gapa'
+              const partSlug = part ? toSlug(part) : toSlug(categoryOf(first)) || 'parts'
+              setSearchParams((prev) => {
+                const next = new URLSearchParams(prev)
+                next.set('pid', firstId)
+                next.delete('q')
+                return next
+              }, { replace: true })
+              navigate(`/parts/${brandSlug}/${partSlug}?pid=${encodeURIComponent(firstId)}`, { replace: true })
+            }
           }
+        } catch {
+          // ignore search errors
         }
-      } catch {
-        // ignore search errors
-      }
-    })()
+      })()
     return () => { alive = false }
   }, [q, pid, brand, part, setSearchParams, navigate])
 
@@ -184,21 +185,21 @@ export default function CarPartDetails() {
   // Fetch details + related when pid is present (selected product)
   useEffect(() => {
     let alive = true
-    ;(async () => {
-      try {
-        if (!pid) { setSelected(null); setSelectedRaw(null); setRelated([]); return }
-        const detail = await getProductById(pid)
-        if (!alive) return
-        setSelectedRaw(detail)
-        setSelected(mapApiToUi(detail))
-        const rel = await getRelatedProducts(pid)
-        if (!alive) return
-        setRelated(Array.isArray(rel) ? rel : [])
-      } catch {
-        if (!alive) return
-        setRelated([])
-      }
-    })()
+      ; (async () => {
+        try {
+          if (!pid) { setSelected(null); setSelectedRaw(null); setRelated([]); return }
+          const detail = await getProductById(pid)
+          if (!alive) return
+          setSelectedRaw(detail)
+          setSelected(mapApiToUi(detail))
+          const rel = await getRelatedProducts(pid)
+          if (!alive) return
+          setRelated(Array.isArray(rel) ? rel : [])
+        } catch {
+          if (!alive) return
+          setRelated([])
+        }
+      })()
     return () => { alive = false }
   }, [pid])
 
@@ -282,7 +283,7 @@ export default function CarPartDetails() {
   const categoryImage = useMemo(() => {
     // Prefer selected product's category
     const raw = selectedRaw && (selectedRaw as any).part ? (selectedRaw as any).part : selectedRaw
-    const catFromSelected = raw ? (typeof raw.category === 'object' ? raw.category : categories.find((c)=> String(c.id) === String(raw?.category))) : undefined
+    const catFromSelected = raw ? (typeof raw.category === 'object' ? raw.category : categories.find((c) => String(c.id) === String(raw?.category))) : undefined
     const imgFromSelected = catFromSelected ? (categoryImageFrom(catFromSelected) || normalizeApiImage(pickImage(catFromSelected) || '')) : undefined
     if (imgFromSelected) return imgFromSelected
     // Else, try to match by URL part slug
@@ -315,9 +316,7 @@ export default function CarPartDetails() {
     // Wishlist status for this item
     const wished = wishlistHas(ui.id)
 
-    // NEW: collapsible toggles for compatibility and OEM sections (closed by default)
-    const [compatExpanded, setCompatExpanded] = useState(false)
-    const [oemExpanded, setOemExpanded] = useState(false)
+    // Removed old expand/collapse booleans in favor of tabbed/accordion UI
 
     // Parse compatible vehicles and OEM codes from the raw product
     const compatList = useMemo(() => {
@@ -327,7 +326,7 @@ export default function CarPartDetails() {
       const out: string[] = []
       const pushItem = (item: any) => {
         if (!item) return
-        if (typeof item === 'string') { item.split(/\n+/).map((s)=>s.trim()).filter(Boolean).forEach((s)=>out.push(s)); return }
+        if (typeof item === 'string') { item.split(/\n+/).map((s) => s.trim()).filter(Boolean).forEach((s) => out.push(s)); return }
         if (Array.isArray(item)) { item.forEach(pushItem); return }
         if (typeof item === 'object') { Object.values(item).forEach(pushItem as any); return }
         out.push(String(item))
@@ -397,6 +396,12 @@ export default function CarPartDetails() {
     }, [rawSrc])
 
     const [copiedOEM, setCopiedOEM] = useState<number | null>(null)
+    // NEW: stable brand logo state to avoid flicker when original image 404s
+    const [brandLogoSrc, setBrandLogoSrc] = useState(ui.brandLogo)
+    useEffect(() => { setBrandLogoSrc(ui.brandLogo) }, [ui.brandLogo])
+
+    // NEW: tab to switch between Vehicles and OEM sections + native accordions for reliability
+    const [infoTab, setInfoTab] = useState<'vehicles' | 'oem'>('vehicles')
 
     const inc = () => setQty((v) => (pairsYes ? 2 : Math.min(v + 1, 99)))
     const dec = () => setQty((v) => (pairsYes ? 2 : Math.max(v - 1, 1)))
@@ -434,14 +439,14 @@ export default function CarPartDetails() {
           </div>
         )}
         <div className="grid gap-6 lg:grid-cols-7">
-          <aside className="rounded-lg bg-[#F6F5FA] p-6 lg:col-span-3">
+          <aside className="rounded-lg p-6 row-span-2 lg:col-span-3">
             <div className="flex items-center justify-center rounded-lg bg-[#F6F5FA] p-6">
-              <img src={mainImage} alt={ui.name} className="h-[320px] w-auto object-contain" onError={(e)=>{(e.currentTarget as HTMLImageElement).src=logoImg}} />
+              <img src={mainImage} alt={ui.name} className="h-[320px] w-auto object-contain" onError={(e) => { (e.currentTarget as HTMLImageElement).src = logoImg }} />
             </div>
             <div className="mt-3 grid grid-cols-4 gap-2">
               {ui.gallery.map((g, i) => (
-                <button key={i} onClick={() => setActiveIdx(i)} className={`flex items-center justify-center rounded-lg bg-[#F6F5FA] p-2 ring-1 ring-black/10 ${i===activeIdx ? 'outline-2 outline-accent' : ''}`} aria-label={`Preview ${i+1}`}>
-                  <img src={g} alt={`Preview ${i+1}`} className="h-14 w-auto object-contain" onError={(e)=>{(e.currentTarget as HTMLImageElement).src=logoImg}} />
+                <button key={i} onClick={() => setActiveIdx(i)} className={`flex items-center justify-center rounded-lg bg-[#F6F5FA] p-2 ring-1 ring-black/10 ${i === activeIdx ? 'outline-2 outline-accent' : ''}`} aria-label={`Preview ${i + 1}`}>
+                  <img src={g} alt={`Preview ${i + 1}`} className="h-14 w-auto object-contain" onError={(e) => { (e.currentTarget as HTMLImageElement).src = logoImg }} />
                 </button>
               ))}
             </div>
@@ -449,12 +454,11 @@ export default function CarPartDetails() {
 
           <div className="space-y-3 col-span-2">
             <div className="flex items-start gap-2">
-              <img src={ui.brandLogo} alt={ui.brand} className="h-6 w-auto" onError={(e)=>{(e.currentTarget as HTMLImageElement).src=logoImg}} />
+              {/* Use stateful brand logo to avoid infinite onError loop */}
+              <img src={brandLogoSrc} alt={ui.brand} className="h-6 w-auto" onError={() => { if (brandLogoSrc !== logoImg) setBrandLogoSrc(logoImg) }} />
               <div className="ml-auto flex items-center gap-2">
                 <WishlistButton ariaLabel={wished ? 'Remove from wishlist' : 'Add to wishlist'} size={22} active={wished} onToggle={(active) => { wishlistToggle(ui.id); if (active) toast.success('Added to wishlist') }} />
-                <div className="text-right text-[12px] text-gray-500">
-                  <div>Article No: {ui.articleNo}</div>
-                </div>
+
               </div>
             </div>
             <h2 className="text-[18px] font-semibold text-gray-900">{ui.name}</h2>
@@ -488,129 +492,109 @@ export default function CarPartDetails() {
             </button>
             <div className="mt-2 text-center text-[12px] text-purple-700">{ui.inStock ? 'In Stock' : 'Out of stock'}</div>
           </aside>
-          {/* Full-width sections: Description, Compatible Vehicles, OEM Numbers */}
-        <div className="mt-5 space-y-4 lg:col-span-4">
-          {ui.description && (
-            <section className="rounded-lg bg-[#F6F5FA] p-4 ring-1 ring-black/10">
-              <h3 className="text-[14px] font-semibold text-gray-900">Description</h3>
-              <p className="mt-2 text-[13px] leading-relaxed text-gray-700">{ui.description}</p>
-            </section>
-          )}
+          {/* Full-width sections: Description + Tabbed panel for Vehicles/OEM */}
+          <div className="mt-5 space-y-4 lg:col-span-4">
+            {ui.description && (
+              <section className="rounded-lg bg-[#F6F5FA] p-4 ring-1 ring-black/10">
+                <h3 className="text-[14px] font-semibold text-gray-900">Description</h3>
+                <p className="mt-2 text-[13px] leading-relaxed text-gray-700">{ui.description}</p>
+              </section>
+            )}
 
-          {Object.keys(compatTree).length > 0 && (
-            <section className="rounded-lg bg-white p-0 ring-1 ring-black/10">
-              <button
-                type="button"
-                onClick={() => setCompatExpanded((v) => !v)}
-                aria-expanded={compatExpanded}
-                className="flex w-full items-center justify-between px-4 py-3"
-              >
-                <div className="flex items-center gap-2">
-                  <h3 className="text-[14px] font-semibold text-gray-900">Compatible Vehicles</h3>
-                  <span className="text-[12px] text-gray-600">({compatList.length} entries)</span>
+            {(Object.keys(compatTree).length > 0 || oemList.length > 0) && (
+              <section className="rounded-lg bg-white p-0 ring-1 ring-black/10">
+                {/* Tabs */}
+                <div className="flex items-center gap-2 border-b border-black/10 bg-gray-50 px-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setInfoTab('oem')}
+                    className={`rounded-t-md px-3 py-2 text-[12px] font-medium ${infoTab==='oem' ? 'bg-white text-gray-900 ring-1 ring-black/10' : 'text-gray-600 hover:text-gray-800'}`}
+                  >OEM Part Numbers</button>
+                  <button
+                    type="button"
+                    onClick={() => setInfoTab('vehicles')}
+                    className={`rounded-t-md px-3 py-2 text-[12px] font-medium ${infoTab==='vehicles' ? 'bg-white text-gray-900 ring-1 ring-black/10' : 'text-gray-600 hover:text-gray-800'}`}
+                  >Suitable vehicles</button>
                 </div>
-                <svg
-                  width="18"
-                  height="18"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className={`transition-transform ${compatExpanded ? 'rotate-180' : ''}`}
-                >
-                  <path d="M6 9l6 6 6-6" />
-                </svg>
-              </button>
-              {compatExpanded && (
-                <div className="px-4 pb-4">
-                  <div className="mt-1 grid grid-cols-1 gap-3 md:grid-cols-2">
-                    {Object.keys(compatTree).sort().map((maker) => {
-                      const models = compatTree[maker] || {}
-                      return (
-                        <details key={maker} className="rounded-md border border-black/10 bg-[#F6F5FA] p-3" open>
-                          <summary className="cursor-pointer list-none text-[13px] font-semibold text-gray-900">
-                            {maker} <span className="ml-1 text-[11px] font-normal text-gray-600">({Object.keys(models).length} models)</span>
-                          </summary>
-                          <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                            {Object.keys(models).sort().map((model) => {
-                              const detailsList = models[model]
-                              return (
-                                <div key={maker + '::' + model} className="rounded-md bg-white p-2 ring-1 ring-black/5">
-                                  <div className="text-[12px] font-medium text-gray-900">{model}</div>
-                                  {detailsList && detailsList.length > 0 ? (
-                                    <ul className="mt-1 list-disc pl-5 text-[12px] text-gray-800">
-                                      {detailsList.map((d, i) => (<li key={i}>{d}</li>))}
-                                    </ul>
-                                  ) : (
-                                    <div className="mt-1 text-[12px] text-gray-600">No additional details</div>
-                                  )}
+
+                {/* Panel content */}
+                <div className="max-h-96 overflow-auto p-3">
+                  {infoTab === 'vehicles' ? (
+                    <div className="space-y-3">
+                      {/* If tree parsing failed, show flat list */}
+                      {Object.values(compatTree).every(models => Object.keys(models).length === 0) ? (
+                        <ul className="list-disc pl-5 text-[12px] text-gray-800">
+                          {compatList.map((c, i) => (<li key={i}>{c}</li>))}
+                        </ul>
+                      ) : (
+                        <div className="space-y-3">
+                          {Object.keys(compatTree).sort().map((maker) => {
+                            const models = compatTree[maker] || {}
+                            return (
+                              <details key={maker} className="rounded-md border border-black/10 bg-[#F6F5FA] p-0" open>
+                                <summary className="flex cursor-pointer list-none items-center justify-between px-3 py-2 text-[13px] font-semibold text-gray-900">
+                                  <span>{maker}</span>
+                                  <span className="text-gray-500">▾</span>
+                                </summary>
+                                <div className="px-3 pb-3">
+                                  {Object.keys(models).sort().map((model) => {
+                                    const detailsList = models[model]
+                                    return (
+                                      <details key={maker + '::' + model} className="mb-2 rounded border border-black/10 bg-white">
+                                        <summary className="flex cursor-pointer list-none items-center justify-between px-3 py-2 text-[12px] font-medium text-gray-900">
+                                          <span>{model}</span>
+                                          <span className="text-gray-500">▾</span>
+                                        </summary>
+                                        <div className="px-3 pb-2">
+                                          {detailsList && detailsList.length > 0 ? (
+                                            <ul className="list-disc pl-5 text-[12px] text-gray-800">
+                                              {detailsList.map((d, i) => (<li key={i}>{d}</li>))}
+                                            </ul>
+                                          ) : (
+                                            <div className="text-[12px] text-gray-600">No additional details</div>
+                                          )}
+                                        </div>
+                                      </details>
+                                    )
+                                  })}
                                 </div>
-                              )
-                            })}
-                          </div>
-                        </details>
-                      )
-                    })}
-                  </div>
+                              </details>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="mt-1 flex flex-wrap gap-2">
+                      {oemList.map((code, i) => (
+                        <span key={i} className="inline-flex items-center gap-2 rounded bg-[#F6F5FA] px-2 py-1 text-[12px] ring-1 ring-black/10">
+                          <span>{code}</span>
+                          <button
+                            type="button"
+                            className="inline-flex items-center rounded bg-white px-1.5 py-0.5 text-[11px] ring-1 ring-black/10 hover:bg-gray-50"
+                            onClick={async () => {
+                              try {
+                                await navigator.clipboard.writeText(code)
+                                setCopiedOEM(i)
+                                setTimeout(() => setCopiedOEM((prev) => (prev === i ? null : prev)), 1200)
+                              } catch {}
+                            }}
+                            aria-label={`Copy ${code}`}
+                          >{copiedOEM === i ? 'Copied' : 'Copy'}</button>
+                        </span>
+                      ))}
+                      {oemList.length === 0 && (
+                        <div className="text-[12px] text-gray-600">No OEM numbers available</div>
+                      )}
+                    </div>
+                  )}
                 </div>
-              )}
-            </section>
-          )}
-
-          {oemList.length > 0 && (
-            <section className="rounded-lg bg-white p-0 ring-1 ring-black/10">
-              <button
-                type="button"
-                onClick={() => setOemExpanded((v) => !v)}
-                aria-expanded={oemExpanded}
-                className="flex w-full items-center justify-between px-4 py-3"
-              >
-                <h3 className="text-[14px] font-semibold text-gray-900">OEM Numbers</h3>
-                <svg
-                  width="18"
-                  height="18"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className={`transition-transform ${oemExpanded ? 'rotate-180' : ''}`}
-                >
-                  <path d="M6 9l6 6 6-6" />
-                </svg>
-              </button>
-              {oemExpanded && (
-                <div className="px-4 pb-4">
-                  <div className="mt-1 flex flex-wrap gap-2">
-                    {oemList.map((code, i) => (
-                      <span key={i} className="inline-flex items-center gap-2 rounded bg-[#F6F5FA] px-2 py-1 text-[12px] ring-1 ring-black/10">
-                        <span>{code}</span>
-                        <button
-                          type="button"
-                          className="inline-flex items-center rounded bg-white px-1.5 py-0.5 text-[11px] ring-1 ring-black/10 hover:bg-gray-50"
-                          onClick={async () => {
-                            try {
-                              await navigator.clipboard.writeText(code)
-                              setCopiedOEM(i)
-                              setTimeout(() => setCopiedOEM((prev) => (prev === i ? null : prev)), 1200)
-                            } catch {}
-                          }}
-                          aria-label={`Copy ${code}`}
-                        >{copiedOEM === i ? 'Copied' : 'Copy'}</button>
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </section>
-          )}
-        </div>
+              </section>
+            )}
+          </div>
         </div>
 
-    
+
 
         {/* Fixed popup confirmation */}
         {showPopup && (
@@ -639,41 +623,48 @@ export default function CarPartDetails() {
 
       <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
         <aside>
-          <VehicleFilter onChange={(s)=> setVehFilter(s)} />
+          <VehicleFilter onChange={(s) => setVehFilter(s)} />
           {categoryImage && (
             <div className="mt-4 rounded-lg bg-[#F6F5FA] p-3 ring-1 ring-black/10">
-              <img src={categoryImage} alt="Category" className="mx-auto h-28 w-auto object-contain" onError={(e)=>{(e.currentTarget as HTMLImageElement).src=logoImg}} />
+              <img src={categoryImage} alt="Category" className="mx-auto h-28 w-auto object-contain" onError={(e) => { (e.currentTarget as HTMLImageElement).src = logoImg }} />
             </div>
           )}
         </aside>
 
         <main className="space-y-6">
           {selected && selectedRaw ? (
-            <ProductPanel ui={selected} isSelected raw={selectedRaw} />
+            <>
+              {/* <TopBrands /> */}
+              <ProductPanel ui={selected} isSelected raw={selectedRaw} />
+            </>
           ) : (
-            <section className="rounded-xl bg-white p-4 ring-1 ring-black/10">
-              <div className="mb-3 flex items-center justify-between">
-                <h3 className="text-[14px] font-semibold text-gray-900">Results</h3>
-                <span className="text-[12px] text-gray-600">{results.length} items</span>
-              </div>
-              {zeroResults ? (
-                <div className="text-[13px] text-gray-700">No products match your selection.</div>
-              ) : (
-                <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-3">
-                  {results.map((r) => (
-                    <button key={r.id} onClick={() => onViewProduct(r.id, r.raw)} className="text-left">
-                      <div className="rounded-lg bg-white p-2 ring-1 ring-black/10 hover:shadow">
-                        <div className="flex items-center justify-center rounded bg-[#F6F5FA] p-3">
-                          <img src={r.image} alt={r.title} className="h-28 w-auto object-contain" onError={(e)=>{(e.currentTarget as HTMLImageElement).src=logoImg}} />
-                        </div>
-                        <div className="mt-2 text-[12px] font-medium text-gray-900 line-clamp-2">{r.title}</div>
-                        <div className="mt-1 text-[12px] text-gray-600">₦{r.price.toLocaleString('en-NG')}</div>
-                      </div>
-                    </button>
-                  ))}
+            <>
+
+              <section className="rounded-xl bg-white p-4 ring-1 ring-black/10">
+                {zeroResults ? <TopBrands /> : null}
+                <div className="mb-3 flex items-center justify-between">
+                  <h3 className="text-[14px] font-semibold text-gray-900">Results</h3>
+                  <span className="text-[12px] text-gray-600">{results.length} items</span>
                 </div>
-              )}
-            </section>
+                {zeroResults ? (
+                  <div className="text-[13px] text-gray-700">No products match your selection.</div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-3">
+                    {results.map((r) => (
+                      <button key={r.id} onClick={() => onViewProduct(r.id, r.raw)} className="text-left">
+                        <div className="rounded-lg bg-white p-2 ring-1 ring-black/10 hover:shadow">
+                          <div className="flex items-center justify-center rounded bg-[#F6F5FA] p-3">
+                            <img src={r.image} alt={r.title} className="h-28 w-auto object-contain" onError={(e) => { (e.currentTarget as HTMLImageElement).src = logoImg }} />
+                          </div>
+                          <div className="mt-2 text-[12px] font-medium text-gray-900 line-clamp-2">{r.title}</div>
+                          <div className="mt-1 text-[12px] text-gray-600">₦{r.price.toLocaleString('en-NG')}</div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </section>
+            </>
           )}
 
           {/* Compatible alternatives first if available */}

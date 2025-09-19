@@ -1,0 +1,205 @@
+API Integration Documentation
+Overview
+This document provides detailed instructions on how to integrate with the Agility Systems Third Party API. The API allows for the creation and management of shipments.
+
+Base URLs
+Production Environment: https://prod-agilitythirdpartyapi.theagilitysystems.com/api/ThirdParty
+
+Development Environment: https://dev-agilitythirdpartyapi.theagilitysystems.com/api/thirdparty
+
+NOTE: YOU CAN ONLY WORK DEVELOPMENT ENVIRONMENT AT THE TEST PHASE.
+
+
+Authentication
+To use the API, you must first authenticate and obtain a token. This token is required for accessing other endpoints.
+
+Authentication Endpoint
+URL: https://dev-agilitythirdpartyapi.theagilitysystems.com/api/thirdparty/login
+Method: POST
+Request Body:
+
+THE DEVELOPMENT ENVIRONMENT:
+{
+  "username": "testaccount@yahoo.com",
+  "password": "loving",
+  "sessionObj": "string"
+}
+FOR PRODUCTION (AFTER WE HAVE GIVEN YOU THIRD PARTY ACCES)
+{
+  "username": "your-email@example.com",
+  "password": "your-password",
+  "sessionObj": "string"
+}
+
+Response:
+{
+  "token": "your-authentication-token"
+}
+Replace "your-email@example.com" with your email address.
+Replace "your-password" with your password.
+The token received in the response should be included in the headers of subsequent API requests.
+
+Endpoints
+Get Shipping Price
+URL: https://prod-agilitythirdpartyapi.theagilitysystems.com/api/ThirdParty/price
+Method: POST
+Headers
+{
+  "Authorization[Bearer Token]": " your-authentication-token",
+  "Content-Type": "application/json"
+}
+
+Request Body:
+{
+  "PreShipmentMobileId": 0,
+  "SenderName": "TEST ECOMMERCE IT",
+  "SenderPhoneNumber": "+2347063965528",
+  "SenderStationId": 1,
+  "InputtedSenderAddress": "21 Emmanuel Olorunfemi St, Ifako Agege, Lagos, Nigeria",
+  "SenderLocality": "Ifako Ijaye",
+  "ReceiverStationId": 1,
+  "SenderAddress": "21 Emmanuel Olorunfemi St, Ifako Agege, Lagos, Nigeria",
+  "ReceiverName": "Ehinomen",
+  "ReceiverPhoneNumber": "08039322440",
+  "ReceiverAddress": "Dominos Pizza Gbagada,1A Idowu Olaitan St, Gbagada, Lagos, Nigeria",
+  "InputtedReceiverAddress": "Dominos Pizza Gbagada,1A Idowu Olaitan St, Gbagada, Lagos, Nigeria",
+  "SenderLocation": {
+      "Latitude": "6.639438",
+      "Longitude": "3.330983",
+      "FormattedAddress": "",
+      "Name": "",
+      "LGA": ""
+  },
+  "ReceiverLocation": {
+      "Latitude": "6.5483775",
+      "Longitude": "3.3883414",
+      "FormattedAddress": "",
+      "Name": "",
+      "LGA": ""
+  },
+  "PreShipmentItems": [
+      {
+          "PreShipmentItemMobileId": 0,
+          "Description": "Sample description",
+          "Weight": 1,
+          "Weight2": 0,
+          "ItemType": "Normal",
+          "ShipmentType": 1,
+          "ItemName": "Shoe Lace",
+          "EstimatedPrice": 0,
+          "Value": "1000",
+          "ImageUrl": "",
+          "Quantity": 1,
+          "SerialNumber": 0,
+          "IsVolumetric": false,
+          "Length": null,
+          "Width": null,
+          "Height": null,
+          "PreShipmentMobileId": 0,
+          "CalculatedPrice": null,
+          "SpecialPackageId": null,
+          "IsCancelled": false,
+          "PictureName": "",
+          "PictureDate": null,
+          "WeightRange": "0"
+      }
+  ],
+  "VehicleType": "BIKE",
+  "IsBatchPickUp": false,
+  "WaybillImage": "",
+  "WaybillImageFormat": "",
+  "DestinationServiceCenterId": 0,
+  "DestinationServiceCentreId": 0,
+  "IsCashOnDelivery": false,
+  "CashOnDeliveryAmount": 0.00
+}
+
+Capture Shipment
+URL: https://prod-agilitythirdpartyapi.theagilitysystems.com/api/ThirdParty/captureshipment
+Method: POST
+Headers
+
+{
+  "Authorization[Bearer Token]": " your-authentication-token",
+  "Content-Type": "application/json"
+}
+
+Request Body
+{
+  "PreShipmentMobileId": 0,
+  "SenderName": "TEST ECOMMERCE IT",
+  "SenderPhoneNumber": "+2347063965528",
+  "SenderStationId": 1,
+  "InputtedSenderAddress": "21 Emmanuel Olorunfemi St, Ifako Agege, Lagos, Nigeria",
+  "SenderLocality": "Ifako Ijaye",
+  "ReceiverStationId": 1,
+  "SenderAddress": "21 Emmanuel Olorunfemi St, Ifako Agege, Lagos, Nigeria",
+  "ReceiverName": "Ehinomen",
+  "ReceiverPhoneNumber": "08039322440",
+  "ReceiverAddress": "Dominos Pizza Gbagada,1A Idowu Olaitan St, Gbagada, Lagos, Nigeria",
+  "InputtedReceiverAddress": "Dominos Pizza Gbagada,1A Idowu Olaitan St, Gbagada, Lagos, Nigeria",
+  "SenderLocation": {
+      "Latitude": "6.639438",
+      "Longitude": "3.330983",
+      "FormattedAddress": "",
+      "Name": "",
+      "LGA": ""
+  },
+  "ReceiverLocation": {
+      "Latitude": "6.5483775",
+      "Longitude": "3.3883414",
+      "FormattedAddress": "",
+      "Name": "",
+      "LGA": ""
+  },
+  "PreShipmentItems": [
+      {
+          "PreShipmentItemMobileId": 0,
+          "Description": "Sample description",
+          "Weight": 1,
+          "Weight2": 0,
+          "ItemType": "Normal",
+          "ShipmentType": 1,
+          "ItemName": "Shoe Lace",
+          "EstimatedPrice": 0,
+          "Value": "1000",
+          "ImageUrl": "",
+          "Quantity": 1,
+          "SerialNumber": 0,
+          "IsVolumetric": false,
+          "Length": null,
+          "Width": null,
+          "Height": null,
+          "PreShipmentMobileId": 0,
+          "CalculatedPrice": null,
+          "SpecialPackageId": null,
+          "IsCancelled": false,
+          "PictureName": "",
+          "PictureDate": null,
+          "WeightRange": "0"
+      }
+  ],
+  "VehicleType": "BIKE",
+  "IsBatchPickUp": false,
+  "WaybillImage": "",
+  "WaybillImageFormat": "",
+  "DestinationServiceCenterId": 0,
+  "DestinationServiceCentreId": 0,
+  "IsCashOnDelivery": false,
+  "CashOnDeliveryAmount": 0.00
+}
+
+Example Usage
+Step 1: Authentication
+Send a POST request to the authentication endpoint to get the token.
+Use the token received in the response in the headers of all subsequent requests.
+Step 2: Get Shipping Price
+Send a POST request to the /price endpoint with the shipment details.
+Include the authentication token in the headers.
+Step 3: Capture Shipment
+Send a POST request to the /captureshipment endpoint with the shipment details.
+Include the authentication token in the headers.
+Notes
+Replace placeholders such as your-email@example.com, your-password
+Ensure to use the correct Base URL for the environment you are working in (production or development).
+This document should help you integrate with the Agility Systems Third Party API. If you have any questions or need further assistance, please let me know

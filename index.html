@@ -13,10 +13,15 @@
 
     <!-- Runtime env injection (no raw Vite env placeholders here) -->
     <script type="module">
-      const key = import.meta.env?.VITE_PAYSTACK_PUBLIC_KEY;
-      if (key && typeof key === 'string') {
-        window.PAYSTACK_PUBLIC_KEY = key;
-        window.VITE_PAYSTACK_PUBLIC_KEY = key; // legacy access
+      const paystack = import.meta.env?.VITE_PAYSTACK_PUBLIC_KEY;
+      if (paystack && typeof paystack === 'string') {
+        window.PAYSTACK_PUBLIC_KEY = paystack;
+        window.VITE_PAYSTACK_PUBLIC_KEY = paystack; // legacy access
+      }
+      const flw = import.meta.env?.VITE_FLUTTER_PUBLIC_KEY || import.meta.env?.FLUTTER_PUBLIC_TEST_SK;
+      if (flw && typeof flw === 'string') {
+        window.VITE_FLUTTER_PUBLIC_KEY = flw;
+        window.FLUTTER_PUBLIC_TEST_SK = flw; // legacy access
       }
     </script>
   </head>

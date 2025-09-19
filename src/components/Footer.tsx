@@ -3,6 +3,7 @@ import type { FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import logo from '../assets/gapa-logo.png'
 import gigImg from '../assets/deliveryGig.png'
+// import deliveryGig from '../assets/deliveryGig.png'
 
 const BRAND = {
   primary: '#5A1E78',
@@ -177,7 +178,7 @@ export default function Footer() {
               <li><a className="hover:text-white" href="#">Email: sales@gapaautoparts.com</a></li>
             </ul>
           </div>
-          <img src={gigImg} alt="GIG Logistics" className='bg-black p-1' />
+          <img src={gigImg} alt="GIG Logistics" className='p-1' />
           
         </div>
       </div>

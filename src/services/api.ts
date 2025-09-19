@@ -447,7 +447,8 @@ export async function paymentSuccessfull(payload: { shipping_cost: number; addre
   form.set('shipping_cost', String(payload.shipping_cost ?? 0))
   form.set('pickup_location_id', payload.pickup_location_id || '')
   form.set('address', payload.address)
-  if (payload.userId !== undefined) form.set('userId', String(payload.userId))
+  // Always include userId field as requested, even if empty/guest
+  form.set('userId', String(payload.userId ?? ''))
   form.set('txn_id', payload.txn_id)
   return apiRequest<any>(ADDRESS_ENDPOINTS.paymentsuccess, { method: 'POST', body: form, auth: true })
 }
@@ -465,3 +466,107 @@ export async function getUserOrderItems(orderId: string | number) {
   const res = await apiRequest<any>(ORDER_ENDPOINTS.getUserOrderItems(orderId), { method: 'GET', auth: true })
   return unwrapArray<ApiOrderItem>(res)
 }
+
+// --- GIG Logistics Integration -------------------------------------------------
+// Environment variables (configure in .env.*):
+// VITE_GIG_BASE_URL (e.g. https://giglogistics.seamless-api.com)
+// VITE_GIG_CLIENT_ID / VITE_GIG_API_KEY
+// VITE_GIG_CLIENT_SECRET (if OAuth style) OR VITE_GIG_API_SECRET
+// VITE_GIG_ORIGIN_STATE (fallback origin state name/id)
+// The real GIG API field names may differ; adjust mapping inside getGigQuote.
+
+const GIG_BASE = (import.meta as any)?.env?.VITE_GIG_BASE_URL as string | undefined
+const GIG_KEY = (import.meta as any)?.env?.VITE_GIG_CLIENT_ID || (import.meta as any)?.env?.VITE_GIG_API_KEY
+const GIG_SECRET = (import.meta as any)?.env?.VITE_GIG_CLIENT_SECRET || (import.meta as any)?.env?.VITE_GIG_API_SECRET
+const GIG_ORIGIN_STATE = (import.meta as any)?.env?.VITE_GIG_ORIGIN_STATE || 'Lagos'
+
+let gigTokenCache: { token: string; exp: number } | null = null
+
+async function gigFetch(path: string, init: RequestInit & { auth?: boolean } = {}) {
+  if (!GIG_BASE) throw new Error('GIG base URL not configured')
+  const url = `${GIG_BASE.replace(/\/$/, '')}${path.startsWith('/') ? '' : '/'}${path}`
+  const headers: Record<string,string> = {
+    'Accept': 'application/json',
+  }
+  if (init.body && !(init.body instanceof FormData)) headers['Content-Type'] = 'application/json'
+  if (init.auth) {
+    const token = await getGigToken()
+    headers['Authorization'] = `Bearer ${token}`
+  }
+  const res = await fetch(url, { ...init, headers })
+  if (!res.ok) {
+    const text = await res.text().catch(()=> 'error')
+    throw new Error(`GIG request failed (${res.status}): ${text.slice(0,120)}`)
+  }
+  return res.json().catch(()=> ({}))
+}
+
+async function getGigToken(): Promise<string> {
+  const now = Date.now()
+  if (gigTokenCache && gigTokenCache.exp > now + 5000) return gigTokenCache.token
+  if (!GIG_KEY || !GIG_SECRET) throw new Error('GIG credentials not configured')
+  // Two common patterns: (1) OAuth token endpoint, (2) static API key (no token). We attempt OAuth first.
+  try {
+    const authRes = await fetch(`${GIG_BASE?.replace(/\/$/, '')}/oauth/token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify({
+        client_id: GIG_KEY,
+        client_secret: GIG_SECRET,
+        grant_type: 'client_credentials'
+      })
+    })
+    if (authRes.ok) {
+      const data: any = await authRes.json().catch(()=>({}))
+      const token = data.access_token || data.token
+      if (token) {
+        const expiresIn = Number(data.expires_in || 3500) * 1000
+        gigTokenCache = { token, exp: Date.now() + (expiresIn || 3600_000) }
+        return token
+      }
+    }
+  } catch {/* fall through */}
+  // Fallback: treat key itself as bearer (some APIs) or add custom header downstream.
+  gigTokenCache = { token: String(GIG_KEY), exp: Date.now() + 3600_000 }
+  return gigTokenCache.token
+}
+
+export type GigQuoteParams = {
+  destination_state: string
+  destination_city?: string
+  weight_kg?: number
+  // optional overrides
+  origin_state?: string
+}
+
+export async function getGigQuote(params: GigQuoteParams) {
+  // Adjust this mapping to actual GIG rate/quote endpoint.
+  // Example assumed endpoint: POST /v1/quotes (fictional placeholder until real doc is wired)
+  // If GIG environment is not configured, return a sensible fallback so UI can proceed.
+  if (!GIG_BASE || !GIG_KEY) {
+    const weight = Math.max(1, Number(params.weight_kg || 1))
+    const fbBase = Number(((import.meta as any)?.env?.VITE_GIG_FALLBACK_BASE))
+    const fbPerKg = Number(((import.meta as any)?.env?.VITE_GIG_FALLBACK_PER_KG))
+    const base = !isNaN(fbBase) && fbBase > 0 ? fbBase : 2500
+    const perKg = !isNaN(fbPerKg) && fbPerKg > 0 ? fbPerKg : 400
+    const amount = Math.round(base + perKg * weight)
+    return { raw: { fallback: true, note: 'GIG env not configured; using fallback pricing' }, amount }
+  }
+  const payload: any = {
+    origin_state: params.origin_state || GIG_ORIGIN_STATE,
+    destination_state: params.destination_state,
+    destination_city: params.destination_city,
+    weight: params.weight_kg || 1,
+  }
+  try {
+    const res: any = await gigFetch('/v1/quotes', { method: 'POST', auth: true, body: JSON.stringify(payload) })
+    // Normalise: look for amount / price / total
+    const amount = Number(res?.amount || res?.price || res?.total || res?.data?.amount || 0)
+    return { raw: res, amount: isNaN(amount) ? 0 : amount }
+  } catch (e) {
+    console.warn('GIG quote failed', e)
+    throw e
+  }
+}
+
+// ----------------------------------------------------------------------------

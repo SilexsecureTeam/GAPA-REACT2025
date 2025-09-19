@@ -158,5 +158,5 @@ export function brandImageFrom(obj: any): string | undefined {
 export function partnerImageFrom(obj: any): string | undefined {
   const v = firstOf(obj, ['logo', 'image', 'img_url', 'image_url', 'thumbnail', 'img'])
   // Note: API path is 'patners' as provided in spec
-  return absoluteOr('/uploads/makers_', v)
+  return absoluteOr('/uploads/salers', v)
 }

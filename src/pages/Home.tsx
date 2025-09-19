@@ -481,7 +481,7 @@ export default function Home() {
               const logo = partnerImageFrom(p) || imgOf(p)
               return (
                 <div key={`partner-logo-${String((p as any)?.id ?? i)}-${i}`} className="shrink-0">
-                  {logo ? <img src={normalizeApiImage(logo) || logoImg} alt={name} className="h-10 w-auto object-contain" onError={(e)=>{(e.currentTarget as HTMLImageElement).src=logoImg}} /> : <span className="text-[13px] font-medium">{name}</span>}
+                  {logo ? <img src={normalizeApiImage(logo) || logoImg} alt={name} className="h-20 w-auto object-contain" onError={(e)=>{(e.currentTarget as HTMLImageElement).src=logoImg}} /> : <span className="text-[13px] font-medium">{name}</span>}
                 </div>
               )
             })}

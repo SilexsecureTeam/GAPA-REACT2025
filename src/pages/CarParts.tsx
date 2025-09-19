@@ -13,6 +13,7 @@ import { getPersistedVehicleFilter, setPersistedVehicleFilter, vehicleMatches as
 import useWishlist from '../hooks/useWishlist'
 import WishlistButton from '../components/WishlistButton'
 import { toast } from 'react-hot-toast'
+// import TopBrands from '../components/TopBrands'
 
 // Error boundary to surface runtime errors on the page
 class ErrorBoundary extends React.Component<{ children?: React.ReactNode }, { hasError: boolean; error?: Error | null; info?: React.ErrorInfo | null }> {
@@ -38,7 +39,7 @@ class ErrorBoundary extends React.Component<{ children?: React.ReactNode }, { ha
       return (
         <div className="mx-auto my-6 max-w-3xl rounded-xl bg-red-50 p-4 text-red-900 ring-1 ring-red-200">
           <h2 className="text-lg font-semibold">Something went wrong on this page.</h2>
-          <p className="mt-1 text-sm">{message}</p>
+          <p className="mt-2 text-sm">{message}</p>
           {stack ? (
             <pre className="mt-3 max-h-64 overflow-auto whitespace-pre-wrap rounded bg-white/70 p-3 text-xs text-red-800 ring-1 ring-red-200">
               {stack}
@@ -164,6 +165,17 @@ function CarPartsInner() {
   // --- Shared vehicle filter (persisted across pages) ---
   const [vehFilter, setVehFilter] = useState<VehState>(() => getPersistedVehicleFilter())
   const hasVehicleFilter = useMemo(() => Boolean(vehFilter.brandName || vehFilter.modelName || vehFilter.engineName), [vehFilter])
+  // Categories where vehicle compatibility does NOT apply (Car Care=3, Accessories=4, Tools=7)
+  const NON_VEHICLE_CATEGORY_IDS = useMemo(() => new Set(['3','4','7']), [])
+
+  // Helper to extract category id (string) from product
+  const categoryIdOf = (p: any): string => {
+    const c = p?.category
+    if (!c) return ''
+    if (typeof c === 'object') return String(c.id ?? c.category_id ?? c.cat_id ?? '')
+    if (typeof c === 'number' || (typeof c === 'string' && /^\d+$/.test(c))) return String(c)
+    return ''
+  }
 
   // Detect drilldown-start flag (from home search)
   const drillFlag = searchParams.get('drill')
@@ -211,7 +223,12 @@ function CarPartsInner() {
   }, [searchResults, resolveCategoryName])
 
   // --- Vehicle compatibility matching (shared util) ---
-  const productMatchesVehicle = (p: any) => sharedVehicleMatches(p, vehFilter)
+  const productMatchesVehicle = (p: any) => {
+    if (!hasVehicleFilter) return true
+    const cid = categoryIdOf(p)
+    if (cid && NON_VEHICLE_CATEGORY_IDS.has(cid)) return true // skip filtering for non-vehicle categories
+    return sharedVehicleMatches(p, vehFilter)
+  }
 
   const filteredSearchResults = useMemo<ApiProduct[]>(() => {
     return searchResults
@@ -634,8 +651,11 @@ function CarPartsInner() {
 
   // Derived values for drill-down (must not be inside conditionals to respect Hooks rules)
   const filteredSubProducts = useMemo(() => {
+    // Do not apply vehicle filter inside non-vehicle categories
+    if (NON_VEHICLE_CATEGORY_IDS.has(String(activeCatId))) return subProducts
+    if (!hasVehicleFilter) return subProducts
     return subProducts.filter(productMatchesVehicle)
-  }, [subProducts, vehFilter])
+  }, [subProducts, vehFilter, hasVehicleFilter, activeCatId])
 
   const activeCategoryName = useMemo(() => {
     const c = categoriesById.get(String(activeCatId))
@@ -746,7 +766,7 @@ function CarPartsInner() {
             </ol>
           </nav>
 
-          {hasVehicleFilter && (
+          {hasVehicleFilter && !NON_VEHICLE_CATEGORY_IDS.has(String(activeCatId)) && (
             <div className="mt-3 rounded-md bg-[#F7CD3A]/15 px-3 py-2 text-[12px] text-gray-800 ring-1 ring-[#F7CD3A]/30">
               Selected vehicle: <strong>{[vehFilter.brandName, vehFilter.modelName, vehFilter.engineName].filter(Boolean).join(' › ')}</strong>
             </div>
@@ -757,7 +777,12 @@ function CarPartsInner() {
             {/* <aside className="rounded-xl bg-white p-4 ring-1 h-max sticky top-4 self-start"> */}
             {/* <h3 className="text-[14px] font-semibold text-gray-900">Select vehicle</h3> */}
             <div className="mt-3">
-              <VehicleFilter onSearch={(url) => navigate(url)} onChange={setVehFilter} />
+              {/* Vehicle filter hidden for NON_VEHICLE categories */}
+              {!NON_VEHICLE_CATEGORY_IDS.has(String(activeCatId)) && (
+                <div className="mt-3">
+                  <VehicleFilter onSearch={(url) => navigate(url)} onChange={setVehFilter} />
+                </div>
+              )}
             </div>
             {/* </aside> */}
 
@@ -836,7 +861,7 @@ function CarPartsInner() {
                     <div className="mt-3"><FallbackLoader label="Loading products…" /></div>
                   ) : filteredSubProducts.length === 0 ? (
                     <div className="mt-3 text-sm text-gray-700">
-                      {hasVehicleFilter ? 'No compatible products for your selected vehicle in this type. Adjust or reset the vehicle filter.' : 'No products found under this type.'}
+                      {(!NON_VEHICLE_CATEGORY_IDS.has(String(activeCatId)) && hasVehicleFilter) ? 'No compatible products for your selected vehicle in this type. Adjust or reset the vehicle filter.' : 'No products found under this type.'}
                     </div>
                   ) : (
                     <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -924,6 +949,11 @@ function CarPartsInner() {
                     Clear
                   </button>
                 ) : null}
+              </div>
+
+              {/* Vehicle filter available in search mode */}
+              <div className="mt-4">
+                <VehicleFilter onSearch={(url) => navigate(url)} onChange={setVehFilter} />
               </div>
 
               {/* Brands */}

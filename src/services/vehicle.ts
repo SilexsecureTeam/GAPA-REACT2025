@@ -40,8 +40,12 @@ export function vehicleMatches(product: any, state: VehicleFilterState): boolean
 
   // unwrap nested shape
   const src = (product && typeof product === 'object' && 'part' in product) ? (product as any).part : product
-  const rawCompat = String((src as any)?.compatibility || '')
-  const text = rawCompat.toLowerCase()
+  const rawCompatAny = (src as any)?.compatibility ?? (src as any)?.compatibilities ?? (src as any)?.vehicle_compatibility ?? (src as any)?.vehicleCompatibility ?? (src as any)?.fitment ?? (src as any)?.fitments
+
+  const text = String(rawCompatAny || '').toLowerCase()
+  // Treat universal compatibility as matching all vehicles
+  if (text.includes('universal') || text.includes('all vehicles') || text.includes('all cars') || text.includes('fits all')) return true
+
   if (!text) return true
 
   const b = brandName.trim().toLowerCase()
