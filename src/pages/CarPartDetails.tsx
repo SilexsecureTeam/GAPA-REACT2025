@@ -107,6 +107,18 @@ function ImageWithFallback({ src, alt, className }: { src: string | undefined; a
 }
 
 const RELATED_LIMIT = 24
+const INITIAL_VISIBLE_RELATED = 10
+
+// Simple in‑memory UI mapping cache to avoid recomputing galleries repeatedly
+const __productUiCache = new Map<string, ReturnType<typeof mapApiToUi>>()
+function mapApiToUiCached(p: any) {
+  const src = (p && typeof p === 'object' && 'part' in p) ? (p as any).part : p
+  const id = String(src?.product_id ?? src?.id ?? '')
+  if (id && __productUiCache.has(id)) return __productUiCache.get(id)!
+  const ui = mapApiToUi(p)
+  if (id) __productUiCache.set(id, ui)
+  return ui
+}
 
 export default function CarPartDetails() {
   const navigate = useNavigate()
@@ -122,6 +134,8 @@ export default function CarPartDetails() {
   const [selectedRaw, setSelectedRaw] = useState<any | null>(null)
   const [categories, setCategories] = useState<ApiCategory[]>([])
   const [relatedLoading, setRelatedLoading] = useState(false)
+  const [visibleCompatCount, setVisibleCompatCount] = useState(INITIAL_VISIBLE_RELATED)
+  const [visibleRelatedCount, setVisibleRelatedCount] = useState(INITIAL_VISIBLE_RELATED)
 
   // Wishlist
   const { has: wishlistHas, toggle: wishlistToggle } = useWishlist()
@@ -213,34 +227,42 @@ export default function CarPartDetails() {
 
   const zeroResults = !loading && filtered.length === 0
 
-  // Fetch details + related when pid is present (selected product)
+  // Fetch details + related when pid is present (selected product) - incremental strategy
   useEffect(() => {
     let alive = true
-    ; (async () => {
+    const relAbort = new AbortController()
+    ;(async () => {
       try {
         if (!pid) { setSelected(null); setSelectedRaw(null); setRelated([]); return }
         setRelatedLoading(true)
-        // Fetch detail & related in parallel to reduce latency
-        const detailPromise = getProductById(pid)
-        const relatedPromise = getRelatedProducts(pid).catch(() => [])
-        const [detail, rel] = await Promise.all([detailPromise, relatedPromise])
+        // 1. Fetch detail FIRST (do not wait for related) so UI renders immediately
+        const detail = await getProductById(pid)
         if (!alive) return
         setSelectedRaw(detail)
-        setSelected(mapApiToUi(detail))
-        // Defer heavy related state update to next idle frame / tick so UI paints faster
-        const schedule = (cb: () => void) => {
-          if (typeof (window as any).requestIdleCallback === 'function') {
-            ;(window as any).requestIdleCallback(cb, { timeout: 500 })
-          } else setTimeout(cb, 0)
-        }
-        schedule(() => { if (!alive) return; setRelated(Array.isArray(rel) ? rel.slice(0, RELATED_LIMIT) : []); setRelatedLoading(false) })
+        // Schedule mapping after next frame to unblock paint
+        requestAnimationFrame(() => { if (alive) setSelected(mapApiToUi(detail)) })
+        // 2. Kick off related fetch in background
+        ;(async () => {
+          try {
+            const rel = await getRelatedProducts(pid)
+            if (!alive || relAbort.signal.aborted) return
+            setRelated(Array.isArray(rel) ? rel.slice(0, RELATED_LIMIT) : [])
+          } catch {
+            if (!alive) return
+            setRelated([])
+          } finally {
+            if (alive) setRelatedLoading(false)
+          }
+        })()
       } catch {
         if (!alive) return
+        setSelected(null)
+        setSelectedRaw(null)
         setRelated([])
         setRelatedLoading(false)
       }
     })()
-    return () => { alive = false }
+    return () => { alive = false; relAbort.abort() }
   }, [pid])
 
   // Frontend-related suggestions when search fails or related API fails
@@ -290,6 +312,7 @@ export default function CarPartDetails() {
       return true
     })
   }, [finalRelated])
+  // NEW: ensure uniqueness for compatible related products (vehicle‑filtered)
   const uniqueCompatibleRelated = useMemo(() => {
     const seen = new Set<string>()
     return compatibleRelated.filter((p: any) => {
@@ -299,6 +322,8 @@ export default function CarPartDetails() {
       return true
     })
   }, [compatibleRelated])
+  const compatSlice = useMemo(() => uniqueCompatibleRelated.slice(0, visibleCompatCount), [uniqueCompatibleRelated, visibleCompatCount])
+  const relatedSlice = useMemo(() => uniqueFinalRelated.slice(0, visibleRelatedCount), [uniqueFinalRelated, visibleRelatedCount])
 
   // When a user clicks a result, request details, then navigate and update pid
   const onViewProduct = async (id: string, p: any) => {
@@ -316,9 +341,7 @@ export default function CarPartDetails() {
 
   // Map to UI and optionally highlight selection
   const results = useMemo(() => filtered.map((p, i) => ({
-    // Use product_id first
     id: String(p?.product_id ?? p?.id ?? i),
-    // Prefer part_name
     title: String(p?.part_name || p?.name || p?.title || p?.product_name || 'Car Part'),
     image: productImageFrom(p) || normalizeApiImage(pickImage(p) || '') || logoImg,
     rating: Number(p?.rating || 4),
@@ -726,15 +749,24 @@ export default function CarPartDetails() {
                 <h3 className="text-[14px] font-semibold text-gray-900">Compatible Alternatives</h3>
                 <span className="text-[12px] text-gray-600">{uniqueCompatibleRelated.length}</span>
               </div>
-              {uniqueCompatibleRelated.map((p: any, idx: number) => {
+              {compatSlice.map((p: any, idx: number) => {
                 const id = String((p?.product_id ?? p?.id) ?? '')
-                const ui = mapApiToUi(p)
+                const ui = mapApiToUiCached(p)
                 return (
                   <div key={`${id}-compat-${idx}`}>
                     <ProductPanel ui={ui} raw={p} onSelect={onViewProduct} />
                   </div>
                 )
               })}
+              {uniqueCompatibleRelated.length > compatSlice.length && (
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setVisibleCompatCount(c => Math.min(c + 10, uniqueCompatibleRelated.length))}
+                    className="mx-auto flex items-center justify-center rounded-md bg-white px-4 py-2 text-[12px] font-medium text-accent ring-1 ring-black/10 hover:bg-[#F6F5FA]"
+                  >View more ({uniqueCompatibleRelated.length - compatSlice.length})</button>
+                </div>
+              )}
             </section>
           )}
 
@@ -745,15 +777,24 @@ export default function CarPartDetails() {
                 <h3 className="text-[14px] font-semibold text-gray-900">Related Products</h3>
                 <span className="text-[12px] text-gray-600">{uniqueFinalRelated.length}</span>
               </div>
-              {uniqueFinalRelated.map((p: any, idx: number) => {
+              {relatedSlice.map((p: any, idx: number) => {
                 const id = String((p?.product_id ?? p?.id) ?? '')
-                const ui = mapApiToUi(p)
+                const ui = mapApiToUiCached(p)
                 return (
                   <div key={`${id}-rel-${idx}`}>
                     <ProductPanel ui={ui} raw={p} onSelect={onViewProduct} />
                   </div>
                 )
               })}
+              {uniqueFinalRelated.length > relatedSlice.length && (
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setVisibleRelatedCount(c => Math.min(c + 10, uniqueFinalRelated.length))}
+                    className="mx-auto flex items-center justify-center rounded-md bg-white px-4 py-2 text-[12px] font-medium text-accent ring-1 ring-black/10 hover:bg-[#F6F5FA]"
+                  >View more ({uniqueFinalRelated.length - relatedSlice.length})</button>
+                </div>
+              )}
             </section>
           )}
         </main>

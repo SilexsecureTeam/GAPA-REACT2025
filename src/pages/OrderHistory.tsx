@@ -4,6 +4,7 @@ import { getUserOrders, getUserOrderItems, type ApiOrder, type ApiOrderItem } fr
 import { useAuth } from '../services/auth'
 import FallbackLoader from '../components/FallbackLoader'
 import logo from '../assets/gapa-logo.png'
+import { productImageFrom, normalizeApiImage, pickImage } from '../services/images'
 
 function currency(n: number) {
   if (!isFinite(n)) return '₦0'
@@ -164,11 +165,31 @@ export default function OrderHistory() {
                           {state?.items.map((it: any, i) => {
                             const name = String(it?.product_name || it?.name || it?.title || 'Item')
                             const qty = Number(it?.quantity || it?.qty || 1)
-                            const price = Number(it?.price || it?.amount || 0)
+                            const unit = Number(it?.price || it?.amount || 0)
+                            const totalLine = unit * qty
+                            const maker = String(it?.brand || it?.maker || it?.manufacturer || '')
+                            const article = String(it?.article_no || it?.article_number || it?.code || '')
+                            const rawImage = productImageFrom(it) || normalizeApiImage(pickImage(it) || '') || logo
                             return (
-                              <li key={i} className="flex items-center justify-between rounded-lg bg-white p-3 text-[14px] ring-1 ring-black/10">
-                                <span className="truncate">{name} × {qty}</span>
-                                <span className="font-semibold">{currency(price * qty)}</span>
+                              <li key={i} className="flex gap-3 rounded-lg bg-white p-3 text-[13px] ring-1 ring-black/10">
+                                <div className="h-16 w-16 flex-shrink-0 overflow-hidden rounded-md bg-[#F6F5FA] ring-1 ring-black/10">
+                                  <img src={rawImage} alt={name} className="h-full w-full object-contain" loading="lazy" />
+                                </div>
+                                <div className="min-w-0 flex-1 space-y-1">
+                                  <div className="flex items-start justify-between gap-2">
+                                    <p className="truncate font-medium text-gray-900">{name}</p>
+                                    <span className="flex-shrink-0 text-[11px] font-semibold text-gray-900">{currency(totalLine)}</span>
+                                  </div>
+                                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-gray-600">
+                                    {maker && <span className="truncate">Maker: {maker}</span>}
+                                    {article && <span className="truncate">Art: {article}</span>}
+                                    {it?.pairs && String(it.pairs).toLowerCase() === 'yes' && <span className="text-orange-600">Pairs</span>}
+                                  </div>
+                                  <div className="flex items-center gap-4 text-[11px] text-gray-600">
+                                    <span>Qty: <span className="font-medium text-gray-900">{qty}</span></span>
+                                    <span>Unit: <span className="font-medium text-gray-900">{currency(unit)}</span></span>
+                                  </div>
+                                </div>
                               </li>
                             )
                           })}
