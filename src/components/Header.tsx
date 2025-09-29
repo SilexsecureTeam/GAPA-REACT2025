@@ -47,6 +47,29 @@ export default function Header() {
 
   // Cart count state (now uses API for authenticated users)
   const [cartCount, setCartCount] = useState<number>(0)
+  
+  // NEW: Mobile responsive UI state
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false)
+  const [mobileBrandsOpen, setMobileBrandsOpen] = useState(false)
+  const [mobileCatsOpen, setMobileCatsOpen] = useState(true)
+
+  // Lock body scroll when overlays open
+  useEffect(() => {
+    if (mobileMenuOpen || mobileSearchOpen) {
+      document.documentElement.style.overflow = 'hidden'
+    } else {
+      document.documentElement.style.overflow = ''
+    }
+  }, [mobileMenuOpen, mobileSearchOpen])
+
+  const closeAllMobile = () => {
+    setMobileMenuOpen(false)
+    setMobileSearchOpen(false)
+    setMobileBrandsOpen(false)
+  }
+  // Close mobile panels on route change
+  useEffect(() => { closeAllMobile() }, [location.pathname, location.hash])
 
   // Hover-delay timer for category dropdown (2 seconds)
   const hoverTimerRef = useRef<number | null>(null)
@@ -232,7 +255,11 @@ export default function Header() {
   }
 
   return (
-    <header className="fixed w-full top-0 z-50 shadow-sm" onKeyDown={(e) => { if (e.key === 'Escape') { closeMenus() } }}>
+    <header className="fixed w-full top-0 z-50 shadow-sm" onKeyDown={(e) => { if (e.key === 'Escape') { closeMenus(); closeAllMobile() } }}>
+      {/* Mobile backdrop */}
+      {(mobileMenuOpen || mobileSearchOpen) && (
+        <div onClick={closeAllMobile} className="md:hidden fixed inset-0 z-30 bg-black/40 backdrop-blur-sm" />
+      )}
       {/* Top promo strip */}
       <div className="bg-brand text-white py-1">
         <div className="mx-auto flex h-10 max-w-7xl items-center justify-between px-4 sm:px-6">
@@ -259,55 +286,53 @@ export default function Header() {
         </div>
       </div>
 
-      {/* Main bar: logo + search + actions */}
-      <div className="bg-[#F7CD3A] py-2">
-        <div className="mx-auto grid max-w-7xl grid-cols-1 items-center gap-3 px-4 py-3 sm:px-6 md:grid-cols-[auto_minmax(0,1fr)_auto]">
-          {/* Logo */}
-          <Link to="/" className="flex items-center gap-2 brand-logo" aria-label="Gapa Naija home">
+      {/* Main bar: logo + search + actions (mobile redesigned) */}
+      <div className="bg-[#F7CD3A] py-5 relative">
+        <div className="mx-auto grid max-w-7xl grid-cols-3 items-center gap-3 px-3 sm:px-6 md:grid-cols-[auto_minmax(0,1fr)_auto]">
+          {/* Mobile: Hamburger */}
+          <div className="flex items-center md:hidden">
+            <button
+              type="button"
+              aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
+              onClick={() => setMobileMenuOpen(o => !o)}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-md bg-white/70 ring-1 ring-black/10 text-gray-800 hover:bg-white"
+            >
+              {mobileMenuOpen ? (
+                <svg width="20" height="20" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+              ) : (
+                <svg width="20" height="20" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+              )}
+            </button>
+          </div>
+          {/* Logo (center on mobile) */}
+          <Link to="/" className="flex items-center gap-2 justify-center md:justify-start" aria-label="Gapa Naija home">
             <img
               src={logo}
               onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/gapa-logo.png' }}
               alt="Gapa Naija"
-              className="h-7 w-auto md:h-9"
+              className="h-8 w-auto md:h-9"
             />
           </Link>
 
-          {/* Search */}
-          <form onSubmit={onSearch} className="w-full relative">
-            <div className="relative flex h-10 sm:h-11 w-full md:w-[80%] md:ml-20 overflow-hidden rounded-md bg-white ring-1 ring-black/10 focus-within:ring-black/20">
+          {/* Desktop Search */}
+          <form onSubmit={onSearch} className="hidden md:block w-full relative">
+            <div className="relative flex h-10 sm:h-11 w-full overflow-hidden rounded-md bg-white ring-1 ring-black/10 focus-within:ring-black/20">
               <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">
-                {/* Magnifier icon */}
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="11" cy="11" r="8" />
-                  <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                </svg>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
               </div>
-              <input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                type="text"
-                placeholder="Enter the part number or name"
-                className="h-full w-full pl-10 pr-28 text-[14px] outline-none placeholder:text-gray-400"
-                aria-label="Search parts"
-              />
-              <button
-                type="submit"
-                className="absolute right-0 top-0 rounded-md h-full px-4 sm:px-5 text-[13px] font-semibold text-white transition-colors bg-brand hover:brightness-110"
-              >
-                Search
-              </button>
+              <input value={query} onChange={(e) => setQuery(e.target.value)} type="text" placeholder="Enter the part number or name" className="h-full w-full pl-10 pr-28 text-[14px] outline-none placeholder:text-gray-400" aria-label="Search parts" />
+              <button type="submit" className="absolute right-0 top-0 rounded-md h-full px-5 text-[13px] font-semibold text-white transition-colors bg-brand hover:brightness-110">Search</button>
             </div>
           </form>
 
-          {/* Actions */}
-          <div className="flex items-center justify-end gap-3 sm:gap-4">
+          {/* Actions (desktop) */}
+          <div className="hidden md:flex items-center justify-end gap-3 sm:gap-4">
             {/* Gapa Fix */}
             <a href="https://gapafix.com.ng/" rel='noreferrer' target='_blank' className="hidden md:inline-flex items-center gap-2 text-[14px] text-gray-900">
               <img src={gapafix} alt="" className='w-[22px]' />
               <span className="font-medium">Gapa Fix</span>
               <span className="mx-2 inline-block h-5 w-px bg-black/20" aria-hidden />
             </a>
-
             {/* Cart */}
             <Link to={{ pathname: location.pathname, search: location.search, hash: '#cart' }} replace className="hidden md:inline-flex items-center gap-2 text-[14px] text-gray-900 relative">
               <img src={cartImg} alt="" className='w-[22px]'/>
@@ -344,11 +369,49 @@ export default function Header() {
               </div>
             )}
           </div>
+
+          {/* Mobile right actions */}
+          <div className="flex md:hidden items-center justify-end gap-2">
+            <button onClick={() => { setMobileSearchOpen(o => !o); if (!mobileSearchOpen) setTimeout(() => { const inp = document.getElementById('mobile-search-input') as HTMLInputElement | null; inp?.focus() }, 50) }} aria-label={mobileSearchOpen ? 'Close search' : 'Open search'} className="relative inline-flex h-10 w-10 items-center justify-center rounded-md bg-white/70 ring-1 ring-black/10 text-gray-700 hover:bg-white">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+            </button>
+            <Link to={{ pathname: location.pathname, search: location.search, hash: '#cart' }} replace aria-label="Cart" className="relative inline-flex h-10 w-10 items-center justify-center rounded-md bg-white/70 ring-1 ring-black/10 text-gray-700 hover:bg-white">
+              <img src={cartImg} alt="Cart" className='w-[20px]' />
+              {cartCount > 0 && (<span className="absolute -right-1 -top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-bold text-white ring-2 ring-white">{cartCount}</span>)}
+            </Link>
+            {user ? (
+              <Link to="/profile" aria-label="Profile" className="inline-flex h-10 w-10 items-center justify-center rounded-md bg-white/70 ring-1 ring-black/10 text-gray-700 hover:bg-white">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
+              </Link>
+            ) : (
+              <Link to="/login" aria-label="Sign in" className="inline-flex h-10 w-10 items-center justify-center rounded-md bg-white/70 ring-1 ring-black/10 text-gray-700 hover:bg-white">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
+              </Link>
+            )}
+          </div>
+        </div>
+
+        {/* Mobile sliding search */}
+        <div className={`md:hidden absolute left-0 right-0 z-40 origin-top transition-all duration-300 ${mobileSearchOpen ? 'translate-y-0 opacity-100' : '-translate-y-3 opacity-0 pointer-events-none'}`}>
+          <div className="px-3 pb-3">
+            <form onSubmit={(e) => { onSearch(e); setMobileSearchOpen(false) }} className="relative flex h-11 w-full overflow-hidden rounded-lg bg-white ring-1 ring-black/10 focus-within:ring-black/20 shadow">
+              <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              </div>
+              <input id="mobile-search-input" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search parts" className="h-full w-full pl-10 pr-24 text-[14px] outline-none" />
+              <div className="absolute right-0 top-0 flex h-full items-center gap-1 pr-1">
+                <button type="button" onClick={() => setMobileSearchOpen(false)} className="inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-600 hover:bg-gray-100" aria-label="Close search">
+                  <svg width="16" height="16" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+                </button>
+                <button type="submit" className="h-8 px-3 rounded-md bg-brand text-[12px] font-semibold text-white hover:brightness-110">Go</button>
+              </div>
+            </form>
+          </div>
         </div>
       </div>
 
-      {/* Category bar with dropdowns */}
-      <nav className="relative bg-brand overflow-visible text-white" onMouseLeave={() => { clearHoverTimer(); setCarPartsOpen(false); setBrandsOpen(false) }}>
+      {/* Category bar hidden on mobile */}
+      <nav className="relative bg-brand overflow-visible text-white hidden md:block" onMouseLeave={() => { clearHoverTimer(); setCarPartsOpen(false); setBrandsOpen(false) }}>
         <div
           className="mx-auto flex h-11 sm:h-12 max-w-7xl items-center justify-between gap-4 overflow-x-auto px-2 sm:px-4"
         >
@@ -552,6 +615,84 @@ export default function Header() {
           </div>
         )}
       </nav>
+
+      {/* Mobile menu panel */}
+      <div className={`md:hidden absolute left-0 right-0 top-full z-40 origin-top bg-white text-gray-900 shadow-2xl ring-1 ring-black/10 transition-all duration-300 ${mobileMenuOpen ? 'scale-y-100 opacity-100' : 'scale-y-95 opacity-0 pointer-events-none'} `} style={{ transformOrigin: 'top center' }}>
+        <div className="max-h-[70vh] overflow-y-auto p-4 space-y-6">
+          {/* Quick links */}
+          <div className="flex items-center justify-between">
+            <h3 className="text-[14px] font-semibold">Browse</h3>
+            <button onClick={closeAllMobile} className="inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-600 hover:bg-gray-100" aria-label="Close menu">
+              <svg width="16" height="16" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+            </button>
+          </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <Link to="/" onClick={closeAllMobile} className="rounded-lg bg-[#F6F5FA] p-3 text-center text-[12px] font-medium ring-1 ring-black/5 hover:bg-gray-100">Home</Link>
+              <Link to="/parts" onClick={closeAllMobile} className="rounded-lg bg-[#F6F5FA] p-3 text-center text-[12px] font-medium ring-1 ring-black/5 hover:bg-gray-100">All Parts</Link>
+              <a href="https://gapafix.com.ng/" target="_blank" rel="noreferrer" className="rounded-lg bg-[#F6F5FA] p-3 text-center text-[12px] font-medium ring-1 ring-black/5 hover:bg-gray-100">Gapa Fix</a>
+              <Link to={{ pathname: location.pathname, search: location.search, hash: '#cart' }} replace onClick={closeAllMobile} className="rounded-lg bg-[#F6F5FA] p-3 text-center text-[12px] font-medium ring-1 ring-black/5 hover:bg-gray-100">Cart ({cartCount})</Link>
+            </div>
+
+          {/* Categories toggle */}
+          <div>
+            <button onClick={() => setMobileCatsOpen(o => !o)} className="flex w-full items-center justify-between rounded-md bg-gray-50 px-3 py-2 text-[13px] font-semibold ring-1 ring-black/5">
+              <span>Categories</span>
+              <span className={`transition-transform ${mobileCatsOpen ? 'rotate-180' : ''}`}>▾</span>
+            </button>
+            {mobileCatsOpen && (
+              <ul className="mt-2 max-h-72 overflow-y-auto divide-y divide-gray-100 rounded-md border border-gray-100">
+                {catMenuLoading ? <li className="p-3 text-[12px] text-gray-500">Loading…</li> : catMenu.slice(0, 30).map((c) => (
+                  <li key={c.id}>
+                    <button onClick={() => { navigate(`/parts?catId=${encodeURIComponent(c.id)}`); closeAllMobile() }} className="flex w-full items-center gap-3 px-3 py-2 text-left text-[13px] hover:bg-gray-50">
+                      <span className="flex h-8 w-8 items-center justify-center overflow-hidden rounded bg-[#F6F5FA] ring-1 ring-black/10"><img src={c.image} alt="" className="h-full w-full object-contain" /></span>
+                      <span className="truncate">{c.name}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          {/* Brands toggle */}
+          <div>
+            <button onClick={() => { setMobileBrandsOpen(o => !o); if (!brandsMenu.length) ensureBrandsMenuLoaded() }} className="flex w-full items-center justify-between rounded-md bg-gray-50 px-3 py-2 text-[13px] font-semibold ring-1 ring-black/5">
+              <span>Car Brands</span>
+              <span className={`transition-transform ${mobileBrandsOpen ? 'rotate-180' : ''}`}>▾</span>
+            </button>
+            {mobileBrandsOpen && (
+              <ul className="mt-2 max-h-72 overflow-y-auto grid grid-cols-2 gap-2">
+                {brandsLoading ? <li className="p-3 col-span-2 text-[12px] text-gray-500">Loading…</li> : brandsMenu.slice(0, 40).map((b) => {
+                  const brandSlug = b.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
+                  return (
+                    <li key={b.id}>
+                      <Link to={`/parts/${brandSlug}/brake-discs`} onClick={closeAllMobile} className="flex items-center gap-2 rounded-md border border-gray-100 bg-white p-2 hover:bg-gray-50">
+                        <span className="flex h-8 w-8 items-center justify-center overflow-hidden rounded bg-[#F6F5FA] ring-1 ring-black/10"><img src={b.image} alt={b.name} className="h-full w-full object-contain" /></span>
+                        <span className="truncate text-[12px] font-medium">{b.name}</span>
+                      </Link>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+          </div>
+
+          {/* Auth quick action */}
+          <div className="pt-1 border-t border-gray-100">
+            {user ? (
+              <Link to="/profile" onClick={closeAllMobile} className="flex items-center gap-3 rounded-md bg-gray-50 px-3 py-3 text-[13px] font-semibold ring-1 ring-black/5 hover:bg-gray-100">
+                <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-brand text-white font-bold">{(user.name || user.email || 'U').charAt(0).toUpperCase()}</span>
+                <span className="truncate">{user.name || user.email}</span>
+              </Link>
+            ) : (
+              <Link to="/login" onClick={closeAllMobile} className="flex items-center justify-center rounded-md bg-brand px-4 py-3 text-[13px] font-semibold text-white shadow hover:brightness-110">Sign In</Link>
+            )}
+          </div>
+        </div>
+      </div>
+      {/* ...existing code (desktop dropdown panels remain unchanged below) ...*/}
+      {/* Keep existing desktop dropdown logic after this point */}
+      {/* The original desktop nav + dropdown code was moved into the hidden md:block nav above */}
     </header>
   )
 }
