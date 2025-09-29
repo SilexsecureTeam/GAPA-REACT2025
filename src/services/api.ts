@@ -1,4 +1,6 @@
 import { apiRequest } from './apiClient'
+// Optional secrets fallback (development only) for GIG base URL only (static token flow in use)
+import { GIG_BASE_URL as SECRET_GIG_BASE } from '../secrets'
 
 // Types based on provided login response
 export type LoginResponse = {
@@ -149,6 +151,35 @@ export async function updateProfilePhoto(payload: { user_id: string | number; fi
   form.set('user_id', String(payload.user_id))
   form.set('img_url', payload.file)
   return apiRequest<{ message?: string; user?: Profile }>('/updateProfileProfile', { method: 'POST', body: form, auth: true })
+}
+
+export async function getUserProfileById(userId: string | number) {
+  const res = await apiRequest<any>(`/getUserProfile/${encodeURIComponent(String(userId))}`, { method: 'GET', auth: true })
+  let u = res?.result || res?.user || res?.data?.user || res
+  if (u && typeof u === 'object' && u.image && typeof u.image === 'string' && !/^https?:/i.test(u.image)) {
+    u = { ...u, image: `https://stockmgt.gapaautoparts.com/uploads/user/${u.image}` }
+  }
+  return u
+}
+
+export async function updateUserProfileExplicit(payload: { user_id: string | number; name?: string; address?: string; phone?: string }) {
+  const form = new URLSearchParams()
+  form.set('user_id', String(payload.user_id))
+  if (payload.name != null) form.set('name', payload.name)
+  if (payload.address != null) form.set('address', payload.address)
+  if (payload.phone != null) form.set('phone', payload.phone)
+  return apiRequest<any>('/updateUserProfile', { method: 'POST', body: form, auth: true })
+}
+
+export async function uploadProfileImageExplicit(payload: { user_id: string | number; file: File | Blob }) {
+  const form = new FormData()
+  form.set('user_id', String(payload.user_id))
+  form.set('img_url', payload.file)
+  return apiRequest<any>('/updateProfileProfile', { method: 'POST', body: form, auth: true })
+}
+
+export async function deleteUserAccount(userId: string | number) {
+  return apiRequest<any>(`/delete-user/${encodeURIComponent(String(userId))}`, { method: 'DELETE', auth: true })
 }
 
 // ----- Catalog APIs (from Postman collection) -----
@@ -442,13 +473,14 @@ export async function updateDeliveryAddress(payload: { user_id: string | number;
 }
 
 // ----- Payment helpers -----
-export async function paymentSuccessfull(payload: { shipping_cost: number; address: string; userId?: string | number; txn_id: string; pickup_location_id?: string }) {
+export async function paymentSuccessfull(payload: { shipping_cost: number; address: string; user_id?: string | number; userId?: string | number; txn_id: string; pickup_location_id?: string }) {
   const form = new FormData()
   form.set('shipping_cost', String(payload.shipping_cost ?? 0))
   form.set('pickup_location_id', payload.pickup_location_id || '')
   form.set('address', payload.address)
-  // Always include userId field as requested, even if empty/guest
-  form.set('userId', String(payload.userId ?? ''))
+  // Prefer new user_id field; support legacy userId for backward compatibility
+  const uid = payload.user_id ?? payload.userId ?? ''
+  form.set('user_id', String(uid))
   form.set('txn_id', payload.txn_id)
   return apiRequest<any>(ADDRESS_ENDPOINTS.paymentsuccess, { method: 'POST', body: form, auth: true })
 }
@@ -468,26 +500,116 @@ export async function getUserOrderItems(orderId: string | number) {
 }
 
 // --- GIG Logistics Integration -------------------------------------------------
-// Environment variables (configure in .env.*):
-// VITE_GIG_BASE_URL (e.g. https://giglogistics.seamless-api.com)
-// VITE_GIG_CLIENT_ID / VITE_GIG_API_KEY
-// VITE_GIG_CLIENT_SECRET (if OAuth style) OR VITE_GIG_API_SECRET
-// VITE_GIG_ORIGIN_STATE (fallback origin state name/id)
-// The real GIG API field names may differ; adjust mapping inside getGigQuote.
+// Agility Systems Third Party API (GIG) per documentation in workspace.
+// Env vars expected:
+// - VITE_GIG_BASE_URL (e.g. https://dev-agilitythirdpartyapi.theagilitysystems.com/api/thirdparty)
+// - VITE_GIG_USERNAME / VITE_GIG_PASSWORD
+// Optional sender defaults:
+// - VITE_GIG_SENDER_NAME, VITE_GIG_SENDER_PHONE, VITE_GIG_SENDER_ADDRESS, VITE_GIG_SENDER_LOCALITY, VITE_GIG_SENDER_STATION_ID
+// - VITE_GIG_SENDER_LAT, VITE_GIG_SENDER_LNG
+// - VITE_GIG_VEHICLE_TYPE (default 'BIKE')
 
-const GIG_BASE = (import.meta as any)?.env?.VITE_GIG_BASE_URL as string | undefined
-const GIG_KEY = (import.meta as any)?.env?.VITE_GIG_CLIENT_ID || (import.meta as any)?.env?.VITE_GIG_API_KEY
-const GIG_SECRET = (import.meta as any)?.env?.VITE_GIG_CLIENT_SECRET || (import.meta as any)?.env?.VITE_GIG_API_SECRET
-const GIG_ORIGIN_STATE = (import.meta as any)?.env?.VITE_GIG_ORIGIN_STATE || 'Lagos'
+// Window fallback (index.html injects these for now). NOTE: Shipping credentials in the browser is NOT secure for production.
+const __win: any = (typeof window !== 'undefined') ? (window as any) : {}
+const GIG_BASE = ((import.meta as any)?.env?.VITE_GIG_BASE_URL as string | undefined) || __win.VITE_GIG_BASE_URL || SECRET_GIG_BASE
 
+// Removed legacy username/password & client credential constants (now using static token only)
+// const GIG_USERNAME = ... (deprecated)
+// const GIG_PASSWORD = ... (deprecated)
+// const GIG_KEY = ... (deprecated)
+// const GIG_SECRET = ... (deprecated)
+
+// Optional static bearer token bypass (NOT for production credentials exposure)
+const GIG_STATIC_TOKEN = (import.meta as any)?.env?.VITE_GIG_STATIC_TOKEN || __win.VITE_GIG_STATIC_TOKEN
+// Provided customer code (fallback to ECO038586 if not supplied via env/window)
+const GIG_CUSTOMER_CODE = (import.meta as any)?.env?.VITE_GIG_CUSTOMER_CODE || __win.VITE_GIG_CUSTOMER_CODE || 'ECO038586'
+
+// NEW: Static token fetch endpoint (replaces username/password login flow)
+// Endpoint: https://gapaautoparts.com/logistics/access-token (GET) => { token: string }
+// We cache token until ~60s before exp (exp claim in JWT) or 25m default.
 let gigTokenCache: { token: string; exp: number } | null = null
+let gigTokenFetchInFlight: Promise<string> | null = null
+
+function decodeJwtExp(token: string): number | null {
+  try {
+    const parts = token.split('.')
+    if (parts.length < 2) return null
+    const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')))
+    if (payload && typeof payload.exp === 'number') return payload.exp * 1000
+    return null
+  } catch { return null }
+}
+
+async function fetchStaticGigToken(): Promise<string> {
+  // De-dup parallel requests
+  if (gigTokenFetchInFlight) return gigTokenFetchInFlight
+  gigTokenFetchInFlight = (async () => {
+    const url = 'https://gapaautoparts.com/logistics/access-token'
+    console.info('[GIG DEBUG] Fetching static token from endpoint')
+    const res = await fetch(url, { method: 'GET' })
+    if (!res.ok) {
+      const txt = await res.text().catch(()=> '')
+      gigTokenFetchInFlight = null
+      throw new Error(`Static token fetch failed (${res.status}) ${txt.slice(0,120)}`)
+    }
+    const json: any = await res.json().catch(()=> ({}))
+    const token = json?.token || json?.access_token || ''
+    if (!token) {
+      gigTokenFetchInFlight = null
+      throw new Error('Static token endpoint returned no token')
+    }
+    const exp = decodeJwtExp(token) || (Date.now() + 25 * 60 * 1000) // fallback 25m
+    // subtract 60s for refresh buffer
+    gigTokenCache = { token, exp: exp - 60_000 }
+    gigTokenFetchInFlight = null
+    console.info('[GIG DEBUG] Static token acquired; exp at', new Date(gigTokenCache.exp).toISOString())
+    return token
+  })()
+  try { return await gigTokenFetchInFlight } finally { /* keep promise until resolved */ }
+}
+
+async function getGigToken(): Promise<string> {
+  const now = Date.now()
+  if (gigTokenCache && gigTokenCache.exp > now + 5000) return gigTokenCache.token
+
+  // Highest priority: explicit env/window static token
+  if (GIG_STATIC_TOKEN) {
+    const exp = decodeJwtExp(GIG_STATIC_TOKEN) || (Date.now() + 25 * 60 * 1000)
+    gigTokenCache = { token: String(GIG_STATIC_TOKEN), exp: exp - 60_000 }
+    console.info('[GIG DEBUG] Using provided static token (env/window)')
+    return gigTokenCache.token
+  }
+
+  // Next: fetch from external access-token endpoint
+  try {
+    return await fetchStaticGigToken()
+  } catch (e) {
+    console.error('[GIG DEBUG] Failed to fetch static token', e)
+    throw new Error("Can't ship to this location")
+  }
+}
+
+export type GigQuoteParams = {
+  destination_state: string
+  destination_city?: string
+  receiver_name?: string
+  receiver_phone?: string
+  receiver_address?: string
+  weight_kg?: number
+  items_count?: number
+  // optional overrides
+  origin_state?: string
+  // NEW: raw cart items to build PreShipmentItems dynamically
+  items?: Array<{ name?: string; description?: string; weight_in_kg?: number | string; quantity?: number; article_number?: string; code?: string }>
+  // NEW: receiver geolocation (from browser geolocation or geocoding lookup)
+  receiver_latitude?: number | string
+  receiver_longitude?: number | string
+}
 
 async function gigFetch(path: string, init: RequestInit & { auth?: boolean } = {}) {
   if (!GIG_BASE) throw new Error('GIG base URL not configured')
   const url = `${GIG_BASE.replace(/\/$/, '')}${path.startsWith('/') ? '' : '/'}${path}`
-  const headers: Record<string,string> = {
-    'Accept': 'application/json',
-  }
+  const headers: Record<string,string> = { 'Accept': 'application/json' }
   if (init.body && !(init.body instanceof FormData)) headers['Content-Type'] = 'application/json'
   if (init.auth) {
     const token = await getGigToken()
@@ -498,74 +620,160 @@ async function gigFetch(path: string, init: RequestInit & { auth?: boolean } = {
     const text = await res.text().catch(()=> 'error')
     throw new Error(`GIG request failed (${res.status}): ${text.slice(0,120)}`)
   }
-  return res.json().catch(()=> ({}))
-}
-
-async function getGigToken(): Promise<string> {
-  const now = Date.now()
-  if (gigTokenCache && gigTokenCache.exp > now + 5000) return gigTokenCache.token
-  if (!GIG_KEY || !GIG_SECRET) throw new Error('GIG credentials not configured')
-  // Two common patterns: (1) OAuth token endpoint, (2) static API key (no token). We attempt OAuth first.
-  try {
-    const authRes = await fetch(`${GIG_BASE?.replace(/\/$/, '')}/oauth/token`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-      body: JSON.stringify({
-        client_id: GIG_KEY,
-        client_secret: GIG_SECRET,
-        grant_type: 'client_credentials'
-      })
-    })
-    if (authRes.ok) {
-      const data: any = await authRes.json().catch(()=>({}))
-      const token = data.access_token || data.token
-      if (token) {
-        const expiresIn = Number(data.expires_in || 3500) * 1000
-        gigTokenCache = { token, exp: Date.now() + (expiresIn || 3600_000) }
-        return token
-      }
-    }
-  } catch {/* fall through */}
-  // Fallback: treat key itself as bearer (some APIs) or add custom header downstream.
-  gigTokenCache = { token: String(GIG_KEY), exp: Date.now() + 3600_000 }
-  return gigTokenCache.token
-}
-
-export type GigQuoteParams = {
-  destination_state: string
-  destination_city?: string
-  weight_kg?: number
-  // optional overrides
-  origin_state?: string
+  const txt = await res.text().catch(()=> '')
+  if (!txt) return {}
+  try { return JSON.parse(txt) } catch { return {} }
 }
 
 export async function getGigQuote(params: GigQuoteParams) {
-  // Adjust this mapping to actual GIG rate/quote endpoint.
-  // Example assumed endpoint: POST /v1/quotes (fictional placeholder until real doc is wired)
-  // If GIG environment is not configured, return a sensible fallback so UI can proceed.
-  if (!GIG_BASE || !GIG_KEY) {
-    const weight = Math.max(1, Number(params.weight_kg || 1))
-    const fbBase = Number(((import.meta as any)?.env?.VITE_GIG_FALLBACK_BASE))
-    const fbPerKg = Number(((import.meta as any)?.env?.VITE_GIG_FALLBACK_PER_KG))
-    const base = !isNaN(fbBase) && fbBase > 0 ? fbBase : 2500
-    const perKg = !isNaN(fbPerKg) && fbPerKg > 0 ? fbPerKg : 400
-    const amount = Math.round(base + perKg * weight)
-    return { raw: { fallback: true, note: 'GIG env not configured; using fallback pricing' }, amount }
+  const rawEnv = (import.meta as any)?.env || {}
+  if (!(window as any).__GIG_DEBUG_LOGGED__) {
+    (window as any).__GIG_DEBUG_LOGGED__ = true
+    try {
+      console.info('[GIG DEBUG] env keys:', Object.keys(rawEnv).filter(k=>k.includes('GIG')))
+      console.info('[GIG DEBUG] Resolved values', { GIG_BASE, hasStaticEnvToken: !!GIG_STATIC_TOKEN })
+      console.info('[GIG DEBUG] Window fallbacks', { winBase: __win.VITE_GIG_BASE_URL, winStaticToken: !!__win.VITE_GIG_STATIC_TOKEN })
+    } catch {}
   }
+
+  if (!GIG_BASE || !String(GIG_BASE).trim()) {
+    console.warn('[GIG DEBUG] Missing base URL VITE_GIG_BASE_URL')
+    throw new Error("Can't ship to this location")
+  }
+
+  // Normalize state names
+  const normalizeState = (s: string) => {
+    if (!s) return s
+    const up = s.toUpperCase()
+    if (up.includes('FEDERAL CAPITAL TERRITORY') || up === 'F C T' || up === 'ABUJA FCT') return 'FCT'
+    if (up === 'ABUJA') return 'FCT'
+    return s
+  }
+
+  // Sender defaults
+  const senderName = (import.meta as any)?.env?.VITE_GIG_SENDER_NAME || 'GAPA Auto Parts'
+  const senderPhone = (import.meta as any)?.env?.VITE_GIG_SENDER_PHONE || '+2340000000000'
+  const senderAddress = (import.meta as any)?.env?.VITE_GIG_SENDER_ADDRESS || 'Ikeja, Lagos, Nigeria'
+  const senderLocality = (import.meta as any)?.env?.VITE_GIG_SENDER_LOCALITY || 'Ikeja'
+  const senderStationId = Number((import.meta as any)?.env?.VITE_GIG_SENDER_STATION_ID || 1)
+  const senderLat = String((import.meta as any)?.env?.VITE_GIG_SENDER_LAT || '')
+  const senderLng = String((import.meta as any)?.env?.VITE_GIG_SENDER_LNG || '')
+  const vehicleType = (import.meta as any)?.env?.VITE_GIG_VEHICLE_TYPE || 'BIKE'
+
+  const cartItems = Array.isArray(params.items) ? params.items.filter(Boolean) : []
+  const derivedWeight = cartItems.length
+    ? cartItems.reduce((sum, it) => sum + (Math.max(0, Number(it.weight_in_kg) || 1) * (Number(it.quantity) || 1)), 0)
+    : Number(params.weight_kg || 1)
+  const derivedQty = cartItems.length
+    ? cartItems.reduce((sum, it) => sum + (Number(it.quantity) || 1), 0)
+    : Number(params.items_count || 1)
+
+  const weight = Math.max(1, derivedWeight)
+  const qty = Math.max(1, derivedQty)
+
+  const destStateNorm = normalizeState(params.destination_state)
+  const destCity = params.destination_city || params.receiver_address || destStateNorm
+
+  const preShipmentItems = (cartItems.length ? cartItems : [{ name: 'Car Parts', description: 'Auto parts', weight_in_kg: weight, quantity: qty }]).map((it, idx) => ({
+    PreShipmentItemMobileId: 0,
+    Description: it.description || it.name || 'Auto part',
+    Weight: Number(it.weight_in_kg) || 1,
+    Weight2: 0,
+    ItemType: 'Normal',
+    ShipmentType: 1,
+    ItemName: it.name || 'Car Part',
+    EstimatedPrice: 0,
+    Value: '0',
+    ImageUrl: '',
+    Quantity: Number(it.quantity) || 1,
+    SerialNumber: idx,
+    IsVolumetric: false,
+    Length: null,
+    Width: null,
+    Height: null,
+    PreShipmentMobileId: 0,
+    CalculatedPrice: null,
+    SpecialPackageId: null,
+    IsCancelled: false,
+    PictureName: '',
+    PictureDate: null,
+    WeightRange: '0'
+  }))
+
   const payload: any = {
-    origin_state: params.origin_state || GIG_ORIGIN_STATE,
-    destination_state: params.destination_state,
-    destination_city: params.destination_city,
-    weight: params.weight_kg || 1,
+    CustomerCode: GIG_CUSTOMER_CODE,
+    PreShipmentMobileId: 0,
+    SenderName: senderName,
+    SenderPhoneNumber: senderPhone,
+    SenderStationId: senderStationId,
+    InputtedSenderAddress: senderAddress,
+    SenderLocality: senderLocality,
+    SenderAddress: senderAddress,
+    SenderCountry: 'Nigeria',
+    ReceiverCountry: 'Nigeria',
+    DestinationState: destStateNorm,
+    DestinationCity: destCity,
+    ReceiverState: destStateNorm,
+    ReceiverCity: destCity,
+    ReceiverStationId: 1,
+    ReceiverName: params.receiver_name || 'Customer',
+    ReceiverPhoneNumber: params.receiver_phone || '',
+    ReceiverAddress: params.receiver_address || params.destination_state,
+    InputtedReceiverAddress: params.receiver_address || params.destination_state,
+    SenderLocation: {
+      Latitude: senderLat,
+      Longitude: senderLng,
+      FormattedAddress: '',
+      Name: '',
+      LGA: ''
+    },
+    ReceiverLocation: {
+      Latitude: params.receiver_latitude != null ? String(params.receiver_latitude) : '',
+      Longitude: params.receiver_longitude != null ? String(params.receiver_longitude) : '',
+      FormattedAddress: '',
+      Name: destCity || destStateNorm || '',
+      LGA: ''
+    },
+    PreShipmentItems: preShipmentItems,
+    VehicleType: vehicleType,
+    IsBatchPickUp: false,
+    WaybillImage: '',
+    WaybillImageFormat: '',
+    DestinationServiceCenterId: 0,
+    DestinationServiceCentreId: 0,
+    IsCashOnDelivery: false,
+    CashOnDeliveryAmount: 0,
+    TotalWeight: weight,
+    ItemsCount: qty
   }
+
+  console.info('[GIG DEBUG] Using CustomerCode:', GIG_CUSTOMER_CODE)
+
   try {
-    const res: any = await gigFetch('/v1/quotes', { method: 'POST', auth: true, body: JSON.stringify(payload) })
-    // Normalise: look for amount / price / total
-    const amount = Number(res?.amount || res?.price || res?.total || res?.data?.amount || 0)
-    return { raw: res, amount: isNaN(amount) ? 0 : amount }
-  } catch (e) {
+    const res: any = await gigFetch('/price', { method: 'POST', auth: true, body: JSON.stringify(payload) })
+    const candidates: any[] = [
+      res?.amount, res?.price, res?.total, res?.data?.amount, res?.data?.price, res?.data?.total,
+      res?.CalculatedPrice, res?.Data?.Total, res?.Data?.Amount, res?.result?.price
+    ]
+    let amountNum = 0
+    for (const c of candidates) {
+      const n = Number(c)
+      if (!isNaN(n) && n > 0) { amountNum = n; break }
+    }
+    if (!amountNum && res && typeof res === 'object') {
+      for (const k of Object.keys(res)) {
+        const v: any = (res as any)[k]
+        const n = Number(v)
+        if (!isNaN(n) && n > 0) { amountNum = n; break }
+      }
+    }
+    if (!amountNum) throw new Error("Can't ship to this location")
+    return { raw: res, amount: Math.max(0, Math.round(amountNum || 0)) }
+  } catch (e: any) {
     console.warn('GIG quote failed', e)
-    throw e
+    const msg = e?.message || ''
+    if (msg && !/ship to this location/i.test(msg)) throw new Error(msg)
+    throw new Error("Can't ship to this location")
   }
 }
 

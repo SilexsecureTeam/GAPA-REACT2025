@@ -7,7 +7,8 @@ import cartImg from '../assets/cart.svg'
 
 // Removed unused icons h2-h7
 import { useAuth } from '../services/auth'
-import { getAllCategories, type ApiCategory, getAllBrands, type ApiBrand, getSubCategories, getSubSubCategories, getUserCartTotal } from '../services/api'
+import { getAllCategories, type ApiCategory, getAllBrands, type ApiBrand, getSubCategories, getSubSubCategories, getCartForUser } from '../services/api'
+// added getCartForUser import
 import { categoryImageFrom, normalizeApiImage, pickImage, brandImageFrom, subCategoryImageFrom, subSubCategoryImageFrom } from '../services/images'
 import { getGuestCart } from '../services/cart'
 
@@ -15,7 +16,7 @@ export default function Header() {
   // Live timer to Sept 1, 12am displayed as HH:MM:SS (no labels)
   const [timeLeft, setTimeLeft] = useState(() => {
     const now = new Date()
-    const target = new Date(now.getFullYear(), 8, 1, 0, 0, 0, 0)
+    const target = new Date(now.getFullYear(), 11, 1, 0, 0, 0, 0)
     const diff = Math.max(0, target.getTime() - now.getTime())
     const h = Math.floor(diff / (60 * 60 * 1000))
     const m = Math.floor((diff % (60 * 60 * 1000)) / (60 * 1000))
@@ -44,7 +45,7 @@ export default function Header() {
   const [brandsLoading, setBrandsLoading] = useState(false)
   const [brandsMenu, setBrandsMenu] = useState<Array<{ id: string; name: string; image: string }>>([])
 
-  // Cart count state (online + guest)
+  // Cart count state (now uses API for authenticated users)
   const [cartCount, setCartCount] = useState<number>(0)
 
   // Hover-delay timer for category dropdown (2 seconds)
@@ -174,39 +175,31 @@ export default function Header() {
     }
   }
 
-  // Load and update cart count
+  // Load and update cart count (API for logged-in, local for guest)
   useEffect(() => {
     let cancelled = false
-    async function refreshCartCount() {
+    async function recompute() {
       try {
         if (user && user.id) {
-          const res = await getUserCartTotal()
-          // API may return { total_cart: number } or { total: number } or raw number
-          let total = 0
-          if (typeof res === 'number') total = res
-          else if (res && typeof res === 'object') {
-            const anyRes: any = res
-            total = Number(anyRes.total_cart ?? anyRes.total ?? anyRes.count ?? 0)
-          }
-          if (!cancelled) setCartCount(Number.isFinite(total) ? total : 0)
+          const items = await getCartForUser(user.id)
+          const count = Array.isArray(items) ? items.length : 0
+          if (!cancelled) setCartCount(count)
         } else {
           const guest = getGuestCart()
-          const total = guest.items.reduce((sum, it) => sum + (Number(it.quantity) || 0), 0)
-          if (!cancelled) setCartCount(total)
+            const total = guest.items.reduce((sum, it) => sum + (Number(it.quantity) || 0), 0)
+            if (!cancelled) setCartCount(total)
         }
       } catch {
         if (!cancelled) setCartCount(0)
       }
     }
+    recompute()
 
-    refreshCartCount()
-
-    // Also listen for changes in localStorage for guest cart updates
-    const onStorage = (e: StorageEvent) => {
-      if (e.key === 'guestCart') refreshCartCount()
-    }
+    const onStorage = (e: StorageEvent) => { if (e.key === 'guestCart') recompute() }
+    const onCustom = () => recompute()
     window.addEventListener('storage', onStorage)
-    return () => { cancelled = true; window.removeEventListener('storage', onStorage) }
+    window.addEventListener('cart-updated', onCustom as any)
+    return () => { cancelled = true; window.removeEventListener('storage', onStorage); window.removeEventListener('cart-updated', onCustom as any) }
   }, [user])
 
   useEffect(() => {
@@ -309,15 +302,15 @@ export default function Header() {
           {/* Actions */}
           <div className="flex items-center justify-end gap-3 sm:gap-4">
             {/* Gapa Fix */}
-            <a href="#" className="hidden md:inline-flex items-center gap-2 text-[14px] text-gray-900">
-              <img src={gapafix} alt="" />
+            <a href="https://gapafix.com.ng/" rel='noreferrer' target='_blank' className="hidden md:inline-flex items-center gap-2 text-[14px] text-gray-900">
+              <img src={gapafix} alt="" className='w-[22px]' />
               <span className="font-medium">Gapa Fix</span>
               <span className="mx-2 inline-block h-5 w-px bg-black/20" aria-hidden />
             </a>
 
             {/* Cart */}
             <Link to={{ pathname: location.pathname, search: location.search, hash: '#cart' }} replace className="hidden md:inline-flex items-center gap-2 text-[14px] text-gray-900 relative">
-              <img src={cartImg} alt="" />
+              <img src={cartImg} alt="" className='w-[22px]'/>
               <span className="font-medium">My Cart</span>
               {cartCount > 0 && (
                 <span aria-label={`Cart item count: ${cartCount}`} className="absolute -right-3 -top-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1.5 text-[11px] font-bold text-white ring-2 ring-white">

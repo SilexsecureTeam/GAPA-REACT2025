@@ -23,6 +23,23 @@
         window.VITE_FLUTTER_PUBLIC_KEY = flw;
         window.FLUTTER_PUBLIC_TEST_SK = flw; // legacy access
       }
+
+      // Expose GIG variables (CAUTION: exposing credentials client-side is insecure for production)
+      const gigBase = import.meta.env?.VITE_GIG_BASE_URL;
+      if (gigBase) window.VITE_GIG_BASE_URL = gigBase;
+      const gigUser = import.meta.env?.VITE_GIG_USERNAME;
+      if (gigUser) window.VITE_GIG_USERNAME = gigUser;
+      const gigPass = import.meta.env?.VITE_GIG_PASSWORD;
+      if (gigPass) {
+        // Direct exposure (not recommended for production). Remove before deploying.
+        window.VITE_GIG_PASSWORD = gigPass;
+      }
+      // Debug log (password masked)
+      console.group('[GIG ENV IN INDEX.HTML]');
+      console.info('VITE_GIG_BASE_URL:', gigBase);
+      console.info('VITE_GIG_USERNAME:', gigUser);
+      console.info('VITE_GIG_PASSWORD present:', !!gigPass);
+      console.groupEnd();
     </script>
   </head>
   <body>

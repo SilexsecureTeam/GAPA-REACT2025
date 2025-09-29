@@ -304,7 +304,7 @@ export default function Home() {
               <div className="col-span-full text-center text-sm text-gray-600">No products found.</div>
             ) : (
               featuredAsProducts.map((p) => (
-                <ProductCard key={p.id} product={p} />
+                <ProductCard key={p.id} product={p} hideAddToCartButton />
               ))
             )}
           </div>

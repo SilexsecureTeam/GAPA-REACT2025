@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useCallback } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { getAllProducts, liveSearch, getRelatedProducts, type ApiProduct, getProductById, getAllCategories, type ApiCategory, addToCartApi } from '../services/api'
 import { normalizeApiImage, pickImage, productImageFrom, categoryImageFrom } from '../services/images'
@@ -89,6 +89,25 @@ function mapApiToUi(p: any) {
   return { id, brand: brandName, brandLogo: brandLogo || logoImg, name, articleNo, price, image, gallery: gallery.length ? gallery : [image], rating, reviews, inStock, attributes, description }
 }
 
+// Stateful image component to avoid infinite onError loops where React keeps re-setting a broken src.
+// Once a fallback is applied it persists until the original src prop changes.
+function ImageWithFallback({ src, alt, className }: { src: string | undefined; alt: string; className?: string }) {
+  const safeSrc = src || logoImg
+  const [current, setCurrent] = useState(safeSrc)
+  useEffect(() => { setCurrent(safeSrc) }, [safeSrc])
+  return (
+    <img
+      src={current}
+      alt={alt}
+      className={className}
+      onError={() => { if (current !== logoImg) setCurrent(logoImg) }}
+      loading="lazy"
+    />
+  )
+}
+
+const RELATED_LIMIT = 24
+
 export default function CarPartDetails() {
   const navigate = useNavigate()
   const { brand, part } = useParams<{ brand?: string; part?: string }>()
@@ -102,12 +121,27 @@ export default function CarPartDetails() {
   const [selected, setSelected] = useState<ReturnType<typeof mapApiToUi> | null>(null)
   const [selectedRaw, setSelectedRaw] = useState<any | null>(null)
   const [categories, setCategories] = useState<ApiCategory[]>([])
+  const [relatedLoading, setRelatedLoading] = useState(false)
 
   // Wishlist
   const { has: wishlistHas, toggle: wishlistToggle } = useWishlist()
 
   // NEW: shared vehicle filter state
   const [vehFilter, setVehFilter] = useState<VehState>(() => getPersistedVehicleFilter())
+  // Stable handler to avoid recreating on each render (prevents child effect loop)
+  const handleVehFilterChange = useCallback((next: VehState) => {
+    setVehFilter(prev => {
+      if (
+        prev.brandId === next.brandId &&
+        prev.modelId === next.modelId &&
+        prev.engineId === next.engineId &&
+        prev.brandName === next.brandName &&
+        prev.modelName === next.modelName &&
+        prev.engineName === next.engineName
+      ) return prev // no actual change
+      return next
+    })
+  }, [])
   const hasVehicleFilter = useMemo(() => Boolean(vehFilter.brandName || vehFilter.modelName || vehFilter.engineName), [vehFilter])
   const productMatchesVehicle = (p: any) => sharedVehicleMatches(p, vehFilter)
 
@@ -140,23 +174,20 @@ export default function CarPartDetails() {
           const items = Array.isArray(list) ? list : []
           if (items.length > 0) {
             const first = items[0]
-            // Prefer product_id
             const firstId = String((first as any)?.product_id || (first as any)?.id || '')
-            if (firstId) {
-              const brandSlug = brand ? toSlug(brand) : toSlug(brandOf(first)) || 'gapa'
-              const partSlug = part ? toSlug(part) : toSlug(categoryOf(first)) || 'parts'
-              setSearchParams((prev) => {
-                const next = new URLSearchParams(prev)
-                next.set('pid', firstId)
-                next.delete('q')
-                return next
-              }, { replace: true })
-              navigate(`/parts/${brandSlug}/${partSlug}?pid=${encodeURIComponent(firstId)}`, { replace: true })
-            }
+            // Avoid navigation loop if pid already matches
+            if (!firstId || firstId === pid) return
+            const brandSlug = brand ? toSlug(brand) : toSlug(brandOf(first)) || 'gapa'
+            const partSlug = part ? toSlug(part) : toSlug(categoryOf(first)) || 'parts'
+            setSearchParams((prev) => {
+              const next = new URLSearchParams(prev)
+              next.set('pid', firstId)
+              next.delete('q')
+              return next
+            }, { replace: true })
+            navigate(`/parts/${brandSlug}/${partSlug}?pid=${encodeURIComponent(firstId)}`, { replace: true })
           }
-        } catch {
-          // ignore search errors
-        }
+        } catch { }
       })()
     return () => { alive = false }
   }, [q, pid, brand, part, setSearchParams, navigate])
@@ -185,21 +216,30 @@ export default function CarPartDetails() {
   // Fetch details + related when pid is present (selected product)
   useEffect(() => {
     let alive = true
-      ; (async () => {
-        try {
-          if (!pid) { setSelected(null); setSelectedRaw(null); setRelated([]); return }
-          const detail = await getProductById(pid)
-          if (!alive) return
-          setSelectedRaw(detail)
-          setSelected(mapApiToUi(detail))
-          const rel = await getRelatedProducts(pid)
-          if (!alive) return
-          setRelated(Array.isArray(rel) ? rel : [])
-        } catch {
-          if (!alive) return
-          setRelated([])
+    ; (async () => {
+      try {
+        if (!pid) { setSelected(null); setSelectedRaw(null); setRelated([]); return }
+        setRelatedLoading(true)
+        // Fetch detail & related in parallel to reduce latency
+        const detailPromise = getProductById(pid)
+        const relatedPromise = getRelatedProducts(pid).catch(() => [])
+        const [detail, rel] = await Promise.all([detailPromise, relatedPromise])
+        if (!alive) return
+        setSelectedRaw(detail)
+        setSelected(mapApiToUi(detail))
+        // Defer heavy related state update to next idle frame / tick so UI paints faster
+        const schedule = (cb: () => void) => {
+          if (typeof (window as any).requestIdleCallback === 'function') {
+            ;(window as any).requestIdleCallback(cb, { timeout: 500 })
+          } else setTimeout(cb, 0)
         }
-      })()
+        schedule(() => { if (!alive) return; setRelated(Array.isArray(rel) ? rel.slice(0, RELATED_LIMIT) : []); setRelatedLoading(false) })
+      } catch {
+        if (!alive) return
+        setRelated([])
+        setRelatedLoading(false)
+      }
+    })()
     return () => { alive = false }
   }, [pid])
 
@@ -240,6 +280,25 @@ export default function CarPartDetails() {
 
   const finalRelated = (related && related.length) ? related : frontendRelated
   const compatibleRelated = useMemo(() => finalRelated.filter(productMatchesVehicle), [finalRelated, vehFilter])
+  // NEW: ensure uniqueness of related products by id to avoid duplicate key warnings
+  const uniqueFinalRelated = useMemo(() => {
+    const seen = new Set<string>()
+    return finalRelated.filter((p: any) => {
+      const id = String(p?.product_id ?? p?.id ?? '')
+      if (!id || seen.has(id)) return false
+      seen.add(id)
+      return true
+    })
+  }, [finalRelated])
+  const uniqueCompatibleRelated = useMemo(() => {
+    const seen = new Set<string>()
+    return compatibleRelated.filter((p: any) => {
+      const id = String(p?.product_id ?? p?.id ?? '')
+      if (!id || seen.has(id)) return false
+      seen.add(id)
+      return true
+    })
+  }, [compatibleRelated])
 
   // When a user clicks a result, request details, then navigate and update pid
   const onViewProduct = async (id: string, p: any) => {
@@ -300,7 +359,7 @@ export default function CarPartDetails() {
     return selectedRaw ? productMatchesVehicle(selectedRaw) : true
   }, [selectedRaw, vehFilter])
 
-  const ProductPanel = ({ ui, isSelected, raw }: { ui: ReturnType<typeof mapApiToUi>; isSelected?: boolean; raw?: any }) => {
+  const ProductPanel = ({ ui, isSelected, raw, onSelect }: { ui: ReturnType<typeof mapApiToUi>; isSelected?: boolean; raw?: any; onSelect?: (id: string, raw: any) => void }) => {
     // Derive pairs flag and selected raw source for the main (selected) product
     const rawSrc = raw ? (raw?.part ? raw.part : raw) : ((isSelected && selectedRaw) ? ((selectedRaw as any).part ? (selectedRaw as any).part : selectedRaw) : undefined)
     const rawPairsVal = rawSrc ? (rawSrc?.pairs ?? rawSrc?.sold_in_pairs ?? rawSrc?.pair ?? rawSrc?.is_pair) : undefined
@@ -318,9 +377,10 @@ export default function CarPartDetails() {
 
     // Removed old expand/collapse booleans in favor of tabbed/accordion UI
 
-    // Parse compatible vehicles and OEM codes from the raw product
+    // Heavy parsing only when viewing the main selected product; skip for related list items
     const compatList = useMemo(() => {
-      if (!rawSrc) return [] as string[]
+      if (!rawSrc || !isSelected) return [] as string[]
+      // ...existing code...
       const src: any = rawSrc
       const comp = src?.compatibility ?? src?.compatibilities ?? src?.vehicle_compatibility ?? src?.vehicleCompatibility ?? src?.fitment ?? src?.fitments
       const out: string[] = []
@@ -333,34 +393,32 @@ export default function CarPartDetails() {
       }
       pushItem(comp)
       return Array.from(new Set(out))
-    }, [rawSrc])
+    }, [rawSrc, isSelected])
 
-    // Build hierarchical tree (maker > model > details) from compat list
     type CompatTree = Record<string, Record<string, string[]>>
     const compatTree = useMemo<CompatTree>(() => {
+      if (!isSelected) return {} as CompatTree
+      // ...existing code...
       const tree: CompatTree = {}
       let currentMaker = 'Other'
       const up = (s: string) => s.trim().toUpperCase()
       const stripBullets = (s: string) => s.replace(/^[\s\t•·\-\u2022]+/, '').trim()
       const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-
       for (let raw of compatList) {
         if (!raw) continue
         let s = stripBullets(raw).replace(/\s+/g, ' ')
         if (!s) continue
         const isMakerHeader = /^[A-Z][A-Z\s\-&/]+$/.test(s) && !/[()]/.test(s) && !/\d{2}\.\d{4}/.test(s) && s.length <= 40
         if (isMakerHeader) { currentMaker = s; if (!tree[currentMaker]) tree[currentMaker] = {}; continue }
-        // If line repeats maker at start, strip it; else try to guess maker from first 1-2 tokens
         const tokens = s.split(/\s+/)
         if (currentMaker && new RegExp('^' + esc(currentMaker) + '\\b', 'i').test(up(s))) {
           s = s.replace(new RegExp('^' + esc(currentMaker) + '\\s+', 'i'), '')
         } else {
           const guess = tokens[0]
-          currentMaker = guess
+            ; (currentMaker = guess)
           if (!tree[currentMaker]) tree[currentMaker] = {}
           s = s.replace(new RegExp('^' + esc(guess) + '\\s+', 'i'), '')
         }
-        // Derive model (before first '(' or 'YEAR OF CONSTRUCTION' or comma)
         let model = s
         let rest = ''
         const upper = s.toUpperCase()
@@ -377,10 +435,11 @@ export default function CarPartDetails() {
         if (rest) tree[currentMaker][model].push(rest)
       }
       return tree
-    }, [compatList])
+    }, [compatList, isSelected])
 
     const oemList = useMemo(() => {
-      if (!rawSrc) return [] as string[]
+      if (!rawSrc || !isSelected) return [] as string[]
+      // ...existing code...
       const src: any = rawSrc
       const o = src?.oem ?? src?.oem_no ?? src?.oem_number ?? src?.oem_numbers ?? src?.oemNumbers ?? src?.oem_list ?? src?.oemList
       const out: string[] = []
@@ -393,15 +452,11 @@ export default function CarPartDetails() {
       }
       push(o)
       return Array.from(new Set(out))
-    }, [rawSrc])
+    }, [rawSrc, isSelected])
 
     const [copiedOEM, setCopiedOEM] = useState<number | null>(null)
-    // NEW: stable brand logo state to avoid flicker when original image 404s
-    const [brandLogoSrc, setBrandLogoSrc] = useState(ui.brandLogo)
-    useEffect(() => { setBrandLogoSrc(ui.brandLogo) }, [ui.brandLogo])
-
-    // NEW: tab to switch between Vehicles and OEM sections + native accordions for reliability
-    const [infoTab, setInfoTab] = useState<'vehicles' | 'oem'>('vehicles')
+    // Removed unused infoTab state that previously controlled tab UI
+    // const [infoTab, setInfoTab] = useState<'vehicles' | 'oem'>('vehicles')
 
     const inc = () => setQty((v) => (pairsYes ? 2 : Math.min(v + 1, 99)))
     const dec = () => setQty((v) => (pairsYes ? 2 : Math.max(v - 1, 1)))
@@ -432,7 +487,7 @@ export default function CarPartDetails() {
 
     return (
       <div className="rounded-xl bg-white p-4 ring-1 ring-black/10">
-        {/* Warning when product doesn't match selected vehicle */}
+        {/* Warning */}
         {hasVehicleFilter && !selectedCompatible && (
           <div className="mb-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-[13px] text-amber-800">
             This product may not fit your selected vehicle. See compatible alternatives below or reset your vehicle.
@@ -440,13 +495,14 @@ export default function CarPartDetails() {
         )}
         <div className="grid gap-6 lg:grid-cols-7">
           <aside className="rounded-lg p-6 row-span-2 lg:col-span-3">
-            <div className="flex items-center justify-center rounded-lg bg-[#F6F5FA] p-6">
-              <img src={mainImage} alt={ui.name} className="h-[320px] w-auto object-contain" onError={(e) => { (e.currentTarget as HTMLImageElement).src = logoImg }} />
+            <div className={`flex items-center justify-center rounded-lg bg-[#F6F5FA] p-6 ${onSelect && !isSelected ? 'cursor-pointer hover:opacity-90' : ''}`}
+              onClick={() => { if (onSelect && !isSelected) onSelect(ui.id, raw) }}>
+              <ImageWithFallback src={mainImage} alt={ui.name} className="h-[320px] w-auto object-contain" />
             </div>
             <div className="mt-3 grid grid-cols-4 gap-2">
               {ui.gallery.map((g, i) => (
-                <button key={i} onClick={() => setActiveIdx(i)} className={`flex items-center justify-center rounded-lg bg-[#F6F5FA] p-2 ring-1 ring-black/10 ${i === activeIdx ? 'outline-2 outline-accent' : ''}`} aria-label={`Preview ${i + 1}`}>
-                  <img src={g} alt={`Preview ${i + 1}`} className="h-14 w-auto object-contain" onError={(e) => { (e.currentTarget as HTMLImageElement).src = logoImg }} />
+                <button key={`g-${ui.id}-${i}`} onClick={() => setActiveIdx(i)} className={`flex items-center justify-center rounded-lg bg-[#F6F5FA] p-2 ring-1 ring-black/10 ${i === activeIdx ? 'outline-2 outline-accent' : ''}`} aria-label={`Preview ${i + 1}`}>
+                  <ImageWithFallback src={g} alt={`Preview ${i + 1}`} className="h-14 w-auto object-contain" />
                 </button>
               ))}
             </div>
@@ -454,14 +510,18 @@ export default function CarPartDetails() {
 
           <div className="space-y-3 col-span-2">
             <div className="flex items-start gap-2">
-              {/* Use stateful brand logo to avoid infinite onError loop */}
-              <img src={brandLogoSrc} alt={ui.brand} className="h-6 w-auto" onError={() => { if (brandLogoSrc !== logoImg) setBrandLogoSrc(logoImg) }} />
               <div className="ml-auto flex items-center gap-2">
                 <WishlistButton ariaLabel={wished ? 'Remove from wishlist' : 'Add to wishlist'} size={22} active={wished} onToggle={(active) => { wishlistToggle(ui.id); if (active) toast.success('Added to wishlist') }} />
 
               </div>
             </div>
-            <h2 className="text-[18px] font-semibold text-gray-900">{ui.name}</h2>
+            <h2 className="text-[18px] font-semibold text-gray-900">
+              {onSelect && !isSelected ? (
+                <button type="button" onClick={() => onSelect(ui.id, raw)} className="text-left hover:underline focus:outline-none">
+                  {ui.name}
+                </button>
+              ) : ui.name}
+            </h2>
             <div className="grid grid-cols-1 gap-1">
               {ui.attributes.map((a) => (
                 <div key={a.label + a.value} className="grid grid-cols-[180px_1fr] text-[13px]">
@@ -490,9 +550,12 @@ export default function CarPartDetails() {
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="21" r="1" /><circle cx="20" cy="21" r="1" /><path d="M1 1h4l2.68 12.39a2 2 0 0 0 2 1.61h7.72a2 2 0 0 0 2-1.61L23 6H6" /></svg>
               {adding ? 'Adding…' : 'Add to cart'}
             </button>
+            {!isSelected && onSelect && (
+              <button type="button" onClick={() => onSelect(ui.id, raw)} className="mt-2 w-full rounded-md bg-white text-[12px] font-medium text-accent underline-offset-2 hover:underline">View details</button>
+            )}
             <div className="mt-2 text-center text-[12px] text-purple-700">{ui.inStock ? 'In Stock' : 'Out of stock'}</div>
           </aside>
-          {/* Full-width sections: Description + Tabbed panel for Vehicles/OEM */}
+          {/* Full-width sections: Description + Collapsible panels */}
           <div className="mt-5 space-y-4 lg:col-span-4">
             {ui.description && (
               <section className="rounded-lg bg-[#F6F5FA] p-4 ring-1 ring-black/10">
@@ -500,103 +563,83 @@ export default function CarPartDetails() {
                 <p className="mt-2 text-[13px] leading-relaxed text-gray-700">{ui.description}</p>
               </section>
             )}
-
-            {(Object.keys(compatTree).length > 0 || oemList.length > 0) && (
-              <section className="rounded-lg bg-white p-0 ring-1 ring-black/10">
-                {/* Tabs */}
-                <div className="flex items-center gap-2 border-b border-black/10 bg-gray-50 px-2 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setInfoTab('oem')}
-                    className={`rounded-t-md px-3 py-2 text-[12px] font-medium ${infoTab==='oem' ? 'bg-white text-gray-900 ring-1 ring-black/10' : 'text-gray-600 hover:text-gray-800'}`}
-                  >OEM Part Numbers</button>
-                  <button
-                    type="button"
-                    onClick={() => setInfoTab('vehicles')}
-                    className={`rounded-t-md px-3 py-2 text-[12px] font-medium ${infoTab==='vehicles' ? 'bg-white text-gray-900 ring-1 ring-black/10' : 'text-gray-600 hover:text-gray-800'}`}
-                  >Suitable vehicles</button>
+            {/* Collapsible Suitable Vehicles */}
+            {Object.keys(compatTree).length > 0 && (
+              <details className="rounded-lg bg-white ring-1 ring-black/10">
+                <summary className="cursor-pointer list-none px-4 py-3 text-[13px] font-semibold text-gray-900">Suitable vehicles</summary>
+                <div className="max-h-96 overflow-auto p-3 pt-0">
+                  <div className="space-y-3">
+                    {Object.values(compatTree).every(models => Object.keys(models).length === 0) ? (
+                      <ul className="list-disc pl-5 text-[12px] text-gray-800">
+                        {compatList.map((c, i) => (<li key={`compat-${i}`}>{c}</li>))}
+                      </ul>
+                    ) : (
+                      <div className="space-y-3">
+                        {Object.keys(compatTree).sort().map((maker) => {
+                          const models = compatTree[maker] || {}
+                          return (
+                            <details key={`maker-${maker}`} className="rounded-md border border-black/10 bg-[#F6F5FA] p-0">
+                              <summary className="flex cursor-pointer list-none items-center justify-between px-3 py-2 text-[13px] font-semibold text-gray-900">
+                                <span>{maker}</span>
+                                <span className="text-gray-500">▾</span>
+                              </summary>
+                              <div className="px-3 pb-3">
+                                {Object.keys(models).sort().map((model) => {
+                                  const detailsList = models[model]
+                                  return (
+                                    <details key={`model-${maker}-${model}`} className="mb-2 rounded border border-black/10 bg-white">
+                                      <summary className="flex cursor-pointer list-none items-center justify-between px-3 py-2 text-[12px] font-medium text-gray-900">
+                                        <span>{model}</span>
+                                        <span className="text-gray-500">▾</span>
+                                      </summary>
+                                      <div className="px-3 pb-2">
+                                        {detailsList && detailsList.length > 0 ? (
+                                          <ul className="list-disc pl-5 text-[12px] text-gray-800">
+                                            {detailsList.map((d, i) => (<li key={`det-${maker}-${model}-${i}`}>{d}</li>))}
+                                          </ul>
+                                        ) : (
+                                          <div className="text-[12px] text-gray-600">No additional details</div>
+                                        )}
+                                      </div>
+                                    </details>
+                                  )
+                                })}
+                              </div>
+                            </details>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
                 </div>
-
-                {/* Panel content */}
-                <div className="max-h-96 overflow-auto p-3">
-                  {infoTab === 'vehicles' ? (
-                    <div className="space-y-3">
-                      {/* If tree parsing failed, show flat list */}
-                      {Object.values(compatTree).every(models => Object.keys(models).length === 0) ? (
-                        <ul className="list-disc pl-5 text-[12px] text-gray-800">
-                          {compatList.map((c, i) => (<li key={i}>{c}</li>))}
-                        </ul>
-                      ) : (
-                        <div className="space-y-3">
-                          {Object.keys(compatTree).sort().map((maker) => {
-                            const models = compatTree[maker] || {}
-                            return (
-                              <details key={maker} className="rounded-md border border-black/10 bg-[#F6F5FA] p-0" open>
-                                <summary className="flex cursor-pointer list-none items-center justify-between px-3 py-2 text-[13px] font-semibold text-gray-900">
-                                  <span>{maker}</span>
-                                  <span className="text-gray-500">▾</span>
-                                </summary>
-                                <div className="px-3 pb-3">
-                                  {Object.keys(models).sort().map((model) => {
-                                    const detailsList = models[model]
-                                    return (
-                                      <details key={maker + '::' + model} className="mb-2 rounded border border-black/10 bg-white">
-                                        <summary className="flex cursor-pointer list-none items-center justify-between px-3 py-2 text-[12px] font-medium text-gray-900">
-                                          <span>{model}</span>
-                                          <span className="text-gray-500">▾</span>
-                                        </summary>
-                                        <div className="px-3 pb-2">
-                                          {detailsList && detailsList.length > 0 ? (
-                                            <ul className="list-disc pl-5 text-[12px] text-gray-800">
-                                              {detailsList.map((d, i) => (<li key={i}>{d}</li>))}
-                                            </ul>
-                                          ) : (
-                                            <div className="text-[12px] text-gray-600">No additional details</div>
-                                          )}
-                                        </div>
-                                      </details>
-                                    )
-                                  })}
-                                </div>
-                              </details>
-                            )
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="mt-1 flex flex-wrap gap-2">
-                      {oemList.map((code, i) => (
-                        <span key={i} className="inline-flex items-center gap-2 rounded bg-[#F6F5FA] px-2 py-1 text-[12px] ring-1 ring-black/10">
-                          <span>{code}</span>
-                          <button
-                            type="button"
-                            className="inline-flex items-center rounded bg-white px-1.5 py-0.5 text-[11px] ring-1 ring-black/10 hover:bg-gray-50"
-                            onClick={async () => {
-                              try {
-                                await navigator.clipboard.writeText(code)
-                                setCopiedOEM(i)
-                                setTimeout(() => setCopiedOEM((prev) => (prev === i ? null : prev)), 1200)
-                              } catch {}
-                            }}
-                            aria-label={`Copy ${code}`}
-                          >{copiedOEM === i ? 'Copied' : 'Copy'}</button>
-                        </span>
-                      ))}
-                      {oemList.length === 0 && (
-                        <div className="text-[12px] text-gray-600">No OEM numbers available</div>
-                      )}
-                    </div>
-                  )}
+              </details>
+            )}
+            {/* Collapsible OEM Numbers */}
+            {oemList.length > 0 && (
+              <details className="rounded-lg bg-white ring-1 ring-black/10">
+                <summary className="cursor-pointer list-none px-4 py-3 text-[13px] font-semibold text-gray-900">OEM Part Numbers</summary>
+                <div className="p-3 pt-0">
+                  <div className="mt-1 flex flex-wrap gap-2">
+                    {oemList.map((code, i) => (
+                      <span key={`oem-${i}`} className="inline-flex items-center gap-2 rounded bg-[#F6F5FA] px-2 py-1 text-[12px] ring-1 ring-black/10">
+                        <span>{code}</span>
+                        <button
+                          type="button"
+                          className="inline-flex items-center rounded bg-white px-1.5 py-0.5 text-[11px] ring-1 ring-black/10 hover:bg-gray-50"
+                          onClick={async () => {
+                            try { await navigator.clipboard.writeText(code); setCopiedOEM(i); setTimeout(() => setCopiedOEM((prev) => (prev === i ? null : prev)), 1200) } catch {}
+                          }}
+                          aria-label={`Copy ${code}`}
+                        >{copiedOEM === i ? 'Copied' : 'Copy'}</button>
+                      </span>
+                    ))}
+                  </div>
                 </div>
-              </section>
+              </details>
             )}
           </div>
         </div>
-
-
-
-        {/* Fixed popup confirmation */}
+        {/* Popup */}
         {showPopup && (
           <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 transform rounded-lg bg-gray-900 px-4 py-3 text-white shadow-lg ring-1 ring-black/20">
             <div className="flex items-center gap-2 text-[14px]">
@@ -623,10 +666,10 @@ export default function CarPartDetails() {
 
       <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
         <aside>
-          <VehicleFilter onChange={(s) => setVehFilter(s)} />
+          <VehicleFilter onChange={handleVehFilterChange} />
           {categoryImage && (
             <div className="mt-4 rounded-lg bg-[#F6F5FA] p-3 ring-1 ring-black/10">
-              <img src={categoryImage} alt="Category" className="mx-auto h-28 w-auto object-contain" onError={(e) => { (e.currentTarget as HTMLImageElement).src = logoImg }} />
+              <ImageWithFallback src={categoryImage} alt="Category" className="mx-auto h-28 w-auto object-contain" />
             </div>
           )}
         </aside>
@@ -654,7 +697,8 @@ export default function CarPartDetails() {
                       <button key={r.id} onClick={() => onViewProduct(r.id, r.raw)} className="text-left">
                         <div className="rounded-lg bg-white p-2 ring-1 ring-black/10 hover:shadow">
                           <div className="flex items-center justify-center rounded bg-[#F6F5FA] p-3">
-                            <img src={r.image} alt={r.title} className="h-28 w-auto object-contain" onError={(e) => { (e.currentTarget as HTMLImageElement).src = logoImg }} />
+                            {/* Use fallback component to prevent infinite reload loop */}
+                            <ImageWithFallback src={r.image} alt={r.title} className="h-28 w-auto object-contain" />
                           </div>
                           <div className="mt-2 text-[12px] font-medium text-gray-900 line-clamp-2">{r.title}</div>
                           <div className="mt-1 text-[12px] text-gray-600">₦{r.price.toLocaleString('en-NG')}</div>
@@ -668,18 +712,26 @@ export default function CarPartDetails() {
           )}
 
           {/* Compatible alternatives first if available */}
-          {selected && compatibleRelated.length > 0 && (
+          {selected && relatedLoading && (
+            <section className="space-y-4 animate-pulse">
+              <div className="h-4 w-40 rounded bg-gray-200" />
+              <div className="space-y-3">
+                {Array.from({ length: 3 }).map((_, i) => (<div key={`rel-skel-${i}`} className="h-32 rounded-lg bg-gray-100" />))}
+              </div>
+            </section>
+          )}
+          {selected && uniqueCompatibleRelated.length > 0 && (
             <section className="space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className="text-[14px] font-semibold text-gray-900">Compatible Alternatives</h3>
-                <span className="text-[12px] text-gray-600">{compatibleRelated.length}</span>
+                <span className="text-[12px] text-gray-600">{uniqueCompatibleRelated.length}</span>
               </div>
-              {compatibleRelated.map((p: any) => {
+              {uniqueCompatibleRelated.map((p: any, idx: number) => {
                 const id = String((p?.product_id ?? p?.id) ?? '')
                 const ui = mapApiToUi(p)
                 return (
-                  <div key={id}>
-                    <ProductPanel ui={ui} raw={p} />
+                  <div key={`${id}-compat-${idx}`}>
+                    <ProductPanel ui={ui} raw={p} onSelect={onViewProduct} />
                   </div>
                 )
               })}
@@ -687,18 +739,18 @@ export default function CarPartDetails() {
           )}
 
           {/* More related */}
-          {selected && finalRelated.length > 0 && (
+          {selected && uniqueFinalRelated.length > 0 && (
             <section className="space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className="text-[14px] font-semibold text-gray-900">Related Products</h3>
-                <span className="text-[12px] text-gray-600">{finalRelated.length}</span>
+                <span className="text-[12px] text-gray-600">{uniqueFinalRelated.length}</span>
               </div>
-              {finalRelated.map((p: any) => {
+              {uniqueFinalRelated.map((p: any, idx: number) => {
                 const id = String((p?.product_id ?? p?.id) ?? '')
                 const ui = mapApiToUi(p)
                 return (
-                  <div key={id}>
-                    <ProductPanel ui={ui} raw={p} />
+                  <div key={`${id}-rel-${idx}`}>
+                    <ProductPanel ui={ui} raw={p} onSelect={onViewProduct} />
                   </div>
                 )
               })}
