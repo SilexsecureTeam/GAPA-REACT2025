@@ -544,19 +544,27 @@ async function fetchStaticGigToken(): Promise<string> {
   // De-dup parallel requests
   if (gigTokenFetchInFlight) return gigTokenFetchInFlight
   gigTokenFetchInFlight = (async () => {
-    const url = 'https://gapaautoparts.com/logistics/access-token'
-    console.info('[GIG DEBUG] Fetching static token from endpoint')
-    const res = await fetch(url, { method: 'GET' })
-    if (!res.ok) {
-      const txt = await res.text().catch(()=> '')
-      gigTokenFetchInFlight = null
-      throw new Error(`Static token fetch failed (${res.status}) ${txt.slice(0,120)}`)
+    const primaryUrl = 'https://gapaautoparts.com/logistics/access-token'
+    const proxyUrl = (import.meta as any)?.env?.VITE_GIG_TOKEN_PROXY || '/api/gig-token'
+    const tryFetch = async (url: string) => {
+      console.info('[GIG DEBUG] Fetching static token from', url)
+      const res = await fetch(url, { method: 'GET' })
+      if (!res.ok) {
+        const txt = await res.text().catch(()=> '')
+        throw new Error(`Static token fetch failed (${res.status}) ${txt.slice(0,120)}`)
+      }
+      const json: any = await res.json().catch(()=> ({}))
+      const token = json?.token || json?.access_token || ''
+      if (!token) throw new Error('Static token endpoint returned no token')
+      return token
     }
-    const json: any = await res.json().catch(()=> ({}))
-    const token = json?.token || json?.access_token || ''
-    if (!token) {
-      gigTokenFetchInFlight = null
-      throw new Error('Static token endpoint returned no token')
+    let token: string
+    try {
+      token = await tryFetch(primaryUrl)
+    } catch (e: any) {
+      // Likely CORS in browser – attempt proxy fallback (same-origin serverless function)
+      console.warn('[GIG DEBUG] Primary token fetch failed, trying proxy fallback', e?.message)
+      token = await tryFetch(proxyUrl)
     }
     const exp = decodeJwtExp(token) || (Date.now() + 25 * 60 * 1000) // fallback 25m
     // subtract 60s for refresh buffer

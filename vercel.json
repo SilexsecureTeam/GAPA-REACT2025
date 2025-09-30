@@ -1,6 +1,6 @@
 {
     "rewrites": [
+      { "source": "/api/gig-token", "destination": "/api/gig-token" },
       { "source": "/(.*)", "destination": "/index.html" }
     ]
 }
-  
