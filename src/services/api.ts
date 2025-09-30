@@ -721,6 +721,22 @@ export async function getGigQuote(params: GigQuoteParams) {
   const destStateNorm = normalizeState(destStateNormRaw)
   const finalCity = pickCityForState(destStateNorm, params.destination_city)
 
+  // Auto-populate station IDs if not provided ----------------------------
+  let receiverStationId = params.receiver_station_id != null ? Number(params.receiver_station_id) : 0
+  let destinationServiceCentreId = params.destination_service_centre_id != null ? Number(params.destination_service_centre_id) : receiverStationId
+  if (!receiverStationId) {
+    try {
+      const stations = await getGigStations(destStateNorm)
+      if (stations && stations.length) {
+        // Prefer a station whose city matches provided city if possible
+        const matchCity = stations.find(s => String(s.city).toUpperCase() === String(finalCity).toUpperCase())
+        const pick = matchCity || stations[0]
+        receiverStationId = Number(pick.id)
+        destinationServiceCentreId = destinationServiceCentreId || receiverStationId
+      }
+    } catch (e) { /* ignore station lookup errors */ }
+  }
+
   // Pre-shipment items ----------------------------------------------------
   const preShipmentItems = (cartItems.length ? cartItems : [{ name: 'Car Parts', description: 'Auto parts', weight_in_kg: weight, quantity: qty, value: declaredValue }]).map((it, idx) => ({
     PreShipmentItemMobileId: 0,
@@ -751,8 +767,7 @@ export async function getGigQuote(params: GigQuoteParams) {
   const receiverPhone = normalizePhone(params.receiver_phone || '')
 
   // Root payload (extended) ----------------------------------------------
-  const receiverStationId = params.receiver_station_id != null ? Number(params.receiver_station_id) : 0
-  const destinationServiceCentreId = params.destination_service_centre_id != null ? Number(params.destination_service_centre_id) : receiverStationId
+  // receiverStationId & destinationServiceCentreId already resolved above
   const payload: any = {
     CustomerCode: GIG_CUSTOMER_CODE,
     UserChannelCode: GIG_CUSTOMER_CODE,
@@ -840,6 +855,52 @@ export async function getGigQuote(params: GigQuoteParams) {
     if (msg && !/ship to this location/i.test(msg)) throw new Error(msg)
     throw new Error("Can't ship to this location")
   }
+}
+
+let __gigStationsCache: Record<string, any[]> = {}
+export async function getGigStations(state: string) {
+  const key = (state||'').toUpperCase().trim()
+  if (key && __gigStationsCache[key]) return __gigStationsCache[key]
+  const candidates = [
+    '/stations', '/station', '/domestic/stations', '/domestic/station', '/country/stations'
+  ]
+  const found: any[] = []
+  for (const path of candidates) {
+    try {
+      const res: any = await gigFetch(path, { auth: true })
+      const arr = Array.isArray(res) ? res : (Array.isArray(res?.data) ? res.data : (Array.isArray(res?.result) ? res.result : []))
+      if (!Array.isArray(arr) || !arr.length) continue
+      for (const raw of arr) {
+        if (!raw || typeof raw !== 'object') continue
+        const st = String(raw.State || raw.state || raw.Region || raw.region || '').toUpperCase()
+        if (key && st && st !== key) continue
+        const id = raw.StationId ?? raw.stationId ?? raw.ServiceCentreId ?? raw.serviceCentreId ?? raw.Id ?? raw.id
+        if (id == null) continue
+        const city = raw.City || raw.city || raw.Location || raw.location || raw.Name || raw.name
+        found.push({
+          id: Number(id),
+          name: String(raw.Name || raw.name || city || `Station ${id}`),
+          city: String(city || ''),
+          state: st || key,
+          raw
+        })
+      }
+      if (found.length) break
+    } catch { /* try next */ }
+  }
+  if (!found.length) {
+    // Fallback hardcoded minimal mapping (adjust when real IDs known)
+    const fallbackMap: Record<string, { id: number; name: string; city: string }[]> = {
+      'FCT': [{ id: 1, name: 'Abuja Hub', city: 'Abuja' }],
+      'LAGOS': [{ id: 2, name: 'Ikeja Hub', city: 'Ikeja' }],
+      'OGUN': [{ id: 3, name: 'Abeokuta Hub', city: 'Abeokuta' }]
+    }
+    const fb = fallbackMap[key]
+    if (fb) __gigStationsCache[key] = fb
+    return fb || []
+  }
+  __gigStationsCache[key] = found
+  return found
 }
 
 // ----------------------------------------------------------------------------

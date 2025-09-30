@@ -338,7 +338,7 @@ export default function Header() {
               <img src={cartImg} alt="" className='w-[22px]'/>
               <span className="font-medium">My Cart</span>
               {cartCount > 0 && (
-                <span aria-label={`Cart item count: ${cartCount}`} className="absolute -right-3 -top-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1.5 text-[11px] font-bold text-white ring-2 ring-white">
+                <span aria-label={`Cart item count: ${cartCount}`} className="absolute -right-3 -top-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-purple-600 px-1.5 text-[11px] font-bold text-white ring-2 ring-white">
                   {cartCount}
                 </span>
               )}
@@ -377,7 +377,7 @@ export default function Header() {
             </button>
             <Link to={{ pathname: location.pathname, search: location.search, hash: '#cart' }} replace aria-label="Cart" className="relative inline-flex h-10 w-10 items-center justify-center rounded-md bg-white/70 ring-1 ring-black/10 text-gray-700 hover:bg-white">
               <img src={cartImg} alt="Cart" className='w-[20px]' />
-              {cartCount > 0 && (<span className="absolute -right-1 -top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-bold text-white ring-2 ring-white">{cartCount}</span>)}
+              {cartCount > 0 && (<span className="absolute -right-1 -top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-purple-600 px-1 text-[10px] font-bold text-white ring-2 ring-white">{cartCount}</span>)}
             </Link>
             {user ? (
               <Link to="/profile" aria-label="Profile" className="inline-flex h-10 w-10 items-center justify-center rounded-md bg-white/70 ring-1 ring-black/10 text-gray-700 hover:bg-white">

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../services/auth'
-import { getCartForUser, removeCartItem, updateCartQuantity, getProductById, getAllStatesApi, getStatesByLocation, updateDeliveryAddress, /* getUserCartTotal, */ getPriceByState, paymentSuccessfull, getGigQuote } from '../services/api'
+import { getCartForUser, removeCartItem, updateCartQuantity, getProductById, getAllStatesApi, getStatesByLocation, updateDeliveryAddress, /* getUserCartTotal, */ getPriceByState, paymentSuccessfull, getGigQuote, getGigStations } from '../services/api'
 import { getGuestCart, setGuestCart, type GuestCart } from '../services/cart'
 import { normalizeApiImage, pickImage, productImageFrom } from '../services/images'
 import logoImg from '../assets/gapa-logo.png'
@@ -69,6 +69,7 @@ function useCartData() {
   const { user } = useAuth()
   const [loading, setLoading] = useState(true)
   const [items, setItems] = useState<UICartItem[]>([])
+  const [rawItems, setRawItems] = useState<any[]>([]) // store full API cart rows for logistics enrichment
 
   const load = async () => {
     try {
@@ -76,10 +77,12 @@ function useCartData() {
       if (user && user.id) {
         const res = await getCartForUser(user.id)
         const arr = Array.isArray(res) ? res : []
+        setRawItems(arr)
         const mapped: UICartItem[] = arr.map((item: any) => {
           const prod = (item && (item.product || item.part || item.item)) || item
           const productId = String(item?.product_id ?? prod?.id ?? item?.id ?? '')
           const name = String(prod?.name || prod?.title || prod?.product_name || 'Part')
+            .trim()
           const price = Number(prod?.price ?? prod?.selling_price ?? prod?.amount ?? item?.price ?? 0)
           const quantity = Number(item?.quantity ?? item?.qty ?? 1) || 1
           const image = productImageFrom(prod) || normalizeApiImage(pickImage(prod) || '') || logoImg
@@ -88,7 +91,7 @@ function useCartData() {
         setItems(mapped)
       } else {
         const cart: GuestCart = getGuestCart()
-        if (!cart.items.length) { setItems([]); return }
+        if (!cart.items.length) { setItems([]); setRawItems([]); return }
         const details = await Promise.all(cart.items.map(async (ci) => {
           try { const prod = await getProductById(ci.product_id); return { ci, prod } } catch { return { ci, prod: null } }
         }))
@@ -100,6 +103,7 @@ function useCartData() {
           return { productId: ci.product_id, name, price, quantity: ci.quantity, image }
         })
         setItems(mapped)
+        setRawItems(details.map(d => ({ ...(d.prod || {}), quantity: d.ci.quantity })))
       }
     } finally {
       setLoading(false)
@@ -108,13 +112,13 @@ function useCartData() {
 
   useEffect(() => { load() }, [user?.id])
 
-  return { user, loading, items, reload: load, setItems }
+  return { user, loading, items, rawItems, reload: load, setItems }
 }
 
 export default function Checkout() {
   const navigate = useNavigate()
   const { user } = useAuth()
-  const { loading, items, reload } = useCartData()
+  const { loading, items, rawItems, reload } = useCartData()
   const [busyId, setBusyId] = useState<string | null>(null)
   const unauthenticated = !user
   const steps = unauthenticated ? ['Cart', 'Login', 'Address', 'Payment', 'Review'] : ['Cart', 'Address', 'Payment', 'Review']
@@ -136,6 +140,9 @@ export default function Checkout() {
   const [gigQuoteAmount, setGigQuoteAmount] = useState<number>(0)
   const [gigLoading, setGigLoading] = useState<boolean>(false)
   const [gigError, setGigError] = useState<string | null>(null)
+  // NEW: GIG station meta
+  const [gigStations, setGigStations] = useState<{ id:number; name:string; city:string; state:string; raw:any }[]>([])
+  const [gigStationId, setGigStationId] = useState<number | null>(null)
   // removed gigLastRegion state (was unused)
   // const [gigLastRegion, setGigLastRegion] = useState<string | number | undefined>(undefined)
   // NEW: receiver geolocation (attempt to capture once)
@@ -295,31 +302,59 @@ export default function Checkout() {
     }
   }, [deliveryMethod])
 
-  // Helper: build params for GIG quote
+  // Load GIG stations when state changes (only for GIG method)
+  useEffect(() => {
+    let cancelled = false
+    const loadStations = async () => {
+      if (deliveryMethod !== 'gig') { setGigStations([]); setGigStationId(null); return }
+      if (!address.regionId) { setGigStations([]); setGigStationId(null); return }
+      try {
+        // derive state label
+        const stObj = states.find(s => String(s.id) === String(address.regionId))
+        const stateLabel = String(stObj?.title || stObj?.name || stObj?.state || address.region || '')
+        if (!stateLabel) { setGigStations([]); setGigStationId(null); return }
+        const stations = await getGigStations(stateLabel)
+        if (cancelled) return
+        setGigStations(stations)
+        if (stations.length) {
+          // choose station matching deliveryLocationName or city if possible
+            const matchLoc = address.deliveryLocationName ? stations.find(s => s.city && s.city.toLowerCase() === String(address.deliveryLocationName).toLowerCase()) : null
+            setGigStationId(matchLoc ? Number(matchLoc.id) : Number(stations[0].id))
+        } else {
+          setGigStationId(null)
+        }
+      } catch {
+        if (!cancelled) { setGigStations([]); setGigStationId(null) }
+      }
+    }
+    loadStations()
+    return () => { cancelled = true }
+  }, [deliveryMethod, address.regionId, address.deliveryLocationName, states])
+
   const buildGigQuoteParams = () => {
-    const cartItemsForQuote = items.map(it => ({
+    // Prefer enriched rawItems when available
+    const source = rawItems.length ? rawItems : items
+    const cartItemsForQuote = source.map((it: any) => ({
       name: it.name,
-      description: (it as any).description || it.name,
-      weight_in_kg: (it as any).weight_in_kg || (it as any).weight_in_kg || 1,
-      quantity: it.quantity,
-      article_number: (it as any).article_number,
-      code: (it as any).code,
-      value: (it.price || 0) * it.quantity
+      description: (it.description || it.details || it.name || '').slice(0,200),
+      weight_in_kg: Number(it.weight_in_kg || it.weight || 1) || 1,
+      quantity: Number(it.quantity || 1) || 1,
+      article_number: it.article_number || it.article || it.code || '',
+      code: it.code || it.product_code || '',
+      value: Number((it.price || it.unit_price || 0)) * (Number(it.quantity || 1) || 1)
     }))
     const totalQty = cartItemsForQuote.reduce((s,i)=> s + (Number(i.quantity)||1), 0)
     const weight = cartItemsForQuote.reduce((s,i)=> s + (Number(i.weight_in_kg)||1)*(Number(i.quantity)||1), 0) || totalQty
     const stateObj = states.find(s=>String(s.id)===String(address.regionId))
     const destination_state = String(stateObj?.title || stateObj?.name || stateObj?.state || address.region || address.regionId || '')
-    // Destination city: if user provided a deliveryLocationName treat that as locality; otherwise map to state capital to avoid STATE as city
     const destination_city = String(address.city || address.deliveryLocationName || '').trim() || destination_state
     const receiver_address = [address.address1, address.address2, address.deliveryLocationName, destination_city, destination_state, address.postcode].filter(Boolean).join(', ')
     const receiver_name = address.fullName || 'Customer'
     const receiver_phone = address.phone || ''
     const items_count = Math.max(1, totalQty)
     const declared_value = cartItemsForQuote.reduce((sum,i)=> sum + (i.value||0), 0)
-    // Placeholder station/service centre IDs (TODO: integrate lookup endpoints)
-    const receiver_station_id = 0
-    const destination_service_centre_id = 0
+    const receiver_station_id = gigStationId || 0
+    const destination_service_centre_id = receiver_station_id // same for now
     return { destination_state, destination_city, receiver_address, receiver_name, receiver_phone, weight_kg: weight, items_count, items: cartItemsForQuote, receiver_latitude: receiverGeo.lat, receiver_longitude: receiverGeo.lng, declared_value, receiver_station_id, destination_service_centre_id }
   }
 
@@ -346,7 +381,7 @@ export default function Checkout() {
     if (!address.regionId) { setGigQuoteAmount(0); setGigError(null); return }
     const t = setTimeout(() => { void requestGigQuote() }, 400)
     return () => clearTimeout(t)
-  }, [deliveryMethod, address.regionId, address.city, address.deliveryLocationName, address.address1, address.address2, address.postcode, items, receiverGeo.lat, receiverGeo.lng, states])
+  }, [deliveryMethod, address.regionId, address.city, address.deliveryLocationName, address.address1, address.address2, address.postcode, items, receiverGeo.lat, receiverGeo.lng, states, gigStationId])
 
   useEffect(() => { localStorage.setItem('checkoutAddress', JSON.stringify(address)) }, [address])
   useEffect(() => { localStorage.setItem('checkoutPayment', payment) }, [payment])
@@ -720,7 +755,6 @@ export default function Checkout() {
                 <label className={`flex cursor-pointer items-center gap-3 rounded-md border p-3 text-sm ${deliveryMethod==='gig' ? 'border-brand ring-1 ring-brand/50 bg-[#FFF9E6]' : 'border-black/10 bg-gray-50'}`}>
                   <input type="radio" name="deliveryMethod" checked={deliveryMethod==='gig'} onChange={()=>{ setDeliveryMethod('gig'); setGigQuoteAmount(0); setGigError(null); if(address.regionId) void requestGigQuote() }} />
                   <div className="flex items-center gap-2">
-                    {/* <img src={deliveryGig} className="h-6 w-auto" alt="GIG Logistics"/> */}
                     <div>
                       <div className="font-semibold text-gray-900">GIG Logistics</div>
                       <div className="text-[11px] text-gray-600">Dynamic nationwide rate</div>
@@ -754,7 +788,7 @@ export default function Checkout() {
                     const label = (st?.title || st?.name || st?.state || '') as string
                     setAddress(a=>({ ...a, regionId: id, region: label }))
                     // reset GIG quote on state change
-                    setGigQuoteAmount(0); setGigError(null); /* removed setGigLastRegion(undefined) */
+                    setGigQuoteAmount(0); setGigError(null); setGigStations([]); setGigStationId(null)
                   }} className="mt-1 h-10 w-full rounded-md border border-black/10 bg-white px-3 text-[14px] outline-none focus:ring-2 focus:ring-brand">
                     <option value="">{statesLoading ? 'Loading states…' : 'Select state'}</option>
                     {(deliveryMethod==='gapa' ? states.filter(isAllowedForGapa) : states).map((s) => {
@@ -764,20 +798,14 @@ export default function Checkout() {
                     })}
                   </select>
                 </label>
-                {/* Gapa delivery location selection (only show if method gapa) */}
-                {deliveryMethod === 'gapa' && (
-                  <label className="text-[13px] text-gray-700">Delivery location
-                    <select disabled={!address.regionId || deliveryLoading || locations.length===0} value={String(address.deliveryLocationId || '')} onChange={(e)=>{
-                      const val = e.target.value
-                      const loc = locations.find(l => String(l.id) === val)
-                      setAddress(a=>({ ...a, deliveryLocationId: val || undefined, deliveryLocationName: loc?.location }))
-                      if (loc) setGapaDeliveryPrice(Math.max(0, Math.round(loc.price || 0)))
-                      else setGapaDeliveryPrice(0) // explicit 0 -> cannot proceed
-                     }} className="mt-1 h-10 w-full rounded-md border border-black/10 bg-white px-3 text-[14px] outline-none focus:ring-2 focus:ring-brand">
-                      <option value="">{deliveryLoading ? 'Loading locations…' : (locations.length? 'Select location' : "No locations available – can't ship")}</option>
-                       {locations.map((l) => { const id = String(l.id); return <option key={id} value={id}>{l.location}</option> })}
-                     </select>
-                   </label>
+                {/* GIG station selection (only show if gig and multiple stations) */}
+                {deliveryMethod==='gig' && gigStations.length>1 && (
+                  <label className="text-[13px] text-gray-700">Destination station
+                    <select value={gigStationId ?? ''} onChange={(e)=>{ const v = e.target.value ? Number(e.target.value) : null; setGigStationId(v); setGigQuoteAmount(0); setGigError(null) }} className="mt-1 h-10 w-full rounded-md border border-black/10 bg-white px-3 text-[14px] outline-none focus:ring-2 focus:ring-brand">
+                      <option value="">Select station</option>
+                      {gigStations.map(st => <option key={st.id} value={st.id}>{st.name}{st.city?` – ${st.city}`:''}</option>)}
+                    </select>
+                  </label>
                 )}
                 {/* Postcode */}
                 <label className="text-[13px] text-gray-700">Postcode
