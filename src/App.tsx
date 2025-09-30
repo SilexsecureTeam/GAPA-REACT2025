@@ -49,6 +49,15 @@ function App() {
     }
   }, [location.hash])
 
+  useEffect(() => {
+    // Skip auto scroll when merely opening cart popup via hash
+    if (location.hash === '#cart') return
+    // Defer to next frame for smoother transition after route mount
+    requestAnimationFrame(() => {
+      try { window.scrollTo({ top: 0, left: 0, behavior: 'instant' as ScrollBehavior }) } catch { window.scrollTo(0,0) }
+    })
+  }, [location.pathname, location.search])
+
   const handleCloseCart = () => {
     setCartOpen(false)
     // remove hash cleanly while preserving path + search

@@ -607,11 +607,15 @@ export type GigQuoteParams = {
   items_count?: number
   // optional overrides
   origin_state?: string
-  // NEW: raw cart items to build PreShipmentItems dynamically
-  items?: Array<{ name?: string; description?: string; weight_in_kg?: number | string; quantity?: number; article_number?: string; code?: string }>
-  // NEW: receiver geolocation (from browser geolocation or geocoding lookup)
+  // raw cart items to build PreShipmentItems dynamically
+  items?: Array<{ name?: string; description?: string; weight_in_kg?: number | string; quantity?: number; article_number?: string; code?: string; value?: number }>
   receiver_latitude?: number | string
   receiver_longitude?: number | string
+  // NEW optional logistics enrichment
+  receiver_station_id?: number
+  destination_service_centre_id?: number
+  declared_value?: number
+  vehicle_type?: string
 }
 
 async function gigFetch(path: string, init: RequestInit & { auth?: boolean } = {}) {
@@ -660,10 +664,22 @@ export async function getGigQuote(params: GigQuoteParams) {
   const stateCapitalMap: Record<string,string> = {
     LAGOS: 'Ikeja', FCT: 'Abuja', ABUJA: 'Abuja', OGUN: 'Abeokuta', OYO: 'Ibadan', RIVERS: 'Port Harcourt', KADUNA: 'Kaduna', KANO: 'Kano'
   }
+  const sanitizeCity = (city: string, state: string) => {
+    if (!city) return city
+    let c = city.trim()
+    // Remove trailing STATE if user selected state instead of city
+    c = c.replace(/\bSTATE$/i,'').trim()
+    if (c.toUpperCase() === state) return stateCapitalMap[state] || c
+    // Avoid values like "OGUN STATE"
+    if (c.toUpperCase() === state + ' STATE') return stateCapitalMap[state] || c.replace(/\s+STATE$/i,'')
+    // If still all uppercase single token and equals state, map to capital
+    if (c.toUpperCase() === state && stateCapitalMap[state]) return stateCapitalMap[state]
+    return c
+  }
   const pickCityForState = (state: string, providedCity?: string) => {
-    const up = (providedCity||'').trim().toUpperCase()
-    if (up && up !== state) return providedCity as string
-    return stateCapitalMap[state] || (providedCity || state)
+    const up = (providedCity||'').trim()
+    if (up) return sanitizeCity(up, state)
+    return stateCapitalMap[state] || state
   }
   const normalizePhone = (p?: string) => {
     if (!p) return ''
@@ -676,14 +692,14 @@ export async function getGigQuote(params: GigQuoteParams) {
 
   // Sender defaults -------------------------------------------------------
   const senderName = (import.meta as any)?.env?.VITE_GIG_SENDER_NAME || 'GAPA Auto Parts'
-  const senderPhoneRaw = (import.meta as any)?.env?.VITE_GIG_SENDER_PHONE || '+2340000000000'
+  const senderPhoneRaw = (import.meta as any)?.env?.VITE_GIG_SENDER_PHONE || '+2349074694221'
   const senderPhone = normalizePhone(senderPhoneRaw)
   const senderAddress = (import.meta as any)?.env?.VITE_GIG_SENDER_ADDRESS || 'No 5 OP, Fingesi Street, Utako Abuja'
   const senderLocality = (import.meta as any)?.env?.VITE_GIG_SENDER_LOCALITY || 'Utako'
   const senderStationId = Number((import.meta as any)?.env?.VITE_GIG_SENDER_STATION_ID || 1)
-  const senderLat = String((import.meta as any)?.env?.VITE_GIG_SENDER_LAT || '')
-  const senderLng = String((import.meta as any)?.env?.VITE_GIG_SENDER_LNG || '')
-  const vehicleType = (import.meta as any)?.env?.VITE_GIG_VEHICLE_TYPE || 'BIKE'
+  const senderLat = String((import.meta as any)?.env?.VITE_GIG_SENDER_LAT || '9.0666') // Abuja fallback
+  const senderLng = String((import.meta as any)?.env?.VITE_GIG_SENDER_LNG || '7.4583')
+  const vehicleType = params.vehicle_type || (import.meta as any)?.env?.VITE_GIG_VEHICLE_TYPE || 'VAN'
 
   // Derive item weights/qty ----------------------------------------------
   const cartItems = Array.isArray(params.items) ? params.items.filter(Boolean) : []
@@ -696,13 +712,17 @@ export async function getGigQuote(params: GigQuoteParams) {
   const weight = Math.max(1, derivedWeight)
   const qty = Math.max(1, derivedQty)
 
+  // Monetary values -------------------------------------------------------
+  const itemsDeclaredValue = cartItems.reduce((sum, it) => sum + ((it.value || 0) * (Number(it.quantity)||1)), 0)
+  const declaredValue = Math.max(1000, Number(params.declared_value || itemsDeclaredValue || 0)) // ensure non-zero floor
+
   // Destination normalization --------------------------------------------
   const destStateNormRaw = params.destination_state || ''
   const destStateNorm = normalizeState(destStateNormRaw)
-  const finalCity = pickCityForState(destStateNorm, params.destination_city || params.receiver_address)
+  const finalCity = pickCityForState(destStateNorm, params.destination_city)
 
   // Pre-shipment items ----------------------------------------------------
-  const preShipmentItems = (cartItems.length ? cartItems : [{ name: 'Car Parts', description: 'Auto parts', weight_in_kg: weight, quantity: qty }]).map((it, idx) => ({
+  const preShipmentItems = (cartItems.length ? cartItems : [{ name: 'Car Parts', description: 'Auto parts', weight_in_kg: weight, quantity: qty, value: declaredValue }]).map((it, idx) => ({
     PreShipmentItemMobileId: 0,
     Description: it.description || it.name || 'Auto part',
     Weight: Number(it.weight_in_kg) || 1,
@@ -711,7 +731,7 @@ export async function getGigQuote(params: GigQuoteParams) {
     ShipmentType: 1,
     ItemName: it.name || 'Car Part',
     EstimatedPrice: 0,
-    Value: '0',
+    Value: String(Math.max(0, it.value || 0)),
     ImageUrl: '',
     Quantity: Number(it.quantity) || 1,
     SerialNumber: idx,
@@ -731,9 +751,11 @@ export async function getGigQuote(params: GigQuoteParams) {
   const receiverPhone = normalizePhone(params.receiver_phone || '')
 
   // Root payload (extended) ----------------------------------------------
+  const receiverStationId = params.receiver_station_id != null ? Number(params.receiver_station_id) : 0
+  const destinationServiceCentreId = params.destination_service_centre_id != null ? Number(params.destination_service_centre_id) : receiverStationId
   const payload: any = {
     CustomerCode: GIG_CUSTOMER_CODE,
-    UserChannelCode: GIG_CUSTOMER_CODE, // duplicate for systems expecting this key
+    UserChannelCode: GIG_CUSTOMER_CODE,
     PreShipmentMobileId: 0,
     SenderName: senderName,
     SenderPhoneNumber: senderPhone,
@@ -747,7 +769,7 @@ export async function getGigQuote(params: GigQuoteParams) {
     DestinationCity: finalCity,
     ReceiverState: destStateNorm,
     ReceiverCity: finalCity,
-    ReceiverStationId: 0,
+    ReceiverStationId: receiverStationId,
     ReceiverName: params.receiver_name || 'Customer',
     ReceiverPhoneNumber: receiverPhone,
     ReceiverAddress: params.receiver_address || finalCity,
@@ -759,16 +781,17 @@ export async function getGigQuote(params: GigQuoteParams) {
     IsBatchPickUp: false,
     WaybillImage: '',
     WaybillImageFormat: '',
-    DestinationServiceCenterId: 0,
-    DestinationServiceCentreId: 0,
+    DestinationServiceCentreId: destinationServiceCentreId,
+    // keep legacy key for compatibility if backend expects either spelling
+    DestinationServiceCenterId: destinationServiceCentreId,
     IsCashOnDelivery: false,
     CashOnDeliveryAmount: 0,
     TotalWeight: weight,
     ItemsCount: qty,
-    // Added recommended optional fields
-    ApproximateItemsValue: 0,
-    DeclaredValue: 0,
-    ItemsValue: 0,
+    TotalQuantity: qty,
+    ApproximateItemsValue: declaredValue,
+    DeclaredValue: declaredValue,
+    ItemsValue: declaredValue,
     DeliveryType: 1,
     ShipmentType: 1,
     PaymentOnDelivery: false,
@@ -780,12 +803,15 @@ export async function getGigQuote(params: GigQuoteParams) {
   console.info('[GIG DEBUG] Using CustomerCode:', GIG_CUSTOMER_CODE)
   console.debug('[GIG DEBUG] Quote payload (sanitized):', {
     CustomerCode: payload.CustomerCode,
-    UserChannelCode: payload.UserChannelCode,
     DestinationState: payload.DestinationState,
     DestinationCity: payload.DestinationCity,
+    ReceiverStationId: payload.ReceiverStationId,
+    DestinationServiceCentreId: payload.DestinationServiceCentreId,
     ItemsCount: payload.ItemsCount,
     TotalWeight: payload.TotalWeight,
-    PreShipmentItems: payload.PreShipmentItems.map((i:any)=>({ ItemName: i.ItemName, Weight: i.Weight, Qty: i.Quantity }))
+    DeclaredValue: payload.DeclaredValue,
+    VehicleType: payload.VehicleType,
+    PreShipmentItems: payload.PreShipmentItems.map((i:any)=>({ ItemName: i.ItemName, Weight: i.Weight, Qty: i.Quantity, Value: i.Value }))
   })
 
   try {

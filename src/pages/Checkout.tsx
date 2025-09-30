@@ -300,21 +300,27 @@ export default function Checkout() {
     const cartItemsForQuote = items.map(it => ({
       name: it.name,
       description: (it as any).description || it.name,
-      weight_in_kg: (it as any).weight_in_kg || 1,
+      weight_in_kg: (it as any).weight_in_kg || (it as any).weight_in_kg || 1,
       quantity: it.quantity,
       article_number: (it as any).article_number,
-      code: (it as any).code
+      code: (it as any).code,
+      value: (it.price || 0) * it.quantity
     }))
     const totalQty = cartItemsForQuote.reduce((s,i)=> s + (Number(i.quantity)||1), 0)
     const weight = cartItemsForQuote.reduce((s,i)=> s + (Number(i.weight_in_kg)||1)*(Number(i.quantity)||1), 0) || totalQty
-    const stateLabel = states.find(s=>String(s.id)===String(address.regionId))
-    const destination_state = String(stateLabel?.title || stateLabel?.name || stateLabel?.state || address.region || address.regionId || '')
-    const destination_city = String(address.city || address.deliveryLocationName || address.region || '')
-    const receiver_address = [address.address1, address.address2, address.deliveryLocationName, address.region, address.postcode].filter(Boolean).join(', ')
+    const stateObj = states.find(s=>String(s.id)===String(address.regionId))
+    const destination_state = String(stateObj?.title || stateObj?.name || stateObj?.state || address.region || address.regionId || '')
+    // Destination city: if user provided a deliveryLocationName treat that as locality; otherwise map to state capital to avoid STATE as city
+    const destination_city = String(address.city || address.deliveryLocationName || '').trim() || destination_state
+    const receiver_address = [address.address1, address.address2, address.deliveryLocationName, destination_city, destination_state, address.postcode].filter(Boolean).join(', ')
     const receiver_name = address.fullName || 'Customer'
     const receiver_phone = address.phone || ''
     const items_count = Math.max(1, totalQty)
-    return { destination_state, destination_city, receiver_address, receiver_name, receiver_phone, weight_kg: weight, items_count, items: cartItemsForQuote, receiver_latitude: receiverGeo.lat, receiver_longitude: receiverGeo.lng }
+    const declared_value = cartItemsForQuote.reduce((sum,i)=> sum + (i.value||0), 0)
+    // Placeholder station/service centre IDs (TODO: integrate lookup endpoints)
+    const receiver_station_id = 0
+    const destination_service_centre_id = 0
+    return { destination_state, destination_city, receiver_address, receiver_name, receiver_phone, weight_kg: weight, items_count, items: cartItemsForQuote, receiver_latitude: receiverGeo.lat, receiver_longitude: receiverGeo.lng, declared_value, receiver_station_id, destination_service_centre_id }
   }
 
   const requestGigQuote = async () => {
