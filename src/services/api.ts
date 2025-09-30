@@ -649,25 +649,43 @@ export async function getGigQuote(params: GigQuoteParams) {
     throw new Error("Can't ship to this location")
   }
 
-  // Normalize state names
+  // Helpers ---------------------------------------------------------------
   const normalizeState = (s: string) => {
     if (!s) return s
-    const up = s.toUpperCase()
+    const up = s.toUpperCase().trim()
     if (up.includes('FEDERAL CAPITAL TERRITORY') || up === 'F C T' || up === 'ABUJA FCT') return 'FCT'
     if (up === 'ABUJA') return 'FCT'
-    return s
+    return up.replace(/\s+STATE$/,'').trim()
+  }
+  const stateCapitalMap: Record<string,string> = {
+    LAGOS: 'Ikeja', FCT: 'Abuja', ABUJA: 'Abuja', OGUN: 'Abeokuta', OYO: 'Ibadan', RIVERS: 'Port Harcourt', KADUNA: 'Kaduna', KANO: 'Kano'
+  }
+  const pickCityForState = (state: string, providedCity?: string) => {
+    const up = (providedCity||'').trim().toUpperCase()
+    if (up && up !== state) return providedCity as string
+    return stateCapitalMap[state] || (providedCity || state)
+  }
+  const normalizePhone = (p?: string) => {
+    if (!p) return ''
+    const digits = p.replace(/\D+/g,'')
+    if (digits.startsWith('234')) return '+'+digits
+    if (digits.startsWith('0')) return '+234'+digits.slice(1)
+    if (digits.startsWith('+234')) return digits.startsWith('+')?digits:'+'+digits
+    return '+234'+digits
   }
 
-  // Sender defaults
+  // Sender defaults -------------------------------------------------------
   const senderName = (import.meta as any)?.env?.VITE_GIG_SENDER_NAME || 'GAPA Auto Parts'
-  const senderPhone = (import.meta as any)?.env?.VITE_GIG_SENDER_PHONE || '+2340000000000'
-  const senderAddress = (import.meta as any)?.env?.VITE_GIG_SENDER_ADDRESS || 'Ikeja, Lagos, Nigeria'
-  const senderLocality = (import.meta as any)?.env?.VITE_GIG_SENDER_LOCALITY || 'Ikeja'
+  const senderPhoneRaw = (import.meta as any)?.env?.VITE_GIG_SENDER_PHONE || '+2340000000000'
+  const senderPhone = normalizePhone(senderPhoneRaw)
+  const senderAddress = (import.meta as any)?.env?.VITE_GIG_SENDER_ADDRESS || 'No 5 OP, Fingesi Street, Utako Abuja'
+  const senderLocality = (import.meta as any)?.env?.VITE_GIG_SENDER_LOCALITY || 'Utako'
   const senderStationId = Number((import.meta as any)?.env?.VITE_GIG_SENDER_STATION_ID || 1)
   const senderLat = String((import.meta as any)?.env?.VITE_GIG_SENDER_LAT || '')
   const senderLng = String((import.meta as any)?.env?.VITE_GIG_SENDER_LNG || '')
   const vehicleType = (import.meta as any)?.env?.VITE_GIG_VEHICLE_TYPE || 'BIKE'
 
+  // Derive item weights/qty ----------------------------------------------
   const cartItems = Array.isArray(params.items) ? params.items.filter(Boolean) : []
   const derivedWeight = cartItems.length
     ? cartItems.reduce((sum, it) => sum + (Math.max(0, Number(it.weight_in_kg) || 1) * (Number(it.quantity) || 1)), 0)
@@ -675,13 +693,15 @@ export async function getGigQuote(params: GigQuoteParams) {
   const derivedQty = cartItems.length
     ? cartItems.reduce((sum, it) => sum + (Number(it.quantity) || 1), 0)
     : Number(params.items_count || 1)
-
   const weight = Math.max(1, derivedWeight)
   const qty = Math.max(1, derivedQty)
 
-  const destStateNorm = normalizeState(params.destination_state)
-  const destCity = params.destination_city || params.receiver_address || destStateNorm
+  // Destination normalization --------------------------------------------
+  const destStateNormRaw = params.destination_state || ''
+  const destStateNorm = normalizeState(destStateNormRaw)
+  const finalCity = pickCityForState(destStateNorm, params.destination_city || params.receiver_address)
 
+  // Pre-shipment items ----------------------------------------------------
   const preShipmentItems = (cartItems.length ? cartItems : [{ name: 'Car Parts', description: 'Auto parts', weight_in_kg: weight, quantity: qty }]).map((it, idx) => ({
     PreShipmentItemMobileId: 0,
     Description: it.description || it.name || 'Auto part',
@@ -696,11 +716,11 @@ export async function getGigQuote(params: GigQuoteParams) {
     Quantity: Number(it.quantity) || 1,
     SerialNumber: idx,
     IsVolumetric: false,
-    Length: null,
-    Width: null,
-    Height: null,
+    Length: 0,
+    Width: 0,
+    Height: 0,
     PreShipmentMobileId: 0,
-    CalculatedPrice: null,
+    CalculatedPrice: 0,
     SpecialPackageId: null,
     IsCancelled: false,
     PictureName: '',
@@ -708,8 +728,12 @@ export async function getGigQuote(params: GigQuoteParams) {
     WeightRange: '0'
   }))
 
+  const receiverPhone = normalizePhone(params.receiver_phone || '')
+
+  // Root payload (extended) ----------------------------------------------
   const payload: any = {
     CustomerCode: GIG_CUSTOMER_CODE,
+    UserChannelCode: GIG_CUSTOMER_CODE, // duplicate for systems expecting this key
     PreShipmentMobileId: 0,
     SenderName: senderName,
     SenderPhoneNumber: senderPhone,
@@ -720,28 +744,16 @@ export async function getGigQuote(params: GigQuoteParams) {
     SenderCountry: 'Nigeria',
     ReceiverCountry: 'Nigeria',
     DestinationState: destStateNorm,
-    DestinationCity: destCity,
+    DestinationCity: finalCity,
     ReceiverState: destStateNorm,
-    ReceiverCity: destCity,
-    ReceiverStationId: 1,
+    ReceiverCity: finalCity,
+    ReceiverStationId: 0,
     ReceiverName: params.receiver_name || 'Customer',
-    ReceiverPhoneNumber: params.receiver_phone || '',
-    ReceiverAddress: params.receiver_address || params.destination_state,
-    InputtedReceiverAddress: params.receiver_address || params.destination_state,
-    SenderLocation: {
-      Latitude: senderLat,
-      Longitude: senderLng,
-      FormattedAddress: '',
-      Name: '',
-      LGA: ''
-    },
-    ReceiverLocation: {
-      Latitude: params.receiver_latitude != null ? String(params.receiver_latitude) : '',
-      Longitude: params.receiver_longitude != null ? String(params.receiver_longitude) : '',
-      FormattedAddress: '',
-      Name: destCity || destStateNorm || '',
-      LGA: ''
-    },
+    ReceiverPhoneNumber: receiverPhone,
+    ReceiverAddress: params.receiver_address || finalCity,
+    InputtedReceiverAddress: params.receiver_address || finalCity,
+    SenderLocation: { Latitude: senderLat, Longitude: senderLng, FormattedAddress: '', Name: senderLocality, LGA: '' },
+    ReceiverLocation: { Latitude: params.receiver_latitude != null ? String(params.receiver_latitude) : '', Longitude: params.receiver_longitude != null ? String(params.receiver_longitude) : '', FormattedAddress: '', Name: finalCity, LGA: '' },
     PreShipmentItems: preShipmentItems,
     VehicleType: vehicleType,
     IsBatchPickUp: false,
@@ -752,10 +764,29 @@ export async function getGigQuote(params: GigQuoteParams) {
     IsCashOnDelivery: false,
     CashOnDeliveryAmount: 0,
     TotalWeight: weight,
-    ItemsCount: qty
+    ItemsCount: qty,
+    // Added recommended optional fields
+    ApproximateItemsValue: 0,
+    DeclaredValue: 0,
+    ItemsValue: 0,
+    DeliveryType: 1,
+    ShipmentType: 1,
+    PaymentOnDelivery: false,
+    IsInternational: false,
+    ItemCategory: 'Auto Parts',
+    ItemSenderType: 'Individual'
   }
 
   console.info('[GIG DEBUG] Using CustomerCode:', GIG_CUSTOMER_CODE)
+  console.debug('[GIG DEBUG] Quote payload (sanitized):', {
+    CustomerCode: payload.CustomerCode,
+    UserChannelCode: payload.UserChannelCode,
+    DestinationState: payload.DestinationState,
+    DestinationCity: payload.DestinationCity,
+    ItemsCount: payload.ItemsCount,
+    TotalWeight: payload.TotalWeight,
+    PreShipmentItems: payload.PreShipmentItems.map((i:any)=>({ ItemName: i.ItemName, Weight: i.Weight, Qty: i.Quantity }))
+  })
 
   try {
     const res: any = await gigFetch('/price', { method: 'POST', auth: true, body: JSON.stringify(payload) })
