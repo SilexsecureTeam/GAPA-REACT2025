@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../services/auth'
-import { getCartForUser, removeCartItem, updateCartQuantity, getProductById, getAllStatesApi, getStatesByLocation, updateDeliveryAddress, /* getUserCartTotal, */ getPriceByState, paymentSuccessfull, getGigQuote } from '../services/api'
+import { getCartForUser, removeCartItem, updateCartQuantity, getProductById, getAllStatesApi, getStatesByLocation, updateDeliveryAddress, /* getUserCartTotal, */ getPriceByState, paymentSuccessfull, getGigQuote, increaseCartItem } from '../services/api'
 import { getGuestCart, setGuestCart, type GuestCart } from '../services/cart'
 import { normalizeApiImage, pickImage, productImageFrom } from '../services/images'
 import logoImg from '../assets/gapa-logo.png'
@@ -383,7 +383,33 @@ export default function Checkout() {
     setBusyId(productId)
     try {
       if (user && (user as any).id) {
-        await updateCartQuantity({ user_id: (user as any).id, product_id: productId, quantity: nextQty })
+        const raw = rawItems.find(r => [r?.product_id, r?.id, r?.product?.id, r?.part?.id].some((v:any)=> String(v) === productId)) || null
+        const primaryProductId = raw?.product_id ?? raw?.id ?? productId
+        let success = false
+        // Attempt preferred update endpoint first
+        try {
+          await updateCartQuantity({ user_id: (user as any).id, product_id: String(primaryProductId), quantity: nextQty })
+          success = true
+        } catch (e) {
+          // Fallback: try explicit increase endpoint if just +1
+          try {
+            if (nextQty === (current.quantity + 1)) {
+              await increaseCartItem({ user_id: (user as any).id, product_id: String(primaryProductId) })
+              success = true
+            }
+          } catch {}
+          // Last resort: if raw.id differs, try again using raw.id as product_id
+          if (!success && raw && raw.id && raw.id !== raw.product_id) {
+            try {
+              await updateCartQuantity({ user_id: (user as any).id, product_id: String(raw.id), quantity: nextQty })
+              success = true
+            } catch {}
+          }
+        }
+        if (!success) {
+          toast.error('Unable to update quantity')
+          return
+        }
       } else {
         const cart = getGuestCart()
         const idx = cart.items.findIndex(it => it.product_id === productId)
@@ -397,10 +423,29 @@ export default function Checkout() {
     const current = items.find(i => i.productId === productId)
     if (!current) return
     const nextQty = Math.max(1, current.quantity - 1)
+    if (nextQty === current.quantity) return
     setBusyId(productId)
     try {
       if (user && (user as any).id) {
-        await updateCartQuantity({ user_id: (user as any).id, product_id: productId, quantity: nextQty })
+        const raw = rawItems.find(r => [r?.product_id, r?.id, r?.product?.id, r?.part?.id].some((v:any)=> String(v) === productId)) || null
+        const primaryProductId = raw?.product_id ?? raw?.id ?? productId
+        let success = false
+        try {
+          await updateCartQuantity({ user_id: (user as any).id, product_id: String(primaryProductId), quantity: nextQty })
+          success = true
+        } catch (e) {
+          // Try with raw.id if different
+          if (!success && raw && raw.id && raw.id !== raw.product_id) {
+            try {
+              await updateCartQuantity({ user_id: (user as any).id, product_id: String(raw.id), quantity: nextQty })
+              success = true
+            } catch {}
+          }
+        }
+        if (!success) {
+          toast.error('Unable to update quantity')
+          return
+        }
       } else {
         const cart = getGuestCart()
         const idx = cart.items.findIndex(it => it.product_id === productId)
@@ -995,6 +1040,9 @@ function SignupInline({ onSuccess }: { onSuccess: () => void }) {
   const [form, setForm] = useState({ name: '', email: '', phone: '', password: '', confirm: '' })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // reference loading & error to avoid unused warnings if tree-shaken paths remove JSX
+  // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+  ;(loading || error); // harmless reference
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
