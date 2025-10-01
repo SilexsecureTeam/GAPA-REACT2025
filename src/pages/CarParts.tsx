@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, Fragment, useCallback } from 'react'
+import React, { useEffect, useMemo, useState, Fragment, useCallback, useRef } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import FallbackLoader from '../components/FallbackLoader'
 import ProductCard, { type Product as UiProduct } from '../components/ProductCard'
@@ -264,6 +264,40 @@ function CarPartsInner() {
   const [, setAccSubCatsLoading] = useState(false)
   const [accProducts, setAccProducts] = useState<ApiProduct[]>([])
   const [accProductsLoading, setAccProductsLoading] = useState(false)
+
+  // --- Scroll refs for drill-down sections ---
+  const catSectionRef = useRef<HTMLDivElement | null>(null) // sub-categories section (after selecting a category)
+  const subSubCatSectionRef = useRef<HTMLDivElement | null>(null) // sub-sub categories pills (after selecting a sub-category)
+  const productsSectionRef = useRef<HTMLDivElement | null>(null) // products grid (after selecting a sub-sub-category)
+
+  const SCROLL_OFFSET = 80 // header allowance
+  const scrollToEl = (el: HTMLElement | null) => {
+    if (!el) return
+    const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    const y = el.getBoundingClientRect().top + window.scrollY - SCROLL_OFFSET
+    window.scrollTo({ top: y, behavior: prefersReduced ? 'auto' : 'smooth' })
+  }
+
+  // Scroll when category selected (to sub-categories) once loaded
+  useEffect(() => {
+    if (activeCatId && !activeSubCatId && !subCatsLoading) {
+      requestAnimationFrame(() => scrollToEl(catSectionRef.current))
+    }
+  }, [activeCatId, activeSubCatId, subCatsLoading])
+
+  // Scroll when sub-category selected (to sub-sub categories) once loaded
+  useEffect(() => {
+    if (activeSubCatId && !activeSubSubCatId && !subSubCatsLoading) {
+      requestAnimationFrame(() => scrollToEl(subSubCatSectionRef.current))
+    }
+  }, [activeSubCatId, activeSubSubCatId, subSubCatsLoading])
+
+  // Scroll when sub-sub-category selected (to products) once loaded
+  useEffect(() => {
+    if (activeSubSubCatId && !subProductsLoading) {
+      requestAnimationFrame(() => scrollToEl(productsSectionRef.current))
+    }
+  }, [activeSubSubCatId, subProductsLoading])
 
   // Sync internal state when URL changes
   useEffect(() => {
@@ -788,7 +822,7 @@ function CarPartsInner() {
 
             <div>
               {/* Sub Categories */}
-              <div className="mt-0">
+              <div className="mt-0" ref={catSectionRef}>
                 <h3 className="text-[16px] font-semibold text-gray-900">{activeCategoryName || 'Sub Categories'}</h3>
                 {subCatsLoading ? (
                   <div className="mt-3"><FallbackLoader label="Loading sub categories…" /></div>
@@ -821,7 +855,7 @@ function CarPartsInner() {
 
               {/* Sub-Sub Categories */}
               {activeSubCatId && (
-                <div className="mt-8">
+                <div className="mt-8" ref={subSubCatSectionRef}>
                   <h3 className="text-[16px] font-semibold text-gray-900">{activeSubCategoryName || 'Types'}</h3>
                   {subSubCatsLoading ? (
                     <div className="mt-3"><FallbackLoader label="Loading types…" /></div>
@@ -855,7 +889,7 @@ function CarPartsInner() {
 
               {/* Products under sub-sub-category */}
               {activeSubSubCatId && (
-                <div className="mt-10">
+                <div className="mt-10" ref={productsSectionRef}>
                   <h3 className="text-[16px] font-semibold text-gray-900">{activeTypeName || 'Products'}</h3>
                   {subProductsLoading ? (
                     <div className="mt-3"><FallbackLoader label="Loading products…" /></div>
