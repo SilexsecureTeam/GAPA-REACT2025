@@ -345,7 +345,9 @@ export default function Checkout() {
       setGigQuoteAmount(Math.round(quote.amount))
     } catch (e: any) {
       console.error('GIG quote error', e)
-      setGigError(e?.message || 'Can\'t ship to this location')
+      const msg = e?.message || 'Can\'t ship to this location'
+      toast.error(msg) // NEW: show error via toast instead of inline text
+      setGigError(msg)
       setGigQuoteAmount(0)
     } finally { setGigLoading(false) }
   }
@@ -784,7 +786,7 @@ export default function Checkout() {
                       else setGapaDeliveryPrice(0)
                     }} className="mt-1 h-10 w-full rounded-md border border-black/10 bg-white px-3 text-[14px] outline-none focus:ring-2 focus:ring-brand">
                       <option value="">Select location</option>
-                      {locations.map(l => <option key={l.id} value={l.id}>{l.location} {l.price?`(₦${l.price.toLocaleString('en-NG')})`:''}</option>)}
+                      {locations.map(l => <option key={l.id} value={l.id}>{l.location}</option>)} {/* Removed price display */}
                     </select>
                   </label>
                 )}
@@ -804,7 +806,7 @@ export default function Checkout() {
                   <div className="mt-2 text-[12px] text-gray-600">Live rate from GIG.</div>
                   <div className="mt-2 flex flex-wrap items-center gap-3 text-[13px] font-medium">
                     {gigLoading && <span className="text-gray-600">Fetching quote…</span>}
-                    {!gigLoading && gigError && <span className="text-red-600">{gigError}</span>}
+                    {/* Inline error removed; handled via toast */}
                     {!gigLoading && !gigError && gigQuoteAmount>0 && <span className="text-gray-900">₦{gigQuoteAmount.toLocaleString('en-NG')}</span>}
                     {!gigLoading && !gigError && !gigQuoteAmount && address.regionId && <span className="text-gray-500">No quote yet</span>}
                     <button type="button" disabled={gigLoading || !address.regionId} onClick={()=>void requestGigQuote()} className="inline-flex h-8 items-center justify-center rounded-md border border-brand px-3 text-[12px] font-semibold text-brand disabled:opacity-50">{gigLoading? 'Loading…' : gigQuoteAmount>0 ? 'Refresh quote' : 'Get quote'}</button>
