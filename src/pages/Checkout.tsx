@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../services/auth'
-import { getCartForUser, removeCartItem, updateCartQuantity, getProductById, getAllStatesApi, getStatesByLocation, updateDeliveryAddress, /* getUserCartTotal, */ getPriceByState, paymentSuccessfull, getGigQuote, getGigStations } from '../services/api'
+import { getCartForUser, removeCartItem, updateCartQuantity, getProductById, getAllStatesApi, getStatesByLocation, updateDeliveryAddress, /* getUserCartTotal, */ getPriceByState, paymentSuccessfull, getGigQuote } from '../services/api'
 import { getGuestCart, setGuestCart, type GuestCart } from '../services/cart'
 import { normalizeApiImage, pickImage, productImageFrom } from '../services/images'
 import logoImg from '../assets/gapa-logo.png'
@@ -46,19 +46,20 @@ type UICartItem = {
   image: string
 }
 
+// FIX: Proper Address type syntax (previous version missed '=' and braces)
 type Address = {
-  fullName: string
-  email: string
-  phone: string
-  address1: string
-  address2: string
-  city: string
-  region: string
-  regionId?: string | number
-  country: string
-  postcode: string
-  deliveryLocationId?: string | number
-  deliveryLocationName?: string
+  fullName: string;
+  email: string;
+  phone: string;
+  address1: string;
+  address2: string;
+  city: string;
+  region: string;
+  regionId?: string | number;
+  country: string;
+  postcode: string;
+  deliveryLocationId?: string | number;
+  deliveryLocationName?: string;
 }
 
 type PaymentMethod = 'paystack' | 'flutter'
@@ -140,10 +141,11 @@ export default function Checkout() {
   const [gigQuoteAmount, setGigQuoteAmount] = useState<number>(0)
   const [gigLoading, setGigLoading] = useState<boolean>(false)
   const [gigError, setGigError] = useState<string | null>(null)
-  // NEW: GIG station meta
-  const [gigStations, setGigStations] = useState<{ id:number; name:string; city:string; state:string; raw:any }[]>([])
-  const [gigStationId, setGigStationId] = useState<number | null>(null)
-  // removed gigLastRegion state (was unused)
+  // Remove GIG stations state (endpoints 404); use static fallback IDs
+  // const [gigStations, setGigStations] = useState<{ id:number; name:string; city:string; state:string; raw:any }[]>([])
+  // const [gigStationId, setGigStationId] = useState<number | null>(null)
+  const DEFAULT_GIG_RECEIVER_STATION_ID = 2 // fallback based on working payload example
+  // Removed unused DEFAULT_GIG_SENDER_STATION_ID constant (was causing TS 6133 warning)
   // const [gigLastRegion, setGigLastRegion] = useState<string | number | undefined>(undefined)
   // NEW: receiver geolocation (attempt to capture once)
   const [receiverGeo, setReceiverGeo] = useState<{ lat?: number; lng?: number; error?: string }>({})
@@ -219,7 +221,7 @@ export default function Checkout() {
   // Existing effect: load states, default rate, prefill address
   useEffect(() => {
     const u = (user as any) || null
-    setAddress((prev) => {
+    setAddress((prev: Address) => { // annotated prev
       const next = { ...prev }
       if (u) {
         next.fullName = next.fullName || String(u?.name || '')
@@ -251,7 +253,7 @@ export default function Checkout() {
   useEffect(() => {
     if (!address.regionId && address.region && states.length) {
       const match = states.find((s) => (s.title || s.name || s.state || '') === address.region)
-      if (match?.id != null) setAddress((a) => ({ ...a, regionId: match.id }))
+      if (match?.id != null) setAddress((a: Address) => ({ ...a, regionId: match.id }))
     }
   }, [states])
 
@@ -302,35 +304,6 @@ export default function Checkout() {
     }
   }, [deliveryMethod])
 
-  // Load GIG stations when state changes (only for GIG method)
-  useEffect(() => {
-    let cancelled = false
-    const loadStations = async () => {
-      if (deliveryMethod !== 'gig') { setGigStations([]); setGigStationId(null); return }
-      if (!address.regionId) { setGigStations([]); setGigStationId(null); return }
-      try {
-        // derive state label
-        const stObj = states.find(s => String(s.id) === String(address.regionId))
-        const stateLabel = String(stObj?.title || stObj?.name || stObj?.state || address.region || '')
-        if (!stateLabel) { setGigStations([]); setGigStationId(null); return }
-        const stations = await getGigStations(stateLabel)
-        if (cancelled) return
-        setGigStations(stations)
-        if (stations.length) {
-          // choose station matching deliveryLocationName or city if possible
-            const matchLoc = address.deliveryLocationName ? stations.find(s => s.city && s.city.toLowerCase() === String(address.deliveryLocationName).toLowerCase()) : null
-            setGigStationId(matchLoc ? Number(matchLoc.id) : Number(stations[0].id))
-        } else {
-          setGigStationId(null)
-        }
-      } catch {
-        if (!cancelled) { setGigStations([]); setGigStationId(null) }
-      }
-    }
-    loadStations()
-    return () => { cancelled = true }
-  }, [deliveryMethod, address.regionId, address.deliveryLocationName, states])
-
   const buildGigQuoteParams = () => {
     // Prefer enriched rawItems when available
     const source = rawItems.length ? rawItems : items
@@ -353,9 +326,11 @@ export default function Checkout() {
     const receiver_phone = address.phone || ''
     const items_count = Math.max(1, totalQty)
     const declared_value = cartItemsForQuote.reduce((sum,i)=> sum + (i.value||0), 0)
-    const receiver_station_id = gigStationId || 0
-    const destination_service_centre_id = receiver_station_id // same for now
-    return { destination_state, destination_city, receiver_address, receiver_name, receiver_phone, weight_kg: weight, items_count, items: cartItemsForQuote, receiver_latitude: receiverGeo.lat, receiver_longitude: receiverGeo.lng, declared_value, receiver_station_id, destination_service_centre_id }
+    // Use static receiver station id (API station lookup removed)
+    const receiver_station_id = DEFAULT_GIG_RECEIVER_STATION_ID
+    const destination_service_centre_id = receiver_station_id
+    const user_id = (user as any)?.id ? String((user as any).id) : undefined
+    return { destination_state, destination_city, receiver_address, receiver_name, receiver_phone, weight_kg: weight, items_count, items: cartItemsForQuote, receiver_latitude: receiverGeo.lat, receiver_longitude: receiverGeo.lng, declared_value, receiver_station_id, destination_service_centre_id, user_id }
   }
 
   const requestGigQuote = async () => {
@@ -381,7 +356,7 @@ export default function Checkout() {
     if (!address.regionId) { setGigQuoteAmount(0); setGigError(null); return }
     const t = setTimeout(() => { void requestGigQuote() }, 400)
     return () => clearTimeout(t)
-  }, [deliveryMethod, address.regionId, address.city, address.deliveryLocationName, address.address1, address.address2, address.postcode, items, receiverGeo.lat, receiverGeo.lng, states, gigStationId])
+  }, [deliveryMethod, address.regionId, address.city, address.deliveryLocationName, address.address1, address.address2, address.postcode, items, receiverGeo.lat, receiverGeo.lng, states /* removed gigStationId */])
 
   useEffect(() => { localStorage.setItem('checkoutAddress', JSON.stringify(address)) }, [address])
   useEffect(() => { localStorage.setItem('checkoutPayment', payment) }, [payment])
@@ -766,29 +741,29 @@ export default function Checkout() {
               <div className="mt-6 grid grid-cols-1 gap-3 md:grid-cols-2">
                 {/* Address fields (unchanged) */}
                 <label className="text-[13px] text-gray-700">Full name
-                  <input value={address.fullName} onChange={(e)=>setAddress(a=>({ ...a, fullName: e.target.value }))} className="mt-1 w-full rounded-md border border-black/10 px-3 py-2 text-[14px] outline-none focus:ring-2 focus:ring-brand" placeholder="e.g., John Doe" />
+                  <input value={address.fullName} onChange={(e)=>setAddress((a: Address)=>({ ...a, fullName: e.target.value }))} className="mt-1 w-full rounded-md border border-black/10 px-3 py-2 text-[14px] outline-none focus:ring-2 focus:ring-brand" placeholder="e.g., John Doe" />
                 </label>
                 <label className="text-[13px] text-gray-700">Email
-                  <input type="email" value={address.email} onChange={(e)=>setAddress(a=>({ ...a, email: e.target.value }))} className="mt-1 w-full rounded-md border border-black/10 px-3 py-2 text-[14px] outline-none focus:ring-2 focus:ring-brand" placeholder="you@example.com" />
+                  <input type="email" value={address.email} onChange={(e)=>setAddress((a: Address)=>({ ...a, email: e.target.value }))} className="mt-1 w-full rounded-md border border-black/10 px-3 py-2 text-[14px] outline-none focus:ring-2 focus:ring-brand" placeholder="you@example.com" />
                 </label>
                 <label className="text-[13px] text-gray-700">Phone
-                  <input value={address.phone} onChange={(e)=>setAddress(a=>({ ...a, phone: e.target.value }))} className="mt-1 w-full rounded-md border border-black/10 px-3 py-2 text-[14px] outline-none focus:ring-2 focus:ring-brand" placeholder="08012345678" />
+                  <input value={address.phone} onChange={(e)=>setAddress((a: Address)=>({ ...a, phone: e.target.value }))} className="mt-1 w-full rounded-md border border-black/10 px-3 py-2 text-[14px] outline-none focus:ring-2 focus:ring-brand" placeholder="08012345678" />
                 </label>
                 <span />
                 <label className="text-[13px] text-gray-700 md:col-span-2">Address line 1
-                  <input value={address.address1} onChange={(e)=>setAddress(a=>({ ...a, address1: e.target.value }))} className="mt-1 w-full rounded-md border border-black/10 px-3 py-2 text-[14px] outline-none focus:ring-2 focus:ring-brand" placeholder="Street, area" />
+                  <input value={address.address1} onChange={(e)=>setAddress((a: Address)=>({ ...a, address1: e.target.value }))} className="mt-1 w-full rounded-md border border-black/10 px-3 py-2 text-[14px] outline-none focus:ring-2 focus:ring-brand" placeholder="Street, area" />
                 </label>
                 <label className="text-[13px] text-gray-700 md:col-span-2">Address line 2 (optional)
-                  <input value={address.address2} onChange={(e)=>setAddress(a=>({ ...a, address2: e.target.value }))} className="mt-1 w-full rounded-md border border-black/10 px-3 py-2 text-[14px] outline-none focus:ring-2 focus:ring-brand" placeholder="Apartment, suite, etc." />
+                  <input value={address.address2} onChange={(e)=>setAddress((a: Address)=>({ ...a, address2: e.target.value }))} className="mt-1 w-full rounded-md border border-black/10 px-3 py-2 text-[14px] outline-none focus:ring-2 focus:ring-brand" placeholder="Apartment, suite, etc." />
                 </label>
                 <label className="text-[13px] text-gray-700">State
                   <select value={String(address.regionId || '')} onChange={(e)=>{
                     const id = e.target.value
                     const st = states.find((s) => String(s.id ?? '') === id)
                     const label = (st?.title || st?.name || st?.state || '') as string
-                    setAddress(a=>({ ...a, regionId: id, region: label }))
-                    // reset GIG quote on state change
-                    setGigQuoteAmount(0); setGigError(null); setGigStations([]); setGigStationId(null)
+                    setAddress((a: Address)=>({ ...a, regionId: id, region: label, deliveryLocationId: undefined, deliveryLocationName: undefined }))
+                    // reset quotes / prices on state change
+                    setGigQuoteAmount(0); setGigError(null); setGapaDeliveryPrice(0)
                   }} className="mt-1 h-10 w-full rounded-md border border-black/10 bg-white px-3 text-[14px] outline-none focus:ring-2 focus:ring-brand">
                     <option value="">{statesLoading ? 'Loading states…' : 'Select state'}</option>
                     {(deliveryMethod==='gapa' ? states.filter(isAllowedForGapa) : states).map((s) => {
@@ -798,18 +773,24 @@ export default function Checkout() {
                     })}
                   </select>
                 </label>
-                {/* GIG station selection (only show if gig and multiple stations) */}
-                {deliveryMethod==='gig' && gigStations.length>1 && (
-                  <label className="text-[13px] text-gray-700">Destination station
-                    <select value={gigStationId ?? ''} onChange={(e)=>{ const v = e.target.value ? Number(e.target.value) : null; setGigStationId(v); setGigQuoteAmount(0); setGigError(null) }} className="mt-1 h-10 w-full rounded-md border border-black/10 bg-white px-3 text-[14px] outline-none focus:ring-2 focus:ring-brand">
-                      <option value="">Select station</option>
-                      {gigStations.map(st => <option key={st.id} value={st.id}>{st.name}{st.city?` – ${st.city}`:''}</option>)}
+                {/* Gapa delivery location selector (shown when multiple locations) */}
+                {deliveryMethod==='gapa' && address.regionId && locations.length>0 && (
+                  <label className="text-[13px] text-gray-700">Delivery location
+                    <select value={String(address.deliveryLocationId || '')} onChange={(e)=>{
+                      const val = e.target.value
+                      const loc = locations.find(l => String(l.id) === val)
+                      setAddress((a: Address)=>({ ...a, deliveryLocationId: val || undefined, deliveryLocationName: loc?.location }))
+                      if (loc) setGapaDeliveryPrice(Math.max(0, Math.round(loc.price || 0)))
+                      else setGapaDeliveryPrice(0)
+                    }} className="mt-1 h-10 w-full rounded-md border border-black/10 bg-white px-3 text-[14px] outline-none focus:ring-2 focus:ring-brand">
+                      <option value="">Select location</option>
+                      {locations.map(l => <option key={l.id} value={l.id}>{l.location} {l.price?`(₦${l.price.toLocaleString('en-NG')})`:''}</option>)}
                     </select>
                   </label>
                 )}
                 {/* Postcode */}
                 <label className="text-[13px] text-gray-700">Postcode
-                  <input value={address.postcode} onChange={(e)=>setAddress(a=>({ ...a, postcode: e.target.value }))} className="mt-1 w-full rounded-md border border-black/10 px-3 py-2 text-[14px] outline-none focus:ring-2 focus:ring-brand" />
+                  <input value={address.postcode} onChange={(e)=>setAddress((a: Address)=>({ ...a, postcode: e.target.value }))} className="mt-1 w-full rounded-md border border-black/10 px-3 py-2 text-[14px] outline-none focus:ring-2 focus:ring-brand" />
                 </label>
               </div>
 
