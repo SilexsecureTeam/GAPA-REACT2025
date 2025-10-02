@@ -831,15 +831,31 @@ export async function getGigQuote(params: GigQuoteParams) {
 
   try {
     const res: any = await gigFetch('/price', { method: 'POST', auth: true, body: JSON.stringify(payload) })
+    
+    // Primary candidates from the nested response structure
     const candidates: any[] = [
-      res?.amount, res?.price, res?.total, res?.data?.amount, res?.data?.price, res?.data?.total,
-      res?.CalculatedPrice, res?.Data?.Total, res?.Data?.Amount, res?.result?.price
+      res?.object?.grandTotal,
+      res?.object?.deliveryPrice,
+      res?.object?.mainCharge,
+      res?.amount, 
+      res?.price, 
+      res?.total, 
+      res?.data?.amount, 
+      res?.data?.price, 
+      res?.data?.total,
+      res?.CalculatedPrice, 
+      res?.Data?.Total, 
+      res?.Data?.Amount, 
+      res?.result?.price
     ]
+    
     let amountNum = 0
     for (const c of candidates) {
       const n = Number(c)
       if (!isNaN(n) && n > 0) { amountNum = n; break }
     }
+    
+    // Fallback: search through object properties if still not found
     if (!amountNum && res && typeof res === 'object') {
       for (const k of Object.keys(res)) {
         const v: any = (res as any)[k]
@@ -847,7 +863,13 @@ export async function getGigQuote(params: GigQuoteParams) {
         if (!isNaN(n) && n > 0) { amountNum = n; break }
       }
     }
-    if (!amountNum) throw new Error("Can't ship to this location")
+    
+    if (!amountNum) {
+      console.error('[GIG] No valid price found in response:', res)
+      throw new Error("Can't ship to this location")
+    }
+    
+    console.info('[GIG] Successfully extracted price:', amountNum, 'from response')
     return { raw: res, amount: Math.max(0, Math.round(amountNum || 0)) }
   } catch (e: any) {
     console.warn('GIG quote failed', e)
