@@ -2,7 +2,7 @@ import { normalizeApiImage, pickImage, productImageFrom } from '../services/imag
 import logoImg from '../assets/gapa-logo.png'
 import type { ProductActionData } from '../components/ProductActionCard'
 
-export const VIEW_ENABLED_CATEGORIES = new Set(['CAR PARTS', 'CAR ELECTRICALS'])
+export const VIEW_ENABLED_CATEGORIES = new Set(['CAR PARTS', 'CAR ELECTRICALS', 'BATTERY'])
 
 export const toSlug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
 
