@@ -386,26 +386,37 @@ export default function Checkout() {
         const raw = rawItems.find(r => [r?.product_id, r?.id, r?.product?.id, r?.part?.id].some((v:any)=> String(v) === productId)) || null
         const primaryProductId = raw?.product_id ?? raw?.id ?? productId
         let success = false
-        // Attempt preferred update endpoint first
+        
+        // PRIMARY: Use increase_cart endpoint (recommended for increment operations)
         try {
-          await updateCartQuantity({ user_id: (user as any).id, product_id: String(primaryProductId), quantity: nextQty })
+          await increaseCartItem({ user_id: (user as any).id, product_id: String(primaryProductId) })
           success = true
         } catch (e) {
-          // Fallback: try explicit increase endpoint if just +1
+          console.warn('Increase cart endpoint failed, trying fallback:', e)
+          
+          // FALLBACK 1: Try updateCartQuantity with explicit quantity
           try {
-            if (nextQty === (current.quantity + 1)) {
-              await increaseCartItem({ user_id: (user as any).id, product_id: String(primaryProductId) })
-              success = true 
+            await updateCartQuantity({ user_id: (user as any).id, product_id: String(primaryProductId), quantity: nextQty })
+            success = true
+          } catch (e2) {
+            console.warn('UpdateCartQuantity failed, trying alternate ID:', e2)
+            
+            // FALLBACK 2: If raw.id differs, try again using raw.id as product_id
+            if (!success && raw && raw.id && raw.id !== raw.product_id) {
+              try {
+                await increaseCartItem({ user_id: (user as any).id, product_id: String(raw.id) })
+                success = true
+              } catch (e3) {
+                // Last attempt with updateCartQuantity and raw.id
+                try {
+                  await updateCartQuantity({ user_id: (user as any).id, product_id: String(raw.id), quantity: nextQty })
+                  success = true
+                } catch {}
+              }
             }
-          } catch {}
-          // Last resort: if raw.id differs, try again using raw.id as product_id
-          if (!success && raw && raw.id && raw.id !== raw.product_id) {
-            try {
-              await updateCartQuantity({ user_id: (user as any).id, product_id: String(raw.id), quantity: nextQty })
-              success = true
-            } catch {}
           }
         }
+        
         if (!success) {
           toast.error('Unable to update quantity')
           return
