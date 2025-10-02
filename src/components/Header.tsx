@@ -13,7 +13,7 @@ import { categoryImageFrom, normalizeApiImage, pickImage, brandImageFrom, subCat
 import { getGuestCart } from '../services/cart'
 
 export default function Header() {
-  // Live timer to Sept 1, 12am displayed as HH:MM:SS (no labels)
+  // Live timer to Dec 1, 12am displayed as HH:MM:SS (no labels)
   const [timeLeft, setTimeLeft] = useState(() => {
     const now = new Date()
     const target = new Date(now.getFullYear(), 11, 1, 0, 0, 0, 0)
@@ -87,7 +87,7 @@ export default function Header() {
   useEffect(() => {
     const id = setInterval(() => {
       const now = new Date()
-      const target = new Date(now.getFullYear(), 8, 1, 0, 0, 0, 0)
+      const target = new Date(now.getFullYear(), 11, 1, 0, 0, 0, 0)
       const diff = Math.max(0, target.getTime() - now.getTime())
       const h = Math.floor(diff / (60 * 60 * 1000))
       const m = Math.floor((diff % (60 * 60 * 1000)) / (60 * 1000))
