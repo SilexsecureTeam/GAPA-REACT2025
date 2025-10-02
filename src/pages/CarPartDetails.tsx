@@ -171,7 +171,10 @@ export default function CarPartDetails() {
       setSelectedManufacturerName('')
       return
     }
-    const rawId = manufacturer.id ?? (manufacturer as any)?.maker_id ?? (manufacturer as any)?.manufacturer_id
+    const rawId = manufacturer.id
+      ?? (manufacturer as any)?.maker_id_
+      ?? (manufacturer as any)?.maker_id
+      ?? (manufacturer as any)?.manufacturer_id
     const id = rawId != null ? String(rawId) : ''
     setSelectedManufacturerId(id)
     const name = String(manufacturer.name || manufacturer.title || (manufacturer as any)?.maker_name || 'Manufacturer').trim()
@@ -191,7 +194,7 @@ export default function CarPartDetails() {
         <div className="mt-2 text-[11px] text-red-600">{manufacturersError}</div>
       )}
       {hasManufacturerFilter && selectedManufacturerName && (
-        <div className="mt-2 text-[12px] text-gray-700">
+        <div className="mt-2 text-[12px] text-gray-700 break-words">
           Showing parts from <span className="font-semibold text-brand">{selectedManufacturerName}</span>
         </div>
       )}
@@ -561,7 +564,7 @@ export default function CarPartDetails() {
     }
 
     return (
-      <div className="rounded-xl bg-white p-4 ring-1 ring-black/10">
+  <div className="overflow-hidden rounded-xl bg-white p-4 ring-1 ring-black/10">
         {/* Warning */}
         {hasVehicleFilter && !selectedCompatible && (
           <div className="mb-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-[13px] text-amber-800">
@@ -599,9 +602,9 @@ export default function CarPartDetails() {
             </h2>
             <div className="grid grid-cols-1 gap-1">
               {ui.attributes.map((a) => (
-                <div key={a.label + a.value} className="grid grid-cols-[180px_1fr] text-[13px]">
-                  <div className="rounded-l-md bg-[#FBF5E9] px-3 py-1.5 font-medium text-gray-800">{a.label}</div>
-                  <div className="rounded-r-md bg-[#FBF5E9] px-3 py-1.5 text-gray-700">{a.value}</div>
+                <div key={a.label + a.value} className="grid grid-cols-1 text-[13px] sm:grid-cols-[160px_1fr]">
+                  <div className="rounded-t-md bg-[#FBF5E9] px-3 py-1.5 font-medium text-gray-800 sm:rounded-l-md sm:rounded-tr-none">{a.label}</div>
+                  <div className="rounded-b-md bg-[#FBF5E9] px-3 py-1.5 text-gray-700 break-words sm:rounded-r-md sm:rounded-bl-none">{a.value}</div>
                 </div>
               ))}
               <div className="mt-2 text-[12px] text-orange-700">⚠ WARNING <button className="underline">More</button></div>
@@ -729,7 +732,7 @@ export default function CarPartDetails() {
 
   // Page layout
   return (
-    <div className="mx-auto max-w-6xl px-3 py-4">
+  <div className="mx-auto w-full max-w-6xl px-3 py-4 overflow-x-hidden">
       {/* Breadcrumbs */}
       <nav className="mb-4 text-[12px] text-gray-600">
         <Link to="/" className="hover:text-gray-900">Home</Link>
@@ -739,7 +742,7 @@ export default function CarPartDetails() {
         <span className="text-gray-900">{breadcrumbPartLabel}</span>
       </nav>
 
-      <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
+      <div className="grid min-w-0 gap-6 lg:grid-cols-[280px_1fr] lg:items-start">
         <aside>
           <VehicleFilter onChange={handleVehFilterChange} />
           {categoryImage && (
@@ -749,7 +752,7 @@ export default function CarPartDetails() {
           )}
         </aside>
 
-        <main className="space-y-6">
+  <main className="space-y-6 min-w-0">
           {renderManufacturers('mt-0')}
           {selected && selectedRaw ? (
             <ProductPanel ui={selected} isSelected raw={selectedRaw} />

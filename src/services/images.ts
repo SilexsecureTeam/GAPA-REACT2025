@@ -163,5 +163,5 @@ export function partnerImageFrom(obj: any): string | undefined {
 
 export function manufacturerImageFrom(obj: any): string | undefined {
   const v = firstOf(obj, ['logo', 'image', 'img_url', 'image_url', 'maker_logo', 'maker_image', 'thumbnail', 'img'])
-  return absoluteOr('/uploads/makers_', v) || normalizeApiImage(pickImage(obj))
+  return absoluteOr('/uploads/partners', v) || normalizeApiImage(pickImage(obj))
 }

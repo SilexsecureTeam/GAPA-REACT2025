@@ -14,7 +14,7 @@ export type ManufacturerSelectorProps = {
 }
 
 const toId = (m: ApiManufacturer, fallback: number) => {
-  return String(m?.id ?? m?.maker_id ?? m?.manufacturer_id ?? fallback)
+  return String(m?.id ?? (m as any)?.maker_id_ ?? (m as any)?.maker_id ?? (m as any)?.manufacturer_id ?? fallback)
 }
 
 const manufacturerName = (m: ApiManufacturer) => {
@@ -41,7 +41,7 @@ export default function ManufacturerSelector({
   const hasSelection = Boolean(selectedId)
 
   return (
-  <section className={cn('rounded-2xl bg-gradient-to-r from-[#F6F5FA] via-white to-[#F6F5FA] p-4 ring-1 ring-black/5 shadow-sm', className)}>
+    <section className={cn('w-full max-w-full overflow-hidden rounded-2xl bg-gradient-to-r from-[#F6F5FA] via-white to-[#F6F5FA] p-4 ring-1 ring-black/5 shadow-sm', className)}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-[14px] font-semibold text-gray-900 sm:text-[15px]">{title}</h2>
         {showClear && hasSelection && (

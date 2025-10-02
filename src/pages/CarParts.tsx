@@ -146,7 +146,10 @@ function CarPartsInner() {
       setSelectedManufacturerName('')
       return
     }
-    const rawId = manufacturer.id ?? (manufacturer as any)?.maker_id ?? (manufacturer as any)?.manufacturer_id
+    const rawId = manufacturer.id
+      ?? (manufacturer as any)?.maker_id_
+      ?? (manufacturer as any)?.maker_id
+      ?? (manufacturer as any)?.manufacturer_id
     const id = rawId != null ? String(rawId) : ''
     setSelectedManufacturerId(id)
     const name = String(manufacturer.name || manufacturer.title || (manufacturer as any)?.maker_name || 'Manufacturer').trim()
