@@ -160,3 +160,8 @@ export function partnerImageFrom(obj: any): string | undefined {
   // Note: API path is 'patners' as provided in spec
   return absoluteOr('/uploads/salers', v)
 }
+
+export function manufacturerImageFrom(obj: any): string | undefined {
+  const v = firstOf(obj, ['logo', 'image', 'img_url', 'image_url', 'maker_logo', 'maker_image', 'thumbnail', 'img'])
+  return absoluteOr('/uploads/makers_', v) || normalizeApiImage(pickImage(obj))
+}

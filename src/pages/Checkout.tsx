@@ -395,7 +395,7 @@ export default function Checkout() {
           try {
             if (nextQty === (current.quantity + 1)) {
               await increaseCartItem({ user_id: (user as any).id, product_id: String(primaryProductId) })
-              success = true
+              success = true 
             }
           } catch {}
           // Last resort: if raw.id differs, try again using raw.id as product_id

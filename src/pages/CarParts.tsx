@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useState, Fragment, useCallback, useRef } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import FallbackLoader from '../components/FallbackLoader'
-import ProductCard, { type Product as UiProduct } from '../components/ProductCard'
-import { getAllCategories, getAllProducts, type ApiCategory, type ApiProduct, getSubCategories, getSubSubCategories, getProductsBySubSubCategory, liveSearch, addToCartApi } from '../services/api'
+import ProductActionCard from '../components/ProductActionCard'
+import ManufacturerSelector from '../components/ManufacturerSelector'
+import { getAllCategories, getAllProducts, type ApiCategory, type ApiManufacturer, type ApiProduct, getSubCategories, getSubSubCategories, getProductsBySubSubCategory, liveSearch, addToCartApi } from '../services/api'
 import { normalizeApiImage, pickImage, productImageFrom, categoryImageFrom, subCategoryImageFrom, subSubCategoryImageFrom } from '../services/images'
 import logoImg from '../assets/gapa-logo.png'
 import TopBrands from '../components/TopBrands'
@@ -11,8 +12,10 @@ import { addGuestCartItem } from '../services/cart'
 import VehicleFilter from '../components/VehicleFilter'
 import { getPersistedVehicleFilter, setPersistedVehicleFilter, vehicleMatches as sharedVehicleMatches, type VehicleFilterState as VehState } from '../services/vehicle'
 import useWishlist from '../hooks/useWishlist'
+import useManufacturers from '../hooks/useManufacturers'
 import WishlistButton from '../components/WishlistButton'
 import { toast } from 'react-hot-toast'
+import { brandOf, categoryOf, isViewEnabledCategory, makerIdOf, mapProductToActionData, toSlug } from '../utils/productMapping'
 // import TopBrands from '../components/TopBrands'
 
 // Error boundary to surface runtime errors on the page
@@ -71,35 +74,7 @@ function Crumb() {
   )
 }
 
-// Map API product into UI product for ProductCard
-function toUiProduct(p: any, i: number): UiProduct {
-  // Prefer product_id (string) for details endpoint
-  const id = String(p?.product_id ?? p?.id ?? i)
-  // Prefer part_name as requested
-  const title = String(p?.part_name || p?.name || p?.title || p?.product_name || 'Car Part')
-  // Use product image base url helper
-  const image = productImageFrom(p) || normalizeApiImage(pickImage(p) || '') || logoImg
-  const rating = Number(p?.rating || 4)
-  const brandName = String(p?.brand?.name || p?.brand || p?.manufacturer || p?.maker || '')
-  const categoryName = typeof p?.category === 'string' ? p.category : (p?.category?.name || p?.category?.title || p?.category_name || '')
-  const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
-  const brandSlug = brandName ? slug(brandName) : undefined
-  const partSlug = categoryName ? slug(categoryName) : undefined
-  return { id, title, image, rating, brandSlug, partSlug }
-}
-
-function categoryOf(p: any): string {
-  const c = (p as any)?.category
-  if (typeof c === 'string') return c
-  return String(c?.name || c?.title || (p as any)?.category_name || 'General')
-}
-
-const toSlug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
-
-// Helper to extract brand from product safely
-function brandOf(p: any): string {
-  return String(p?.brand?.name || p?.brand || p?.manufacturer || p?.maker || '').trim()
-}
+// Map helpers moved to utils/productMapping
 
 // --- Car Accessories sections (grid) placeholders ---
 type Section = { title: string; img: string; links: string[] }
@@ -142,6 +117,9 @@ function CarPartsInner() {
   const [loading, setLoading] = useState(true)
   const [products, setProducts] = useState<ApiProduct[]>([])
   const [categories, setCategories] = useState<ApiCategory[]>([])
+  const { manufacturers, loading: manufacturersLoading, error: manufacturersError } = useManufacturers()
+  const [selectedManufacturerId, setSelectedManufacturerId] = useState<string>('')
+  const [selectedManufacturerName, setSelectedManufacturerName] = useState<string>('')
 
   // Build a quick lookup for categories by id to resolve names/images
   const categoriesById = useMemo(() => {
@@ -161,6 +139,19 @@ function CarPartsInner() {
   // Filters for search mode
   const [selectedBrands, setSelectedBrands] = useState<Set<string>>(new Set())
   const [selectedCats, setSelectedCats] = useState<Set<string>>(new Set())
+
+  const handleManufacturerSelect = useCallback((manufacturer: ApiManufacturer | null) => {
+    if (!manufacturer) {
+      setSelectedManufacturerId('')
+      setSelectedManufacturerName('')
+      return
+    }
+    const rawId = manufacturer.id ?? (manufacturer as any)?.maker_id ?? (manufacturer as any)?.manufacturer_id
+    const id = rawId != null ? String(rawId) : ''
+    setSelectedManufacturerId(id)
+    const name = String(manufacturer.name || manufacturer.title || (manufacturer as any)?.maker_name || 'Manufacturer').trim()
+    setSelectedManufacturerName(name)
+  }, [])
 
   // --- Shared vehicle filter (persisted across pages) ---
   const [vehFilter, setVehFilter] = useState<VehState>(() => getPersistedVehicleFilter())
@@ -237,10 +228,11 @@ function CarPartsInner() {
         const cName = resolveCategoryName((p as any)?.category) || categoryOf(p)
         const brandPass = selectedBrands.size === 0 || (b && selectedBrands.has(b))
         const catPass = selectedCats.size === 0 || (cName && selectedCats.has(cName))
-        return brandPass && catPass
+        const makerPass = !selectedManufacturerId || makerIdOf(p) === selectedManufacturerId
+        return brandPass && catPass && makerPass
       })
       .filter(productMatchesVehicle)
-  }, [searchResults, selectedBrands, selectedCats, vehFilter])
+  }, [searchResults, selectedBrands, selectedCats, selectedManufacturerId, vehFilter])
 
   // Hierarchical navigation state (via query params)
   const catIdParam = searchParams.get('catId') || ''
@@ -526,9 +518,15 @@ function CarPartsInner() {
 
   // Apply vehicle compatibility filter globally for catalogue views
   const filtered = useMemo(() => {
-    if (!hasVehicleFilter) return products
-    return products.filter(productMatchesVehicle)
-  }, [products, vehFilter])
+    let list = products
+    if (hasVehicleFilter) {
+      list = list.filter(productMatchesVehicle)
+    }
+    if (selectedManufacturerId) {
+      list = list.filter((p) => makerIdOf(p) === selectedManufacturerId)
+    }
+    return list
+  }, [products, hasVehicleFilter, selectedManufacturerId, vehFilter])
 
   // Group by category (all filtered items)
   const grouped = useMemo(() => {
@@ -596,7 +594,12 @@ function CarPartsInner() {
   type Accessory = { id: string; title: string; image: string; rating: number; reviews: number; price: number; badge?: string }
   const ACCESSORIES: Accessory[] = useMemo(() => {
     if (!accProducts || accProducts.length === 0) return []
-    return accProducts.slice(0, 20).map((p, i) => {
+    let source = accProducts
+    if (selectedManufacturerId) {
+      source = source.filter((p) => makerIdOf(p) === selectedManufacturerId)
+    }
+    if (!source.length) return []
+    return source.slice(0, 20).map((p, i) => {
       const m = {
         id: String((p as any)?.product_id ?? (p as any)?.id ?? i),
         title: String((p as any)?.part_name || (p as any)?.name || (p as any)?.title || 'Car Part'),
@@ -607,7 +610,7 @@ function CarPartsInner() {
       }
       return m
     })
-  }, [accProducts])
+  }, [accProducts, selectedManufacturerId])
 
   function AccessoryCard({ a }: { a: Accessory }) {
     return (
@@ -667,29 +670,17 @@ function CarPartsInner() {
   const wishlist = useWishlist()
 
   // Map product for card display (match Tools)
-  const mapProduct = (p: any, i: number) => {
-    const id = String((p as any)?.product_id ?? (p as any)?.id ?? i)
-    const title = String((p as any)?.part_name || (p as any)?.name || (p as any)?.title || 'Car Part')
-    // Prefer explicit img_url over generic image key (API sometimes returns plain filename in image but full path logic depends on img_url)
-    const rawImgUrl = (p as any)?.img_url || (p as any)?.imgUrl
-    // Force builder with only img_url so productImageFrom does not pick the shorter image field first
-    const forcedFromImgUrl = rawImgUrl ? productImageFrom({ img_url: rawImgUrl }) || normalizeApiImage(rawImgUrl) : undefined
-    const fallback = productImageFrom(p) || normalizeApiImage(pickImage(p) || '') || logoImg
-    const image = forcedFromImgUrl || fallback || logoImg
-    const rating = Number((p as any)?.rating || (p as any)?.stars || 4)
-    const reviews = Number((p as any)?.reviews_count || (p as any)?.reviews || 0)
-    const brand = brandOf(p) || 'GAPA'
-    const price = Number((p as any)?.price || (p as any)?.selling_price || (p as any)?.amount || 0)
-    return { id, title, image, rating, reviews, brand, price }
-  }
-
   // Derived values for drill-down (must not be inside conditionals to respect Hooks rules)
   const filteredSubProducts = useMemo(() => {
-    // Do not apply vehicle filter inside non-vehicle categories
-    if (NON_VEHICLE_CATEGORY_IDS.has(String(activeCatId))) return subProducts
-    if (!hasVehicleFilter) return subProducts
-    return subProducts.filter(productMatchesVehicle)
-  }, [subProducts, vehFilter, hasVehicleFilter, activeCatId])
+    let base = subProducts
+    if (!NON_VEHICLE_CATEGORY_IDS.has(String(activeCatId)) && hasVehicleFilter) {
+      base = base.filter(productMatchesVehicle)
+    }
+    if (selectedManufacturerId) {
+      base = base.filter((p) => makerIdOf(p) === selectedManufacturerId)
+    }
+    return base
+  }, [subProducts, selectedManufacturerId, hasVehicleFilter, activeCatId, vehFilter])
 
   const activeCategoryName = useMemo(() => {
     const c = categoriesById.get(String(activeCatId))
@@ -705,6 +696,26 @@ function CarPartsInner() {
     const ssc = subSubCats.find((x) => x.id === activeSubSubCatId)
     return ssc?.name || ''
   }, [subSubCats, activeSubSubCatId])
+
+  const renderManufacturers = (className = 'mt-6') => (
+    <div className={className}>
+      <ManufacturerSelector
+        manufacturers={manufacturers}
+        loading={manufacturersLoading}
+        selectedId={selectedManufacturerId || null}
+        onSelect={handleManufacturerSelect}
+        title="Shop by manufacturer"
+      />
+      {manufacturersError && (
+        <div className="mt-2 text-[11px] text-red-600">{manufacturersError}</div>
+      )}
+      {selectedManufacturerId && selectedManufacturerName && (
+        <div className="mt-2 text-[12px] text-gray-700">
+          Showing parts from <span className="font-semibold text-brand">{selectedManufacturerName}</span>
+        </div>
+      )}
+    </div>
+  )
 
   // --- Drilldown start mode (no category selected yet) ---
   if (inDrillMode && !activeCatId && !qParam) {
@@ -727,6 +738,8 @@ function CarPartsInner() {
               Selected vehicle: <strong>{[vehFilter.brandName, vehFilter.modelName, vehFilter.engineName].filter(Boolean).join(' › ')}</strong>
             </div>
           )}
+
+          {renderManufacturers('mt-6')}
 
           {/* Categories grid */}
           <div className="mt-6">
@@ -805,6 +818,8 @@ function CarPartsInner() {
               Selected vehicle: <strong>{[vehFilter.brandName, vehFilter.modelName, vehFilter.engineName].filter(Boolean).join(' › ')}</strong>
             </div>
           )}
+
+          {renderManufacturers('mt-6')}
 
           {/* Sidebar + content */}
           <div className="mt-6 grid gap-6 md:grid-cols-[280px_1fr]">
@@ -895,44 +910,25 @@ function CarPartsInner() {
                     <div className="mt-3"><FallbackLoader label="Loading products…" /></div>
                   ) : filteredSubProducts.length === 0 ? (
                     <div className="mt-3 text-sm text-gray-700">
-                      {(!NON_VEHICLE_CATEGORY_IDS.has(String(activeCatId)) && hasVehicleFilter) ? 'No compatible products for your selected vehicle in this type. Adjust or reset the vehicle filter.' : 'No products found under this type.'}
+                      {selectedManufacturerId
+                        ? `No products from ${selectedManufacturerName || 'the selected manufacturer'} under this type.`
+                        : (!NON_VEHICLE_CATEGORY_IDS.has(String(activeCatId)) && hasVehicleFilter)
+                          ? 'No compatible products for your selected vehicle in this type. Adjust or reset the vehicle filter.'
+                          : 'No products found under this type.'}
                     </div>
                   ) : (
                     <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
                       {filteredSubProducts.map((p, i) => {
-                        const ui = mapProduct(p, i)
-                        const wished = wishlist.has(ui.id)
+                        const cardProduct = mapProductToActionData(p, i)
+                        const viewEnabled = isViewEnabledCategory(activeCategoryName)
                         return (
-                          <div key={ui.id} className="relative rounded-xl bg-white ring-1 ring-black/10">
-                            <div className="absolute right-3 top-3 z-10">
-                              <WishlistButton size={18} active={wished} onToggle={(active) => { wishlist.toggle(ui.id); if (active) toast.success('Added to wishlist') }} />
-                            </div>
-                            <div className="p-4">
-                              {/* Image */}
-                              <button onClick={() => onViewProduct(p)} className="block w-full">
-                                <div className="flex h-40 items-center justify-center overflow-hidden rounded-lg bg-white">
-                                  <img src={ui.image} alt={ui.title} className="h-[80%] w-auto object-contain" onError={(e) => { (e.currentTarget as HTMLImageElement).src = logoImg }} />
-                                </div>
-                              </button>
-                              {/* Meta */}
-                              <div className="mt-3 space-y-1">
-                                <div className="text-[12px] text-gray-600">{ui.rating.toFixed ? ui.rating.toFixed(1) : Number(ui.rating).toFixed(1)} • ({ui.reviews?.toLocaleString?.() || '0'})</div>
-                                <button onClick={() => onViewProduct(p)} className="block text-left text-[14px] font-semibold text-gray-900 hover:underline line-clamp-2">{ui.title}</button>
-                                <div className="text-[12px] text-gray-600">{brandOf(p) || 'GAPA'}</div>
-                                <div className="text-[16px] font-extrabold text-brand">{formatNaira(Number((p as any)?.price || (p as any)?.selling_price || (p as any)?.amount || 0))}</div>
-                                <div className="text-left text-[11px] leading-3 text-gray-600">Incl. VAT</div>
-                              </div>
-                              {/* Actions */}
-                              <div className="mt-3 flex items-center justify-end gap-2">
-                                <button type="button" onClick={() => onViewProduct(p)} className="inline-flex h-9 items-center justify-center rounded-md border border-black/10 px-3 text-[12px] font-semibold text-gray-800 hover:bg-black/5">
-                                  View
-                                </button>
-                                <button type="button" onClick={() => onAddToCart(p)} className="inline-flex h-9 items-center justify-center rounded-md bg-[#F7CD3A] px-4 text-[12px] font-semibold text-[#201A2B] ring-1 ring-black/10 hover:brightness-105">
-                                  Add to cart
-                                </button>
-                              </div>
-                            </div>
-                          </div>
+                          <ProductActionCard
+                            key={cardProduct.id}
+                            product={cardProduct}
+                            enableView={viewEnabled}
+                            onView={viewEnabled ? () => onViewProduct(p) : undefined}
+                            onAddToCart={() => onAddToCart(p)}
+                          />
                         )
                       })}
                     </div>
@@ -967,6 +963,8 @@ function CarPartsInner() {
               Selected vehicle: <strong>{[vehFilter.brandName, vehFilter.modelName, vehFilter.engineName].filter(Boolean).join(' › ')}</strong>
             </div>
           )}
+
+          {renderManufacturers('mt-6')}
 
           {/* Filters + results */}
           <div className="mt-6 grid gap-6 md:grid-cols-[240px_1fr]">
@@ -1035,18 +1033,30 @@ function CarPartsInner() {
                 <FallbackLoader label="Searching…" />
               ) : filteredSearchResults.length === 0 ? (
                 <div className="rounded-xl bg-white p-6 text-center ring-1 ring-black/10">
-                  <div className="text-[14px] text-gray-700">{hasVehicleFilter ? 'No compatible products for your selected vehicle. Adjust or reset the vehicle filter.' : `No results found for “${qParam}”.`}</div>
+                  <div className="text-[14px] text-gray-700">
+                    {selectedManufacturerId
+                      ? `No results for “${qParam}” from ${selectedManufacturerName || 'the selected manufacturer'}.`
+                      : hasVehicleFilter
+                        ? 'No compatible products for your selected vehicle. Adjust or reset the vehicle filter.'
+                        : `No results found for “${qParam}”.`}
+                  </div>
                 </div>
               ) : (
                 <>
                   <div className="mb-3 text-[13px] text-gray-700">{filteredSearchResults.length} result{filteredSearchResults.length === 1 ? '' : 's'}</div>
                   <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
                     {filteredSearchResults.map((p: ApiProduct, i: number) => {
-                      const ui = toUiProduct(p, i)
-                      // Wishlist handled inside ProductCard; removed external duplicate heart icon
+                      const cardProduct = mapProductToActionData(p, i)
+                      const resolvedCategory = resolveCategoryName((p as any)?.category) || categoryOf(p)
+                      const viewEnabled = isViewEnabledCategory(resolvedCategory)
                       return (
-                        <li key={ui.id}>
-                          <ProductCard product={ui} />
+                        <li key={cardProduct.id}>
+                          <ProductActionCard
+                            product={cardProduct}
+                            enableView={viewEnabled}
+                            onView={viewEnabled ? () => onViewProduct(p) : undefined}
+                            onAddToCart={() => onAddToCart(p)}
+                          />
                         </li>
                       )
                     })}
@@ -1078,6 +1088,8 @@ function CarPartsInner() {
           <VehicleFilter onSearch={(url) => navigate(url)} onChange={setVehFilter} />
         </div>
 
+        {renderManufacturers('mt-6')}
+
         {/* Car Accessories grid (restored) */}
         <div className="mt-6 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {SECTIONS.map((s, i) => (
@@ -1098,7 +1110,23 @@ function CarPartsInner() {
             {/* Category sections (no global pagination) */}
             {grouped.length === 0 ? (
               <div className="text-center text-sm text-gray-700">
-                {hasVehicleFilter ? (
+                {selectedManufacturerId ? (
+                  <>
+                    <div>No products from {selectedManufacturerName || 'the selected manufacturer'} match your current filters.</div>
+                    <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
+                      <button
+                        onClick={() => handleManufacturerSelect(null)}
+                        className="rounded-md bg-white px-3 py-1.5 text-[12px] font-medium text-brand ring-1 ring-brand/40 hover:bg-brand/5"
+                      >Clear manufacturer filter</button>
+                      {hasVehicleFilter && (
+                        <button
+                          onClick={() => { setPersistedVehicleFilter({}); setVehFilter({}); }}
+                          className="rounded-md bg-gray-100 px-3 py-1.5 text-[12px] font-medium ring-1 ring-black/10"
+                        >Reset vehicle filter</button>
+                      )}
+                    </div>
+                  </>
+                ) : hasVehicleFilter ? (
                   <>
                     <div>No compatible products for your selected vehicle.</div>
                     <div className="mt-2">

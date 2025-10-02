@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useCallback } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { getAllProducts, liveSearch, getRelatedProducts, type ApiProduct, getProductById, getAllCategories, type ApiCategory, addToCartApi } from '../services/api'
+import { getAllProducts, liveSearch, getRelatedProducts, type ApiProduct, getProductById, getAllCategories, type ApiCategory, addToCartApi, type ApiManufacturer } from '../services/api'
 import { normalizeApiImage, pickImage, productImageFrom, categoryImageFrom } from '../services/images'
 import logoImg from '../assets/gapa-logo.png'
 import { useAuth } from '../services/auth'
@@ -10,7 +10,9 @@ import { getPersistedVehicleFilter, vehicleMatches as sharedVehicleMatches, type
 import WishlistButton from '../components/WishlistButton'
 import useWishlist from '../hooks/useWishlist'
 import { toast } from 'react-hot-toast'
-import TopBrands from '../components/TopBrands'
+import ManufacturerSelector from '../components/ManufacturerSelector'
+import useManufacturers from '../hooks/useManufacturers'
+import { makerIdOf } from '../utils/productMapping'
 
 // Helpers
 const toSlug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
@@ -136,6 +138,9 @@ export default function CarPartDetails() {
   const [relatedLoading, setRelatedLoading] = useState(false)
   const [visibleCompatCount, setVisibleCompatCount] = useState(INITIAL_VISIBLE_RELATED)
   const [visibleRelatedCount, setVisibleRelatedCount] = useState(INITIAL_VISIBLE_RELATED)
+  const { manufacturers, loading: manufacturersLoading, error: manufacturersError } = useManufacturers()
+  const [selectedManufacturerId, setSelectedManufacturerId] = useState<string>('')
+  const [selectedManufacturerName, setSelectedManufacturerName] = useState<string>('')
 
   // Wishlist
   const { has: wishlistHas, toggle: wishlistToggle } = useWishlist()
@@ -158,6 +163,40 @@ export default function CarPartDetails() {
   }, [])
   const hasVehicleFilter = useMemo(() => Boolean(vehFilter.brandName || vehFilter.modelName || vehFilter.engineName), [vehFilter])
   const productMatchesVehicle = (p: any) => sharedVehicleMatches(p, vehFilter)
+  const hasManufacturerFilter = Boolean(selectedManufacturerId)
+
+  const handleManufacturerSelect = useCallback((manufacturer: ApiManufacturer | null) => {
+    if (!manufacturer) {
+      setSelectedManufacturerId('')
+      setSelectedManufacturerName('')
+      return
+    }
+    const rawId = manufacturer.id ?? (manufacturer as any)?.maker_id ?? (manufacturer as any)?.manufacturer_id
+    const id = rawId != null ? String(rawId) : ''
+    setSelectedManufacturerId(id)
+    const name = String(manufacturer.name || manufacturer.title || (manufacturer as any)?.maker_name || 'Manufacturer').trim()
+    setSelectedManufacturerName(name)
+  }, [])
+
+  const renderManufacturers = (className = 'mt-4') => (
+    <div className={className}>
+      <ManufacturerSelector
+        manufacturers={manufacturers}
+        loading={manufacturersLoading}
+        selectedId={selectedManufacturerId || null}
+        onSelect={handleManufacturerSelect}
+        title="Shop by manufacturer"
+      />
+      {manufacturersError && (
+        <div className="mt-2 text-[11px] text-red-600">{manufacturersError}</div>
+      )}
+      {hasManufacturerFilter && selectedManufacturerName && (
+        <div className="mt-2 text-[12px] text-gray-700">
+          Showing parts from <span className="font-semibold text-brand">{selectedManufacturerName}</span>
+        </div>
+      )}
+    </div>
+  )
 
   // Load catalog + categories
   useEffect(() => {
@@ -223,7 +262,16 @@ export default function CarPartDetails() {
   }, [products, brand, part])
 
   // Apply vehicle compatibility only (facets disabled in this view)
-  const filtered = useMemo(() => scoped.filter(productMatchesVehicle), [scoped, vehFilter])
+  const filtered = useMemo(() => {
+    let list = scoped
+    if (hasManufacturerFilter) {
+      list = list.filter((p) => makerIdOf(p) === selectedManufacturerId)
+    }
+    if (hasVehicleFilter) {
+      list = list.filter(productMatchesVehicle)
+    }
+    return list
+  }, [scoped, hasManufacturerFilter, selectedManufacturerId, hasVehicleFilter, vehFilter])
 
   const zeroResults = !loading && filtered.length === 0
 
@@ -301,17 +349,21 @@ export default function CarPartDetails() {
   }, [products, q, scoped, selectedRaw, brand, part])
 
   const finalRelated = (related && related.length) ? related : frontendRelated
-  const compatibleRelated = useMemo(() => finalRelated.filter(productMatchesVehicle), [finalRelated, vehFilter])
+  const manufacturerFilteredFinalRelated = useMemo(() => {
+    if (!hasManufacturerFilter) return finalRelated
+    return finalRelated.filter((p) => makerIdOf(p) === selectedManufacturerId)
+  }, [finalRelated, hasManufacturerFilter, selectedManufacturerId])
+  const compatibleRelated = useMemo(() => manufacturerFilteredFinalRelated.filter(productMatchesVehicle), [manufacturerFilteredFinalRelated, vehFilter])
   // NEW: ensure uniqueness of related products by id to avoid duplicate key warnings
   const uniqueFinalRelated = useMemo(() => {
     const seen = new Set<string>()
-    return finalRelated.filter((p: any) => {
+    return manufacturerFilteredFinalRelated.filter((p: any) => {
       const id = String(p?.product_id ?? p?.id ?? '')
       if (!id || seen.has(id)) return false
       seen.add(id)
       return true
     })
-  }, [finalRelated])
+  }, [manufacturerFilteredFinalRelated])
   // NEW: ensure uniqueness for compatible related products (vehicle‑filtered)
   const uniqueCompatibleRelated = useMemo(() => {
     const seen = new Set<string>()
@@ -698,40 +750,45 @@ export default function CarPartDetails() {
         </aside>
 
         <main className="space-y-6">
+          {renderManufacturers('mt-0')}
           {selected && selectedRaw ? (
-            <>
-              {/* <TopBrands /> */}
-              <ProductPanel ui={selected} isSelected raw={selectedRaw} />
-            </>
+            <ProductPanel ui={selected} isSelected raw={selectedRaw} />
           ) : (
-            <>
-
-              <section className="rounded-xl bg-white p-4 ring-1 ring-black/10">
-                {zeroResults ? <TopBrands /> : null}
-                <div className="mb-3 flex items-center justify-between">
-                  <h3 className="text-[14px] font-semibold text-gray-900">Results</h3>
-                  <span className="text-[12px] text-gray-600">{results.length} items</span>
+            <section className="rounded-xl bg-white p-4 ring-1 ring-black/10">
+              <div className="mb-3 flex items-center justify-between">
+                <h3 className="text-[14px] font-semibold text-gray-900">Results</h3>
+                <span className="text-[12px] text-gray-600">{results.length} items</span>
+              </div>
+              {zeroResults ? (
+                <div className="space-y-2 text-[13px] text-gray-700">
+                  <p>No products match your current selection.</p>
+                  {hasManufacturerFilter && (
+                    <button
+                      type="button"
+                      onClick={() => handleManufacturerSelect(null)}
+                      className="inline-flex items-center gap-1 rounded-md bg-white px-3 py-1 text-[12px] font-medium text-accent ring-1 ring-black/10 hover:bg-[#F6F5FA]"
+                    >
+                      Clear manufacturer filter
+                    </button>
+                  )}
                 </div>
-                {zeroResults ? (
-                  <div className="text-[13px] text-gray-700">No products match your selection.</div>
-                ) : (
-                  <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-3">
-                    {results.map((r) => (
-                      <button key={r.id} onClick={() => onViewProduct(r.id, r.raw)} className="text-left">
-                        <div className="rounded-lg bg-white p-2 ring-1 ring-black/10 hover:shadow">
-                          <div className="flex items-center justify-center rounded bg-[#F6F5FA] p-3">
-                            {/* Use fallback component to prevent infinite reload loop */}
-                            <ImageWithFallback src={r.image} alt={r.title} className="h-28 w-auto object-contain" />
-                          </div>
-                          <div className="mt-2 text-[12px] font-medium text-gray-900 line-clamp-2">{r.title}</div>
-                          <div className="mt-1 text-[12px] text-gray-600">₦{r.price.toLocaleString('en-NG')}</div>
+              ) : (
+                <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-3">
+                  {results.map((r) => (
+                    <button key={r.id} onClick={() => onViewProduct(r.id, r.raw)} className="text-left">
+                      <div className="rounded-lg bg-white p-2 ring-1 ring-black/10 hover:shadow">
+                        <div className="flex items-center justify-center rounded bg-[#F6F5FA] p-3">
+                          {/* Use fallback component to prevent infinite reload loop */}
+                          <ImageWithFallback src={r.image} alt={r.title} className="h-28 w-auto object-contain" />
                         </div>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </section>
-            </>
+                        <div className="mt-2 text-[12px] font-medium text-gray-900 line-clamp-2">{r.title}</div>
+                        <div className="mt-1 text-[12px] text-gray-600">₦{r.price.toLocaleString('en-NG')}</div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </section>
           )}
 
           {/* Compatible alternatives first if available */}

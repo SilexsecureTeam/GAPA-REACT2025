@@ -1,37 +1,18 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import FallbackLoader from '../components/FallbackLoader'
-import ProductCard, { type Product as UiProduct } from '../components/ProductCard'
+import ProductActionCard from '../components/ProductActionCard'
 import useWishlist from '../hooks/useWishlist'
-import { getProductById, type ApiProduct, getAllProducts } from '../services/api'
-import { normalizeApiImage, pickImage, productImageFrom } from '../services/images'
-import logoImg from '../assets/gapa-logo.png'
-
-function toSlug(s: string) { return s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') }
-
-function mapToUiProduct(p: ApiProduct, i: number): UiProduct {
-  // Unwrap `part` if present (as in the getProductById response)
-  const src: any = (p && typeof p === 'object' && 'part' in p) ? (p as any).part : p
-  const id = String((src as any)?.product_id ?? (src as any)?.id ?? i)
-  const title = String(src?.part_name || src?.name || src?.title || 'Car Part')
-  // Prefer explicit image fields img_url/img_url_1/img_url_2, run through productImageFrom to get absolute URL
-  const galleryFields = [src?.img_url, src?.img_url_1, src?.img_url_2].filter(Boolean) as string[]
-  const fromFields = galleryFields.map((s) => productImageFrom({ img_url: s }) || normalizeApiImage(s) || '').filter(Boolean)
-  const primary = fromFields[0] || productImageFrom(src) || normalizeApiImage(pickImage(src) || '') || logoImg
-  const image = primary || logoImg
-  const rating = Number((src as any)?.rating || 4)
-  // Derive brand and category when available
-  const bName = String(src?.brand?.name || src?.brand || src?.manufacturer || src?.maker || '').trim()
-  const cRaw = (src as any)?.category
-  const cName = typeof cRaw === 'string' ? cRaw : String(cRaw?.name || cRaw?.title || (src as any)?.category_name || 'Parts')
-  const brandSlug = bName ? toSlug(bName) : undefined
-  const partSlug = cName ? toSlug(cName) : undefined
-  return { id, title, image, rating, brandSlug, partSlug }
-}
+import { getProductById, type ApiProduct, getAllProducts, addToCartApi } from '../services/api'
+import { addGuestCartItem } from '../services/cart'
+import { useAuth } from '../services/auth'
+import { brandOf, categoryOf, isViewEnabledCategory, mapProductToActionData, productIdOf, toSlug } from '../utils/productMapping'
+import { toast } from 'react-hot-toast'
 
 export default function Wishlist() {
   const navigate = useNavigate()
   const { ids, toggle, loaded } = useWishlist()
+  const { user } = useAuth()
   const [loading, setLoading] = useState(false)
   const [items, setItems] = useState<ApiProduct[]>([])
   const [attemptedFallback, setAttemptedFallback] = useState(false)
@@ -93,7 +74,31 @@ export default function Wishlist() {
     return () => { alive = false }
   }, [uniqueIds, attemptedFallback, loaded])
 
-  const uiProducts: UiProduct[] = useMemo(() => items.map(mapToUiProduct), [items])
+  const cardProducts = useMemo(() => items.map((item, index) => mapProductToActionData(item, index)), [items])
+
+  const handleViewProduct = useCallback((product: ApiProduct) => {
+    const pid = productIdOf(product)
+    if (!pid) return
+    const brandSlug = toSlug(brandOf(product) || 'gapa') || 'gapa'
+    const partSlug = toSlug(categoryOf(product) || 'parts') || 'parts'
+    navigate(`/parts/${encodeURIComponent(brandSlug)}/${encodeURIComponent(partSlug)}?pid=${encodeURIComponent(pid)}`)
+  }, [navigate])
+
+  const handleAddToCart = useCallback(async (product: ApiProduct) => {
+    const pid = productIdOf(product)
+    if (!pid) return
+    try {
+      if (user && user.id) {
+        await addToCartApi({ user_id: user.id, product_id: pid, quantity: 1 })
+      } else {
+        addGuestCartItem(pid, 1)
+      }
+      toast.success('Added to cart')
+      navigate({ hash: '#cart' })
+    } catch {
+      toast.error('Could not add to cart')
+    }
+  }, [navigate, user])
 
   const handleClearAll = () => {
     uniqueIds.forEach((id) => toggle(id))
@@ -101,7 +106,7 @@ export default function Wishlist() {
 
   const showInitialLoader = !loaded || (loading && loaded)
   const hasIds = uniqueIds.length > 0
-  const nothingResolved = hasIds && uiProducts.length === 0 && !showInitialLoader
+  const nothingResolved = hasIds && cardProducts.length === 0 && !showInitialLoader
 
   return (
     <div className="bg-white !pt-10">
@@ -148,13 +153,23 @@ export default function Wishlist() {
         ) : (
           <div className="mt-6">
             {error && <div className="mb-3 rounded-md bg-red-50 px-3 py-2 text-[12px] text-red-700 ring-1 ring-red-200">{error}</div>}
-            <div className="mb-2 text-[13px] text-gray-700">{uiProducts.length} item{uiProducts.length === 1 ? '' : 's'}</div>
+            <div className="mb-2 text-[13px] text-gray-700">{cardProducts.length} item{cardProducts.length === 1 ? '' : 's'}</div>
             <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-              {uiProducts.map((p) => (
-                <li key={p.id} className="relative">
-                  <ProductCard product={p} />
-                </li>
-              ))}
+              {items.map((product, index) => {
+                const cardProduct = cardProducts[index]
+                if (!cardProduct) return null
+                const viewEnabled = isViewEnabledCategory(categoryOf(product))
+                return (
+                  <li key={cardProduct.id} className="relative">
+                    <ProductActionCard
+                      product={cardProduct}
+                      enableView={viewEnabled}
+                      onView={viewEnabled ? () => handleViewProduct(product) : undefined}
+                      onAddToCart={() => handleAddToCart(product)}
+                    />
+                  </li>
+                )
+              })}
             </ul>
           </div>
         )}
