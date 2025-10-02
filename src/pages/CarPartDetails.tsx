@@ -141,6 +141,7 @@ export default function CarPartDetails() {
   const { manufacturers, loading: manufacturersLoading, error: manufacturersError } = useManufacturers()
   const [selectedManufacturerId, setSelectedManufacturerId] = useState<string>('')
   const [selectedManufacturerName, setSelectedManufacturerName] = useState<string>('')
+  const [isMobileFilterOpen, setMobileFilterOpen] = useState(false)
 
   // Wishlist
   const { has: wishlistHas, toggle: wishlistToggle } = useWishlist()
@@ -164,6 +165,10 @@ export default function CarPartDetails() {
   const hasVehicleFilter = useMemo(() => Boolean(vehFilter.brandName || vehFilter.modelName || vehFilter.engineName), [vehFilter])
   const productMatchesVehicle = (p: any) => sharedVehicleMatches(p, vehFilter)
   const hasManufacturerFilter = Boolean(selectedManufacturerId)
+  const selectedVehicleLabel = useMemo(() => {
+    if (!vehFilter.brandName && !vehFilter.modelName && !vehFilter.engineName) return 'All vehicles'
+    return [vehFilter.brandName, vehFilter.modelName, vehFilter.engineName].filter(Boolean).join(' • ')
+  }, [vehFilter])
 
   const handleManufacturerSelect = useCallback((manufacturer: ApiManufacturer | null) => {
     if (!manufacturer) {
@@ -743,16 +748,42 @@ export default function CarPartDetails() {
       </nav>
 
       <div className="grid min-w-0 gap-6 lg:grid-cols-[280px_1fr] lg:items-start">
-        <aside>
-          <VehicleFilter onChange={handleVehFilterChange} />
-          {categoryImage && (
-            <div className="mt-4 rounded-lg bg-[#F6F5FA] p-3 ring-1 ring-black/10">
-              <ImageWithFallback src={categoryImage} alt="Category" className="mx-auto h-28 w-auto object-contain" />
-            </div>
-          )}
+        <aside className="hidden lg:block">
+          <div className="sticky top-24 space-y-4">
+            <VehicleFilter onChange={handleVehFilterChange} className="shadow-sm" />
+            {categoryImage && (
+              <div className="rounded-lg bg-[#F6F5FA] p-3 ring-1 ring-black/10">
+                <ImageWithFallback src={categoryImage} alt="Category" className="mx-auto h-28 w-auto object-contain" />
+              </div>
+            )}
+          </div>
         </aside>
 
-  <main className="space-y-6 min-w-0">
+        <main className="space-y-6 min-w-0">
+          <div className="lg:hidden">
+            <div className="sticky top-16 z-20 mb-4 flex items-center justify-between rounded-full bg-white/90 px-3 py-2 shadow-sm backdrop-blur">
+              <button
+                type="button"
+                onClick={() => setMobileFilterOpen(true)}
+                className="inline-flex items-center gap-2 rounded-full bg-brand px-3 py-2 text-[12px] font-semibold uppercase tracking-wide text-white shadow"
+                aria-expanded={isMobileFilterOpen}
+                aria-controls="vehicle-filter-drawer"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="opacity-90">
+                  <path d="M3 6h18" />
+                  <path d="M3 12h18" />
+                  <path d="M3 18h10" />
+                </svg>
+                Vehicle filter
+              </button>
+              <span className="ml-3 line-clamp-1 text-[12px] font-medium text-gray-700">{selectedVehicleLabel}</span>
+            </div>
+            {categoryImage && (
+              <div className="mb-4 rounded-lg bg-[#F6F5FA] p-3 ring-1 ring-black/10">
+                <ImageWithFallback src={categoryImage} alt="Category" className="mx-auto h-24 w-auto object-contain" />
+              </div>
+            )}
+          </div>
           {renderManufacturers('mt-0')}
           {selected && selectedRaw ? (
             <ProductPanel ui={selected} isSelected raw={selectedRaw} />
@@ -859,6 +890,38 @@ export default function CarPartDetails() {
           )}
         </main>
       </div>
+      {isMobileFilterOpen && (
+        <div className="fixed inset-0 z-50 flex lg:hidden" role="dialog" aria-modal="true">
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/50"
+            onClick={() => setMobileFilterOpen(false)}
+            aria-label="Close vehicle filter"
+          />
+          <div
+            id="vehicle-filter-drawer"
+            className="relative ml-auto flex h-full w-full max-w-sm flex-col rounded-l-3xl bg-white shadow-xl"
+          >
+            <div className="flex items-center justify-between border-b border-black/5 px-4 py-3">
+              <h2 className="text-[14px] font-semibold text-gray-900">Select your vehicle</h2>
+              <button
+                type="button"
+                onClick={() => setMobileFilterOpen(false)}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 text-gray-600"
+                aria-label="Close vehicle filter"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto px-4 py-4">
+              <VehicleFilter onChange={handleVehFilterChange} className="shadow-none ring-0" />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
