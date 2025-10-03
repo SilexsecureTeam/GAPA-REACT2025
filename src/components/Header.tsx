@@ -12,6 +12,96 @@ import { getAllCategories, type ApiCategory, getAllBrands, type ApiBrand, getSub
 import { categoryImageFrom, normalizeApiImage, pickImage, brandImageFrom, subCategoryImageFrom, subSubCategoryImageFrom } from '../services/images'
 import { getGuestCart } from '../services/cart'
 
+// Search suggestions data
+const SEARCH_SUGGESTIONS = [
+  'Brake Pads',
+  'Brake Disc',
+  'Brake Caliper',
+  'Brake Shoe',
+  'HVAC > A/C Compressor',
+  'Stabilizers & Components> Stabilizer Linkage',
+  'Wiper Blades',
+  'Wheel Speed Sensor',
+  'Tire Pressure Monitoring sensor',
+  'Speed Sensor',
+  'Upper Arm',
+  'Water Pump',
+  'Spark Plug',
+  'Pedal to steering wheel lock',
+  'Sprays',
+  'Phone & Tablet Holder',
+  'Sponges',
+  'Jumper Cable',
+  'Glow Plug',
+  'Fuel Pump',
+  'Piston Rings',
+  'STARK Brake pad set (SKBP-0011422)',
+  'STARK Brake pad set (SKBP-0010253)',
+  'STARK Brake pad set (SKBP-0011126)',
+  'STARK Brake pad set (SKBP-0011757)',
+  'STARK Brake pad set (SKBP-0010379)',
+  'STARK Brake pad set (SKBP-0010322)',
+  'V-Ribbed Belts (SKPB-0090009)',
+  'V-Ribbed Belts (SKPB-0090054)',
+  'STARK Brake pad set (SKBP-0011799)',
+  'V-Ribbed Belts (SK-6PK1113)',
+  'V-Ribbed Belts (SK-6PK1613)',
+  'V-Ribbed Belts (305P0416)',
+  'Oil Filter (7O0063P)',
+  'Panasonic CR2025EL/2B Lithium Power Lithium 3V/165mAh Blister (2) (PA2025/2B)',
+  'Oil Filter (7O0013P)',
+  'V-Ribbed Belts (305P0150)',
+  'NAPA Brake pad set (BRBP56091N)',
+  'V-Ribbed Belts (305P0163)',
+  'NAPA Brake pad set (BRBP10068N)',
+  'Panasonic CR2025EL/1B Lithium Power Lithium 3V/165mAh Blister (1) (PA2025/1B)',
+  'V-ribbed belt (305P0115)',
+  'Piston Ring Kit (444P0008)',
+  'V-ribbed belt (305P0158)',
+  'Panasonic CR2032EL/2B Lithium Power Lithium 3V/225mAh Blister (2) (PA2032/2B)',
+  'Timing Belt (306T0132P)',
+  'V-Ribbed Belts (305P0444)',
+  'Panasonic CR2016EL/1B Lithium Power Lithium 3V/90mAh Blister (1) (PA2016/1B)',
+  'NAPA Brake pad set (PFBPF9041X)',
+  'BRAKE DISC (UP 880508CR)',
+  'NAPA Brake pad set (PFBPF9034X)',
+  'Panasonic CR2016EL/2B Lithium Power Lithium 3V/90mAh Blister (2) (PA2016/2B)',
+  'V-Ribbed Belts (305P0128)',
+  'Timing Belt (306T0144P)',
+  'Brake pad set (SKBP-0010461)',
+  'V-Ribbed Belts (305P0246)',
+  'Piston Ring Kit (444P0030)',
+  'Panasonic CR2025EL/6B Lithium Power Lithium 3V/165mAh Blister (6) (PA2025/6B)',
+  'NAPA Brake pad set (PSGSG7965X)',
+  'V-Ribbed Belts (305P0145)',
+  'V-Ribbed Belts (305P0425)',
+  'V-Ribbed Belts (305P0082)',
+  'Panasonic CR2032EL/6B Lithium Power Lithium 3V/225mAh Blister (6) (PA2032/6B)',
+  'V-ribbed belt (305P0393)',
+  'V-Ribbed Belts (305P0452)',
+  'STARK Brake pad set (SKBP-0011296)',
+  'Panasonic CR1616EL/1B Lithium Power Lithium 3V/55mAh Blister (1) (PA1616/1B)',
+  'Piston Ring Kit (444P0036)',
+  'BRAKE DISC (UP 882151CR)',
+  'Panasonic CR2450EL/1B Lithium Power Lithium 3V/620mAh Blister (1) (PA2450/1B)',
+  'Oil Filter (7O0078P)',
+  'Oil Filter (7O0061P)',
+  'NAPA Brake pad set (PSGSG8282X)',
+  'V-Ribbed Belts (305P0341)',
+  'V-Ribbed Belts (305P0334)',
+  'V-Ribbed Belts (305P0103)',
+  'Panasonic CR2430EL/1B Lithium Power Lithium 3V/285mAh Blister (1) (PA2430/1B)',
+  'Oil Filter (7O0379P)',
+  'SPARK PLUG (ASPXP3923)',
+  'Panasonic CR2016EL/6B Lithium Power Lithium 3V/90mAh Blister (6) (PA2016/6B)',
+  'NAPA Brake pad set (BRBP09015N)',
+  'V-Ribbed Belts (305P0150P)',
+  'NAPA Brake pad set (PSGSG7958M)',
+  'Oil Filter (7O0106P)',
+  'Panasonic CR2032EL/1B Lithium Power Lithium 3V/225mAh Blister (1) (PA2032/1B)',
+  'NAPA Brake pad set (BRBP10045N)',
+]
+
 export default function Header() {
   // Live timer to Dec 1, 12am displayed as HH:MM:SS (no labels)
   const [timeLeft, setTimeLeft] = useState(() => {
@@ -24,7 +114,11 @@ export default function Header() {
     return { h, m, s }
   })
   const [query, setQuery] = useState('')
-  // Removed live search UI state: searching, suggestions, showSuggest
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const [filteredSuggestions, setFilteredSuggestions] = useState<string[]>([])
+  const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(-1)
+  const searchRef = useRef<HTMLDivElement>(null)
+  const mobileSearchRef = useRef<HTMLDivElement>(null)
   const { user } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
@@ -100,6 +194,60 @@ export default function Header() {
 
   // Removed static categories; we now render Car Brands + dynamic API categories
 
+  // Filter suggestions based on query
+  useEffect(() => {
+    const term = query.trim().toLowerCase()
+    if (!term || term.length < 2) {
+      setFilteredSuggestions([])
+      setShowSuggestions(false)
+      setActiveSuggestionIndex(-1)
+      return
+    }
+
+    // Smart filtering: prioritize matches at start of string, then word boundaries
+    const matches = SEARCH_SUGGESTIONS.filter(suggestion => {
+      const lower = suggestion.toLowerCase()
+      return lower.includes(term)
+    }).sort((a, b) => {
+      const aLower = a.toLowerCase()
+      const bLower = b.toLowerCase()
+      const aStarts = aLower.startsWith(term)
+      const bStarts = bLower.startsWith(term)
+      
+      // Prioritize starts-with matches
+      if (aStarts && !bStarts) return -1
+      if (!aStarts && bStarts) return 1
+      
+      // Then by word boundary matches
+      const aWordMatch = new RegExp(`\\b${term}`, 'i').test(a)
+      const bWordMatch = new RegExp(`\\b${term}`, 'i').test(b)
+      if (aWordMatch && !bWordMatch) return -1
+      if (!aWordMatch && bWordMatch) return 1
+      
+      // Finally alphabetically
+      return a.localeCompare(b)
+    }).slice(0, 8) // Limit to 8 suggestions
+
+    setFilteredSuggestions(matches)
+    setShowSuggestions(matches.length > 0)
+    setActiveSuggestionIndex(-1)
+  }, [query])
+
+  // Close suggestions when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        searchRef.current && !searchRef.current.contains(e.target as Node) &&
+        mobileSearchRef.current && !mobileSearchRef.current.contains(e.target as Node)
+      ) {
+        setShowSuggestions(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
   const onSearch = async (e: React.FormEvent) => {
     e.preventDefault()
     const term = query.trim()
@@ -107,7 +255,41 @@ export default function Header() {
     // Navigate to CarParts with the query param; actual search happens on that page
     setCarPartsOpen(false)
     setBrandsOpen(false)
+    setShowSuggestions(false)
     navigate(`/parts?q=${encodeURIComponent(term)}`)
+  }
+
+  const handleSuggestionClick = (suggestion: string) => {
+    setQuery(suggestion)
+    setShowSuggestions(false)
+    navigate(`/parts?q=${encodeURIComponent(suggestion)}`)
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (!showSuggestions || filteredSuggestions.length === 0) return
+
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault()
+        setActiveSuggestionIndex(prev => 
+          prev < filteredSuggestions.length - 1 ? prev + 1 : prev
+        )
+        break
+      case 'ArrowUp':
+        e.preventDefault()
+        setActiveSuggestionIndex(prev => prev > 0 ? prev - 1 : -1)
+        break
+      case 'Enter':
+        if (activeSuggestionIndex >= 0) {
+          e.preventDefault()
+          handleSuggestionClick(filteredSuggestions[activeSuggestionIndex])
+        }
+        break
+      case 'Escape':
+        setShowSuggestions(false)
+        setActiveSuggestionIndex(-1)
+        break
+    }
   }
 
   const toSlug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
@@ -315,15 +497,51 @@ export default function Header() {
           </Link>
 
           {/* Desktop Search */}
-          <form onSubmit={onSearch} className="hidden md:block w-full relative">
-            <div className="relative flex h-10 sm:h-11 w-full overflow-hidden rounded-md bg-white ring-1 ring-black/10 focus-within:ring-black/20">
-              <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <div ref={searchRef} className="hidden md:block w-full relative">
+            <form onSubmit={onSearch} className="relative">
+              <div className="relative flex h-10 sm:h-11 w-full overflow-hidden rounded-md bg-white ring-1 ring-black/10 focus-within:ring-black/20">
+                <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                </div>
+                <input 
+                  value={query} 
+                  onChange={(e) => setQuery(e.target.value)} 
+                  onKeyDown={handleKeyDown}
+                  onFocus={() => query.trim().length >= 2 && filteredSuggestions.length > 0 && setShowSuggestions(true)}
+                  type="text" 
+                  placeholder="Enter the part number or name" 
+                  className="h-full w-full pl-10 pr-28 text-[14px] outline-none placeholder:text-gray-400" 
+                  aria-label="Search parts"
+                  autoComplete="off"
+                />
+                <button type="submit" className="absolute right-0 top-0 rounded-md h-full px-5 text-[13px] font-semibold text-white transition-colors bg-brand hover:brightness-110">Search</button>
               </div>
-              <input value={query} onChange={(e) => setQuery(e.target.value)} type="text" placeholder="Enter the part number or name" className="h-full w-full pl-10 pr-28 text-[14px] outline-none placeholder:text-gray-400" aria-label="Search parts" />
-              <button type="submit" className="absolute right-0 top-0 rounded-md h-full px-5 text-[13px] font-semibold text-white transition-colors bg-brand hover:brightness-110">Search</button>
-            </div>
-          </form>
+            </form>
+            
+            {/* Search Suggestions Dropdown */}
+            {showSuggestions && filteredSuggestions.length > 0 && (
+              <div className="absolute top-full left-0 right-0 mt-1 bg-white rounded-lg shadow-lg ring-1 ring-black/10 max-h-[400px] overflow-y-auto z-50">
+                {filteredSuggestions.map((suggestion, index) => (
+                  <button
+                    key={index}
+                    type="button"
+                    onClick={() => handleSuggestionClick(suggestion)}
+                    onMouseEnter={() => setActiveSuggestionIndex(index)}
+                    className={`w-full text-left px-4 py-2.5 text-[14px] hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-b-0 ${
+                      index === activeSuggestionIndex ? 'bg-gray-50' : ''
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-400 flex-shrink-0">
+                        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                      </svg>
+                      <span className="text-gray-700">{suggestion}</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
 
           {/* Actions (desktop) */}
           <div className="hidden md:flex items-center justify-end gap-3 sm:gap-4">
@@ -393,19 +611,54 @@ export default function Header() {
 
         {/* Mobile sliding search */}
         <div className={`md:hidden absolute left-0 right-0 z-40 origin-top transition-all duration-300 ${mobileSearchOpen ? 'translate-y-0 opacity-100' : '-translate-y-3 opacity-0 pointer-events-none'}`}>
-          <div className="px-3 pb-3">
-            <form onSubmit={(e) => { onSearch(e); setMobileSearchOpen(false) }} className="relative flex h-11 w-full overflow-hidden rounded-lg bg-white ring-1 ring-black/10 focus-within:ring-black/20 shadow">
-              <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-              </div>
-              <input id="mobile-search-input" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search parts" className="h-full w-full pl-10 pr-24 text-[14px] outline-none" />
-              <div className="absolute right-0 top-0 flex h-full items-center gap-1 pr-1">
-                <button type="button" onClick={() => setMobileSearchOpen(false)} className="inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-600 hover:bg-gray-100" aria-label="Close search">
-                  <svg width="16" height="16" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
-                </button>
-                <button type="submit" className="h-8 px-3 rounded-md bg-brand text-[12px] font-semibold text-white hover:brightness-110">Go</button>
+          <div ref={mobileSearchRef} className="px-3 pb-3">
+            <form onSubmit={(e) => { onSearch(e); setMobileSearchOpen(false) }} className="relative">
+              <div className="relative flex h-11 w-full overflow-hidden rounded-lg bg-white ring-1 ring-black/10 focus-within:ring-black/20 shadow">
+                <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                </div>
+                <input 
+                  id="mobile-search-input" 
+                  value={query} 
+                  onChange={(e) => setQuery(e.target.value)} 
+                  onKeyDown={handleKeyDown}
+                  onFocus={() => query.trim().length >= 2 && filteredSuggestions.length > 0 && setShowSuggestions(true)}
+                  placeholder="Search parts" 
+                  className="h-full w-full pl-10 pr-24 text-[14px] outline-none"
+                  autoComplete="off"
+                />
+                <div className="absolute right-0 top-0 flex h-full items-center gap-1 pr-1">
+                  <button type="button" onClick={() => setMobileSearchOpen(false)} className="inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-600 hover:bg-gray-100" aria-label="Close search">
+                    <svg width="16" height="16" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+                  </button>
+                  <button type="submit" className="h-8 px-3 rounded-md bg-brand text-[12px] font-semibold text-white hover:brightness-110">Go</button>
+                </div>
               </div>
             </form>
+            
+            {/* Mobile Search Suggestions */}
+            {showSuggestions && filteredSuggestions.length > 0 && (
+              <div className="mt-2 bg-white rounded-lg shadow-lg ring-1 ring-black/10 max-h-[300px] overflow-y-auto">
+                {filteredSuggestions.map((suggestion, index) => (
+                  <button
+                    key={index}
+                    type="button"
+                    onClick={() => { handleSuggestionClick(suggestion); setMobileSearchOpen(false) }}
+                    onMouseEnter={() => setActiveSuggestionIndex(index)}
+                    className={`w-full text-left px-4 py-2.5 text-[14px] hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-b-0 ${
+                      index === activeSuggestionIndex ? 'bg-gray-50' : ''
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-400 flex-shrink-0">
+                        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                      </svg>
+                      <span className="text-gray-700">{suggestion}</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>
