@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { getUserOrders, getUserOrderItems, type ApiOrder, type ApiOrderItem } from '../services/api'
+import { getUserOrders, getUserOrderItems, submitReview, type ApiOrder, type ApiOrderItem } from '../services/api'
 import { useAuth } from '../services/auth'
 import FallbackLoader from '../components/FallbackLoader'
 import logo from '../assets/gapa-logo.png'
@@ -46,12 +46,146 @@ function OrderCard({ order, onToggle }: { order: ApiOrder; onToggle: (orderId: s
   )
 }
 
+// Review Modal Component
+function ReviewModal({ 
+  item, 
+  onClose, 
+  onSubmit 
+}: { 
+  item: ApiOrderItem
+  onClose: () => void
+  onSubmit: (rating: number, review: string) => Promise<void>
+}) {
+  const [rating, setRating] = useState(5)
+  const [review, setReview] = useState('')
+  const [hoveredRating, setHoveredRating] = useState(0)
+  const [submitting, setSubmitting] = useState(false)
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!review.trim()) {
+      alert('Please write a review')
+      return
+    }
+    setSubmitting(true)
+    try {
+      await onSubmit(rating, review.trim())
+      onClose()
+    } catch (error) {
+      console.error('Submit review error:', error)
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const name = String(item?.product_name || item?.name || item?.title || 'Product')
+  const rawImage = productImageFrom(item) || normalizeApiImage(pickImage(item) || '') || logo
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+      <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="border-b border-gray-200 p-6">
+          <div className="flex items-start justify-between">
+            <h2 className="text-xl font-semibold text-gray-900">Write a Review</h2>
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+              <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+          <div className="flex gap-4">
+            <div className="h-20 w-20 flex-shrink-0 overflow-hidden rounded-lg bg-gray-100 ring-1 ring-black/10">
+              <img src={rawImage} alt={name} className="h-full w-full object-contain" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h3 className="font-medium text-gray-900 truncate">{name}</h3>
+              <p className="mt-1 text-sm text-gray-600">Share your experience with this product</p>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-900 mb-2">Rating</label>
+            <div className="flex gap-2">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <button
+                  key={star}
+                  type="button"
+                  onClick={() => setRating(star)}
+                  onMouseEnter={() => setHoveredRating(star)}
+                  onMouseLeave={() => setHoveredRating(0)}
+                  className="group"
+                >
+                  <svg
+                    className={`h-8 w-8 transition-colors ${
+                      star <= (hoveredRating || rating)
+                        ? 'fill-yellow-400 text-yellow-400'
+                        : 'fill-gray-200 text-gray-200'
+                    }`}
+                    viewBox="0 0 20 20"
+                  >
+                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                  </svg>
+                </button>
+              ))}
+            </div>
+            <p className="mt-2 text-xs text-gray-600">
+              {rating === 1 && 'Poor'}
+              {rating === 2 && 'Fair'}
+              {rating === 3 && 'Good'}
+              {rating === 4 && 'Very Good'}
+              {rating === 5 && 'Excellent'}
+            </p>
+          </div>
+
+          <div>
+            <label htmlFor="review-text" className="block text-sm font-medium text-gray-900 mb-2">
+              Your Review
+            </label>
+            <textarea
+              id="review-text"
+              value={review}
+              onChange={(e) => setReview(e.target.value)}
+              rows={5}
+              className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-[#F7CD3A] focus:outline-none focus:ring-2 focus:ring-[#F7CD3A]/20"
+              placeholder="Share your thoughts about this product..."
+              required
+            />
+            <p className="mt-1 text-xs text-gray-500">{review.length} characters</p>
+          </div>
+
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 rounded-lg border border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={submitting || !review.trim()}
+              className="flex-1 rounded-lg bg-[#F7CD3A] px-4 py-3 text-sm font-semibold text-gray-900 hover:brightness-105 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {submitting ? 'Submitting...' : 'Submit Review'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
 export default function OrderHistory() {
   const { user } = useAuth()
   const userId = user?.id
   const [loading, setLoading] = useState(true)
   const [orders, setOrders] = useState<ApiOrder[]>([])
   const [expanded, setExpanded] = useState<Record<string, { loading: boolean; items: ApiOrderItem[] }>>({})
+  const [reviewItem, setReviewItem] = useState<ApiOrderItem | null>(null)
+  const [reviewSuccess, setReviewSuccess] = useState<string | null>(null)
 
   useEffect(() => {
     if (!userId) { setLoading(false); setOrders([]); return }
@@ -85,6 +219,31 @@ export default function OrderHistory() {
       setExpanded((prev) => ({ ...prev, [orderId]: { loading: false, items } }))
     } catch {
       setExpanded((prev) => ({ ...prev, [orderId]: { loading: false, items: [] } }))
+    }
+  }
+
+  const handleSubmitReview = async (rating: number, reviewText: string) => {
+    if (!userId || !reviewItem) return
+    
+    const productId = String(reviewItem?.product_id || reviewItem?.id || '')
+    if (!productId) {
+      alert('Product ID not found')
+      return
+    }
+
+    try {
+      await submitReview({
+        user_id: userId,
+        product_id: productId,
+        review: reviewText,
+        rating
+      })
+      
+      setReviewSuccess('Thank you for your review!')
+      setTimeout(() => setReviewSuccess(null), 3000)
+    } catch (error) {
+      console.error('Failed to submit review:', error)
+      alert('Failed to submit review. Please try again.')
     }
   }
 
@@ -171,25 +330,36 @@ export default function OrderHistory() {
                             const article = String(it?.article_no || it?.article_number || it?.code || '')
                             const rawImage = productImageFrom(it) || normalizeApiImage(pickImage(it) || '') || logo
                             return (
-                              <li key={i} className="flex gap-3 rounded-lg bg-white p-3 text-[13px] ring-1 ring-black/10">
-                                <div className="h-16 w-16 flex-shrink-0 overflow-hidden rounded-md bg-[#F6F5FA] ring-1 ring-black/10">
-                                  <img src={rawImage} alt={name} className="h-full w-full object-contain" loading="lazy" />
+                              <li key={i} className="flex flex-col gap-3 rounded-lg bg-white p-3 text-[13px] ring-1 ring-black/10">
+                                <div className="flex gap-3">
+                                  <div className="h-16 w-16 flex-shrink-0 overflow-hidden rounded-md bg-[#F6F5FA] ring-1 ring-black/10">
+                                    <img src={rawImage} alt={name} className="h-full w-full object-contain" loading="lazy" />
+                                  </div>
+                                  <div className="min-w-0 flex-1 space-y-1">
+                                    <div className="flex items-start justify-between gap-2">
+                                      <p className="truncate font-medium text-gray-900">{name}</p>
+                                      <span className="flex-shrink-0 text-[11px] font-semibold text-gray-900">{currency(totalLine)}</span>
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-gray-600">
+                                      {maker && <span className="truncate">Maker: {maker}</span>}
+                                      {article && <span className="truncate">Art: {article}</span>}
+                                      {it?.pairs && String(it.pairs).toLowerCase() === 'yes' && <span className="text-orange-600">Pairs</span>}
+                                    </div>
+                                    <div className="flex items-center gap-4 text-[11px] text-gray-600">
+                                      <span>Qty: <span className="font-medium text-gray-900">{qty}</span></span>
+                                      <span>Unit: <span className="font-medium text-gray-900">{currency(unit)}</span></span>
+                                    </div>
+                                  </div>
                                 </div>
-                                <div className="min-w-0 flex-1 space-y-1">
-                                  <div className="flex items-start justify-between gap-2">
-                                    <p className="truncate font-medium text-gray-900">{name}</p>
-                                    <span className="flex-shrink-0 text-[11px] font-semibold text-gray-900">{currency(totalLine)}</span>
-                                  </div>
-                                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-gray-600">
-                                    {maker && <span className="truncate">Maker: {maker}</span>}
-                                    {article && <span className="truncate">Art: {article}</span>}
-                                    {it?.pairs && String(it.pairs).toLowerCase() === 'yes' && <span className="text-orange-600">Pairs</span>}
-                                  </div>
-                                  <div className="flex items-center gap-4 text-[11px] text-gray-600">
-                                    <span>Qty: <span className="font-medium text-gray-900">{qty}</span></span>
-                                    <span>Unit: <span className="font-medium text-gray-900">{currency(unit)}</span></span>
-                                  </div>
-                                </div>
+                                <button
+                                  onClick={() => setReviewItem(it)}
+                                  className="inline-flex h-8 items-center justify-center rounded-md bg-[#F7CD3A]/10 px-3 text-[12px] font-medium text-gray-900 ring-1 ring-[#F7CD3A]/30 hover:bg-[#F7CD3A]/20"
+                                >
+                                  <svg className="mr-1.5 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                                  </svg>
+                                  Write Review
+                                </button>
                               </li>
                             )
                           })}
@@ -200,6 +370,27 @@ export default function OrderHistory() {
                 </div>
               )
             })}
+          </div>
+        )}
+
+        {/* Review Modal */}
+        {reviewItem && (
+          <ReviewModal
+            item={reviewItem}
+            onClose={() => setReviewItem(null)}
+            onSubmit={handleSubmitReview}
+          />
+        )}
+
+        {/* Success Message */}
+        {reviewSuccess && (
+          <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 transform rounded-lg bg-green-600 px-6 py-3 text-white shadow-lg">
+            <div className="flex items-center gap-2 text-sm font-medium">
+              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+              {reviewSuccess}
+            </div>
           </div>
         )}
       </section>

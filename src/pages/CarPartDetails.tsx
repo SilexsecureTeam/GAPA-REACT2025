@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useCallback } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { getAllProducts, liveSearch, getRelatedProducts, type ApiProduct, getProductById, getAllCategories, type ApiCategory, addToCartApi, type ApiManufacturer } from '../services/api'
+import { getAllProducts, liveSearch, getRelatedProducts, type ApiProduct, getProductById, getAllCategories, type ApiCategory, addToCartApi, type ApiManufacturer, getProductReviews, type ApiReview } from '../services/api'
 import { normalizeApiImage, pickImage, productImageFrom, categoryImageFrom, manufacturerImageFrom } from '../services/images'
 import logoImg from '../assets/gapa-logo.png'
 import { useAuth } from '../services/auth'
@@ -12,7 +12,7 @@ import useWishlist from '../hooks/useWishlist'
 import { toast } from 'react-hot-toast'
 import ManufacturerSelector from '../components/ManufacturerSelector'
 import useManufacturers from '../hooks/useManufacturers'
-import { makerIdOf } from '../utils/productMapping'
+import { makerIdOf, isViewEnabledCategory } from '../utils/productMapping'
 
 // Helpers
 const toSlug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
@@ -146,6 +146,11 @@ export default function CarPartDetails() {
   const [selectedManufacturerId, setSelectedManufacturerId] = useState<string>('')
   const [selectedManufacturerName, setSelectedManufacturerName] = useState<string>('')
   const [isMobileFilterOpen, setMobileFilterOpen] = useState(false)
+  
+  // Reviews
+  const [reviews, setReviews] = useState<ApiReview[]>([])
+  const [reviewsLoading, setReviewsLoading] = useState(false)
+  const [showAllReviews, setShowAllReviews] = useState(false)
 
   // Wishlist
   const { has: wishlistHas, toggle: wishlistToggle } = useWishlist()
@@ -322,10 +327,39 @@ export default function CarPartDetails() {
     const relAbort = new AbortController()
     ;(async () => {
       try {
-        if (!pid) { setSelected(null); setSelectedRaw(null); setRelated([]); return }
+        if (!pid) { setSelected(null); setSelectedRaw(null); setRelated([]); setReviews([]); return }
         setRelatedLoading(true)
-        // 1. Fetch detail FIRST (do not wait for related) so UI renders immediately
-        const detail = await getProductById(pid)
+        
+        // First, try to find the product in our local list
+        const localProduct = products.find(p => String((p as any)?.product_id ?? (p as any)?.id) === pid)
+        
+        // Check if category is view-enabled
+        const categoryName = localProduct ? categoryOf(localProduct) : ''
+        const shouldFetchDetails = isViewEnabledCategory(categoryName)
+        
+        let detail: any
+        
+        if (shouldFetchDetails) {
+          // 1. Fetch detail from API for view-enabled categories (CAR PARTS, CAR ELECTRICALS)
+          detail = await getProductById(pid)
+        } else if (localProduct) {
+          // Use local product data for non-view-enabled categories (CAR CARE, etc.)
+          detail = localProduct
+        } else {
+          // Fallback: try to fetch anyway if not found locally
+          try {
+            detail = await getProductById(pid)
+          } catch {
+            if (!alive) return
+            setSelected(null)
+            setSelectedRaw(null)
+            setRelated([])
+            setReviews([])
+            setRelatedLoading(false)
+            return
+          }
+        }
+        
         if (!alive) return
         setSelectedRaw(detail)
         // Schedule mapping after next frame to unblock paint
@@ -335,17 +369,39 @@ export default function CarPartDetails() {
             setSelected(enhanceWithManufacturerData(mapped, detail))
           }
         })
-        // 2. Kick off related fetch in background
+        
+        // 2. Kick off related fetch in background (only for view-enabled categories)
+        if (shouldFetchDetails) {
+          ;(async () => {
+            try {
+              const rel = await getRelatedProducts(pid)
+              if (!alive || relAbort.signal.aborted) return
+              setRelated(Array.isArray(rel) ? rel.slice(0, RELATED_LIMIT) : [])
+            } catch {
+              if (!alive) return
+              setRelated([])
+            } finally {
+              if (alive) setRelatedLoading(false)
+            }
+          })()
+        } else {
+          // For non-view-enabled categories, don't fetch related products
+          setRelated([])
+          setRelatedLoading(false)
+        }
+        
+        // 3. Fetch reviews in background (for ALL products)
         ;(async () => {
           try {
-            const rel = await getRelatedProducts(pid)
+            setReviewsLoading(true)
+            const reviewsData = await getProductReviews(pid)
             if (!alive || relAbort.signal.aborted) return
-            setRelated(Array.isArray(rel) ? rel.slice(0, RELATED_LIMIT) : [])
+            setReviews(Array.isArray(reviewsData) ? reviewsData : [])
           } catch {
             if (!alive) return
-            setRelated([])
+            setReviews([])
           } finally {
-            if (alive) setRelatedLoading(false)
+            if (alive) setReviewsLoading(false)
           }
         })()
       } catch {
@@ -353,11 +409,12 @@ export default function CarPartDetails() {
         setSelected(null)
         setSelectedRaw(null)
         setRelated([])
+        setReviews([])
         setRelatedLoading(false)
       }
     })()
     return () => { alive = false; relAbort.abort() }
-  }, [pid])
+  }, [pid, products])
 
   // Frontend-related suggestions when search fails or related API fails
   const frontendRelated = useMemo(() => {
@@ -425,7 +482,14 @@ export default function CarPartDetails() {
 
   // When a user clicks a result, request details, then navigate and update pid
   const onViewProduct = async (id: string, p: any) => {
-    try { await getProductById(id) } catch { /* ignore view errors */ }
+    // Only fetch details for view-enabled categories
+    const categoryName = categoryOf(p)
+    const shouldFetchDetails = isViewEnabledCategory(categoryName)
+    
+    if (shouldFetchDetails) {
+      try { await getProductById(id) } catch { /* ignore view errors */ }
+    }
+    
     const brandSlug = toSlug(brandOf(p) || brand || '') || (brand ? toSlug(brand) : 'gapa')
     const partSlug = toSlug(categoryOf(p) || part || '') || (part ? toSlug(part) : 'parts')
     setSearchParams((prev) => {
@@ -834,7 +898,110 @@ export default function CarPartDetails() {
           </div>
           {renderManufacturers('mt-0')}
           {selected && selectedRaw ? (
-            <ProductPanel ui={selected} isSelected raw={selectedRaw} />
+            <>
+              <ProductPanel ui={selected} isSelected raw={selectedRaw} />
+              
+              {/* Product Reviews Section */}
+              <section className="rounded-xl bg-white p-6 ring-1 ring-black/10">
+                <div className="mb-6 flex items-center justify-between">
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900">Customer Reviews</h3>
+                    <p className="mt-1 text-sm text-gray-600">
+                      {reviews.length > 0 ? `${reviews.length} ${reviews.length === 1 ? 'review' : 'reviews'}` : 'No reviews yet'}
+                    </p>
+                  </div>
+                  {reviews.length > 0 && (
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center">
+                        {Array.from({ length: 5 }).map((_, i) => {
+                          const avgRating = reviews.reduce((acc, r) => acc + Number(r.rating || 0), 0) / reviews.length
+                          return (
+                            <svg
+                              key={i}
+                              className={`h-5 w-5 ${i < Math.round(avgRating) ? 'fill-yellow-400 text-yellow-400' : 'fill-gray-200 text-gray-200'}`}
+                              viewBox="0 0 20 20"
+                            >
+                              <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                            </svg>
+                          )
+                        })}
+                      </div>
+                      <span className="text-sm font-medium text-gray-700">{(reviews.reduce((acc, r) => acc + Number(r.rating || 0), 0) / reviews.length).toFixed(1)}</span>
+                    </div>
+                  )}
+                </div>
+
+                {reviewsLoading ? (
+                  <div className="space-y-4">
+                    {Array.from({ length: 3 }).map((_, i) => (
+                      <div key={i} className="animate-pulse space-y-3 rounded-lg bg-gray-50 p-4">
+                        <div className="h-4 w-1/4 rounded bg-gray-200" />
+                        <div className="h-3 w-full rounded bg-gray-200" />
+                        <div className="h-3 w-3/4 rounded bg-gray-200" />
+                      </div>
+                    ))}
+                  </div>
+                ) : reviews.length === 0 ? (
+                  <div className="rounded-lg bg-gradient-to-br from-gray-50 to-white p-8 text-center">
+                    <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gray-100">
+                      <svg className="h-8 w-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+                      </svg>
+                    </div>
+                    <h4 className="text-base font-medium text-gray-900">No reviews yet</h4>
+                    <p className="mt-1 text-sm text-gray-600">Be the first to share your experience with this product</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {(showAllReviews ? reviews : reviews.slice(0, 3)).map((review, idx) => {
+                      const userName = review.user_name || review.user?.name || 'Anonymous'
+                      const rating = Number(review.rating || 0)
+                      const reviewText = review.review || ''
+                      const date = review.created_at ? new Date(review.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : ''
+                      
+                      return (
+                        <div key={idx} className="rounded-lg border border-gray-200 bg-gradient-to-br from-white to-gray-50/50 p-4 shadow-sm transition-shadow hover:shadow-md">
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex items-start gap-3">
+                              <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-[#F7CD3A]/20 text-sm font-semibold text-gray-900 ring-2 ring-[#F7CD3A]/30">
+                                {userName.charAt(0).toUpperCase()}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <h4 className="text-sm font-semibold text-gray-900">{userName}</h4>
+                                  {date && <span className="text-xs text-gray-500">{date}</span>}
+                                </div>
+                                <div className="mt-1 flex items-center gap-1">
+                                  {Array.from({ length: 5 }).map((_, i) => (
+                                    <svg
+                                      key={i}
+                                      className={`h-4 w-4 ${i < rating ? 'fill-yellow-400 text-yellow-400' : 'fill-gray-200 text-gray-200'}`}
+                                      viewBox="0 0 20 20"
+                                    >
+                                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                                    </svg>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                          <p className="mt-3 text-sm leading-relaxed text-gray-700">{reviewText}</p>
+                        </div>
+                      )
+                    })}
+                    
+                    {reviews.length > 3 && (
+                      <button
+                        onClick={() => setShowAllReviews(!showAllReviews)}
+                        className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+                      >
+                        {showAllReviews ? 'Show Less' : `View All ${reviews.length} Reviews`}
+                      </button>
+                    )}
+                  </div>
+                )}
+              </section>
+            </>
           ) : (
             <section className="rounded-xl bg-white p-4 ring-1 ring-black/10">
               <div className="mb-3 flex items-center justify-between">

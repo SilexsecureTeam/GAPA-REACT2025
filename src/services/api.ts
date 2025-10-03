@@ -240,6 +240,12 @@ export const ORDER_ENDPOINTS = {
   getUserOrderItems: (orderId: string | number) => `/product/getUserOrdersIteams/${encodeURIComponent(String(orderId))}`,
 } as const
 
+// Review endpoints
+export const REVIEW_ENDPOINTS = {
+  submitReview: '/submit_review',
+  getProductReviews: (productId: string) => `/product/getAllProductReview/${encodeURIComponent(productId)}`,
+} as const
+
 // Optional alternate base for some legacy endpoints (e.g., get-price)
 const GAPA_LIVE_BASE = (import.meta as any)?.env?.VITE_GAPA_LIVE_BASE as string | undefined
 function absUrl(path: string) {
@@ -497,6 +503,44 @@ export async function getUserOrders(userId: string | number) {
 export async function getUserOrderItems(orderId: string | number) {
   const res = await apiRequest<any>(ORDER_ENDPOINTS.getUserOrderItems(orderId), { method: 'GET', auth: true })
   return unwrapArray<ApiOrderItem>(res)
+}
+
+// ----- Review helpers -----
+export type ApiReview = {
+  id?: string | number
+  user_id?: string | number
+  product_id?: string
+  review?: string
+  rating?: number
+  user_name?: string
+  user?: { name?: string; image?: string }
+  created_at?: string
+  updated_at?: string
+} & Record<string, any>
+
+export type SubmitReviewPayload = {
+  user_id: string | number
+  product_id: string
+  review: string
+  rating: number
+}
+
+export async function submitReview(payload: SubmitReviewPayload) {
+  const form = new FormData()
+  form.set('user_id', String(payload.user_id))
+  form.set('product_id', payload.product_id)
+  form.set('review', payload.review)
+  form.set('rating', String(payload.rating))
+  return apiRequest<{ message?: string; success?: boolean }>(REVIEW_ENDPOINTS.submitReview, {
+    method: 'POST',
+    body: form,
+    auth: true,
+  })
+}
+
+export async function getProductReviews(productId: string) {
+  const res = await apiRequest<any>(REVIEW_ENDPOINTS.getProductReviews(productId), { method: 'GET' })
+  return unwrapArray<ApiReview>(res)
 }
 
 // --- GIG Logistics Integration -------------------------------------------------
