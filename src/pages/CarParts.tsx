@@ -822,19 +822,21 @@ function CarPartsInner() {
             </div>
           )}
 
-          {/* Filters side by side */}
-          <div className="mt-6 grid gap-4 md:grid-cols-2">
-            {/* Vehicle filter hidden for NON_VEHICLE categories */}
-            {!NON_VEHICLE_CATEGORY_IDS.has(String(activeCatId)) && (
-              <div>
-                <VehicleFilter onSearch={(url) => navigate(url)} onChange={setVehFilter} />
-              </div>
-            )}
-            {renderManufacturers('mt-0')}
-          </div>
+          {renderManufacturers('mt-6')}
 
-          {/* Content */}
-          <div className="mt-6">
+          {/* Sidebar + content */}
+          <div className="mt-6 grid gap-6 md:grid-cols-[280px_1fr]">
+            {/* <aside className="rounded-xl bg-white p-4 ring-1 h-max sticky top-4 self-start"> */}
+            {/* <h3 className="text-[14px] font-semibold text-gray-900">Select vehicle</h3> */}
+            <div className="mt-3">
+              {/* Vehicle filter hidden for NON_VEHICLE categories */}
+              {!NON_VEHICLE_CATEGORY_IDS.has(String(activeCatId)) && (
+                <div className="mt-3">
+                  <VehicleFilter onSearch={(url) => navigate(url)} onChange={setVehFilter} />
+                </div>
+              )}
+            </div>
+            {/* </aside> */}
 
             <div>
               {/* Sub Categories */}
@@ -964,13 +966,7 @@ function CarPartsInner() {
             </div>
           )}
 
-          {/* Filters side by side */}
-          <div className="mt-6 grid gap-4 md:grid-cols-2">
-            <div>
-              <VehicleFilter onSearch={(url) => navigate(url)} onChange={setVehFilter} />
-            </div>
-            {renderManufacturers('mt-0')}
-          </div>
+          {renderManufacturers('mt-6')}
 
           {/* Filters + results */}
           <div className="mt-6 grid gap-6 md:grid-cols-[240px_1fr]">
@@ -987,6 +983,11 @@ function CarPartsInner() {
                     Clear
                   </button>
                 ) : null}
+              </div>
+
+              {/* Vehicle filter available in search mode */}
+              <div className="mt-4">
+                <VehicleFilter onSearch={(url) => navigate(url)} onChange={setVehFilter} />
               </div>
 
               {/* Brands */}
@@ -1082,13 +1083,12 @@ function CarPartsInner() {
           </div>
         )}
 
-        {/* Filters side by side */}
-        <div className="mt-6 grid gap-4 md:grid-cols-2">
-          <div>
-            <VehicleFilter onSearch={(url) => navigate(url)} onChange={setVehFilter} />
-          </div>
-          {renderManufacturers('mt-0')}
+        {/* Quick vehicle filter on catalogue page */}
+        <div className="mt-4 max-w-sm">
+          <VehicleFilter onSearch={(url) => navigate(url)} onChange={setVehFilter} />
         </div>
+
+        {renderManufacturers('mt-6')}
 
         {/* Car Accessories grid (restored) */}
         <div className="mt-6 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">

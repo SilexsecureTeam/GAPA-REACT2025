@@ -330,36 +330,8 @@ export default function CarPartDetails() {
         if (!pid) { setSelected(null); setSelectedRaw(null); setRelated([]); setReviews([]); return }
         setRelatedLoading(true)
         
-        // First, try to find the product in our local list
-        const localProduct = products.find(p => String((p as any)?.product_id ?? (p as any)?.id) === pid)
-        
-        // Check if category is view-enabled
-        const categoryName = localProduct ? categoryOf(localProduct) : ''
-        const shouldFetchDetails = isViewEnabledCategory(categoryName)
-        
-        let detail: any
-        
-        if (shouldFetchDetails) {
-          // 1. Fetch detail from API for view-enabled categories (CAR PARTS, CAR ELECTRICALS, BATTERY)
-          detail = await getProductById(pid)
-        } else if (localProduct) {
-          // Use local product data for non-view-enabled categories (CAR CARE, TOOLS, ACCESSORIES)
-          detail = localProduct
-        } else {
-          // Fallback: try to fetch anyway if not found locally
-          try {
-            detail = await getProductById(pid)
-          } catch {
-            if (!alive) return
-            setSelected(null)
-            setSelectedRaw(null)
-            setRelated([])
-            setReviews([])
-            setRelatedLoading(false)
-            return
-          }
-        }
-        
+        // 1. Fetch detail FIRST (do not wait for related) so UI renders immediately
+        const detail = await getProductById(pid)
         if (!alive) return
         setSelectedRaw(detail)
         // Schedule mapping after next frame to unblock paint
@@ -370,26 +342,20 @@ export default function CarPartDetails() {
           }
         })
         
-        // 2. Kick off related fetch in background (only for view-enabled categories)
-        if (shouldFetchDetails) {
-          ;(async () => {
-            try {
-              const rel = await getRelatedProducts(pid)
-              if (!alive || relAbort.signal.aborted) return
-              setRelated(Array.isArray(rel) ? rel.slice(0, RELATED_LIMIT) : [])
-            } catch {
-              if (!alive) return
-              setRelated([])
-            } finally {
-              if (alive) setRelatedLoading(false)
-            }
-          })()
-        } else {
-          // For non-view-enabled categories, skip API call for related products
-          // Frontend fallback will be used instead (frontendRelated)
-          setRelated([])
-          setRelatedLoading(false)
-        }
+        // 2. Kick off related fetch in background
+        ;(async () => {
+          try {
+            const rel = await getRelatedProducts(pid)
+            if (!alive || relAbort.signal.aborted) return
+            setRelated(Array.isArray(rel) ? rel.slice(0, RELATED_LIMIT) : [])
+          } catch (err) {
+            console.error('Related products fetch error:', err)
+            if (!alive) return
+            setRelated([])
+          } finally {
+            if (alive) setRelatedLoading(false)
+          }
+        })()
         
         // 3. Fetch reviews in background (for ALL products)
         ;(async () => {
