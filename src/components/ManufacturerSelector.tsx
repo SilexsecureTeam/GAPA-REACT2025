@@ -54,7 +54,7 @@ export default function ManufacturerSelector({
           </button>
         )}
       </div>
-      <div className="mt-3 overflow-x-auto">
+      <div className="mt-3 overflow-x-auto no-scrollbar no-scrollbar::-webkit-scrollbar">
         <ul className="flex min-h-[72px] items-stretch gap-3">
           {loading ? (
             Array.from({ length: 6 }).map((_, i) => (
