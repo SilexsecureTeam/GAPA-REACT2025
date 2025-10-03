@@ -652,7 +652,10 @@ function CarPartsInner() {
     if (!pid) return
     const brandSlug = toSlug(brandOf(p) || 'gapa')
     const partSlug = toSlug(categoryOf(p) || 'parts')
-    navigate(`/parts/${brandSlug}/${partSlug}?pid=${encodeURIComponent(pid)}`)
+    // Pass product data via state for non-view-enabled categories
+    navigate(`/parts/${brandSlug}/${partSlug}?pid=${encodeURIComponent(pid)}`, {
+      state: { productData: p }
+    })
   }
   const onAddToCart = async (p: any) => {
     const pid = String((p as any)?.product_id ?? (p as any)?.id ?? '')

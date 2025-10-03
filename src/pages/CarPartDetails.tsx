@@ -325,13 +325,52 @@ export default function CarPartDetails() {
   useEffect(() => {
     let alive = true
     const relAbort = new AbortController()
+    const location = (window as any).history?.state?.usr
+    
     ;(async () => {
       try {
         if (!pid) { setSelected(null); setSelectedRaw(null); setRelated([]); setReviews([]); return }
         setRelatedLoading(true)
         
-        // 1. Fetch detail FIRST (do not wait for related) so UI renders immediately
-        const detail = await getProductById(pid)
+        // Try to get product data from navigation state or local products array
+        let detail: any = location?.productData
+        if (!detail) {
+          detail = products.find(p => String((p as any)?.product_id ?? (p as any)?.id) === pid)
+        }
+        
+        // Determine if we should fetch from API based on category
+        const categoryName = detail ? categoryOf(detail) : ''
+        const shouldFetchDetails = isViewEnabledCategory(categoryName)
+        
+        // 1. Fetch detail from API ONLY for Car Parts & Car Electricals
+        if (shouldFetchDetails) {
+          try {
+            detail = await getProductById(pid)
+          } catch (err) {
+            console.error('Failed to fetch product details:', err)
+            // If API fails but we have local data, use it
+            if (!detail) {
+              if (!alive) return
+              setSelected(null)
+              setSelectedRaw(null)
+              setRelated([])
+              setReviews([])
+              setRelatedLoading(false)
+              return
+            }
+          }
+        } else if (!detail) {
+          // No local data and category doesn't support API fetch
+          console.warn('No product data available for pid:', pid)
+          if (!alive) return
+          setSelected(null)
+          setSelectedRaw(null)
+          setRelated([])
+          setReviews([])
+          setRelatedLoading(false)
+          return
+        }
+        
         if (!alive) return
         setSelectedRaw(detail)
         // Schedule mapping after next frame to unblock paint
@@ -342,7 +381,7 @@ export default function CarPartDetails() {
           }
         })
         
-        // 2. Kick off related fetch in background
+        // 2. Kick off related fetch in background (for ALL categories)
         ;(async () => {
           try {
             const rel = await getRelatedProducts(pid)
@@ -449,7 +488,7 @@ export default function CarPartDetails() {
 
   // When a user clicks a result, request details, then navigate and update pid
   const onViewProduct = async (id: string, p: any) => {
-    // Only fetch details for view-enabled categories
+    // Only fetch details for view-enabled categories (Car Parts & Car Electricals)
     const categoryName = categoryOf(p)
     const shouldFetchDetails = isViewEnabledCategory(categoryName)
     
@@ -465,7 +504,11 @@ export default function CarPartDetails() {
       next.set('pid', id)
       return next
     }, { replace: true })
-    navigate(`/parts/${brandSlug}/${partSlug}?pid=${encodeURIComponent(id)}`)
+    // Pass product data via state for non-view-enabled categories
+    navigate(`/parts/${brandSlug}/${partSlug}?pid=${encodeURIComponent(id)}`, {
+      state: { productData: p },
+      replace: true
+    })
   }
 
   // Map to UI and optionally highlight selection
