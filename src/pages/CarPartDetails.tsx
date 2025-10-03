@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, useCallback } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { getAllProducts, liveSearch, getRelatedProducts, type ApiProduct, getProductById, getAllCategories, type ApiCategory, addToCartApi, type ApiManufacturer } from '../services/api'
-import { normalizeApiImage, pickImage, productImageFrom, categoryImageFrom } from '../services/images'
+import { normalizeApiImage, pickImage, productImageFrom, categoryImageFrom, manufacturerImageFrom } from '../services/images'
 import logoImg from '../assets/gapa-logo.png'
 import { useAuth } from '../services/auth'
 import { addGuestCartItem } from '../services/cart'
@@ -88,7 +88,11 @@ function mapApiToUi(p: any) {
   const inStock = Boolean((src as any)?.in_stock ?? (src as any)?.live_status ?? true)
   const attributes = attrsFrom(src)
   const description = String(src?.description || src?.details || '')
-  return { id, brand: brandName, brandLogo: brandLogo || logoImg, name, articleNo, price, image, gallery: gallery.length ? gallery : [image], rating, reviews, inStock, attributes, description }
+  // Extract maker information
+  const makerId = String(src?.maker_id_ ?? src?.maker_id ?? src?.manufacturer_id ?? '').trim()
+  const makerName = String(src?.maker?.name || src?.manufacturer?.name || src?.manufacturer || src?.maker || '').trim()
+  const makerImage = manufacturerImageFrom(src?.maker || src?.manufacturer || src) || ''
+  return { id, brand: brandName, brandLogo: brandLogo || logoImg, name, articleNo, price, image, gallery: gallery.length ? gallery : [image], rating, reviews, inStock, attributes, description, makerId, makerName, makerImage }
 }
 
 // Stateful image component to avoid infinite onError loops where React keeps re-setting a broken src.
@@ -185,6 +189,35 @@ export default function CarPartDetails() {
     const name = String(manufacturer.name || manufacturer.title || (manufacturer as any)?.maker_name || 'Manufacturer').trim()
     setSelectedManufacturerName(name)
   }, [])
+
+  // Helper to enhance product UI data with manufacturer info from loaded list
+  const enhanceWithManufacturerData = useCallback((ui: ReturnType<typeof mapApiToUi>, _raw: any) => {
+    if (!ui.makerId || !manufacturers.length) return ui
+    
+    // Find manufacturer by maker_id_
+    const manufacturer = manufacturers.find(m => {
+      const mId = String(m.id ?? (m as any)?.maker_id_ ?? (m as any)?.maker_id ?? (m as any)?.manufacturer_id ?? '')
+      return mId === ui.makerId
+    })
+    
+    if (manufacturer) {
+      const makerImg = manufacturerImageFrom(manufacturer) || ui.makerImage
+      const makerNm = String(manufacturer.name || manufacturer.title || (manufacturer as any)?.maker_name || ui.makerName || '').trim()
+      return { ...ui, makerImage: makerImg, makerName: makerNm }
+    }
+    
+    return ui
+  }, [manufacturers])
+
+  // Re-enhance selected product when manufacturers become available
+  useEffect(() => {
+    if (selected && selectedRaw && manufacturers.length && !manufacturersLoading) {
+      const enhanced = enhanceWithManufacturerData(selected, selectedRaw)
+      if (enhanced.makerImage !== selected.makerImage || enhanced.makerName !== selected.makerName) {
+        setSelected(enhanced)
+      }
+    }
+  }, [manufacturers, manufacturersLoading, enhanceWithManufacturerData])
 
   const renderManufacturers = (className = 'mt-4') => (
     <div className={className}>
@@ -296,7 +329,12 @@ export default function CarPartDetails() {
         if (!alive) return
         setSelectedRaw(detail)
         // Schedule mapping after next frame to unblock paint
-        requestAnimationFrame(() => { if (alive) setSelected(mapApiToUi(detail)) })
+        requestAnimationFrame(() => { 
+          if (alive) {
+            const mapped = mapApiToUi(detail)
+            setSelected(enhanceWithManufacturerData(mapped, detail))
+          }
+        })
         // 2. Kick off related fetch in background
         ;(async () => {
           try {
@@ -598,6 +636,16 @@ export default function CarPartDetails() {
 
               </div>
             </div>
+            {ui.makerImage && (
+              <div className="flex items-center gap-3 rounded-lg bg-white p-3 ring-1 ring-black/10">
+                <ImageWithFallback src={ui.makerImage} alt={ui.makerName || 'Manufacturer'} className="h-12 w-12 object-contain" />
+                {ui.makerName && (
+                  <div className="text-[12px] text-gray-600">
+                    <span className="font-medium">Manufacturer:</span> {ui.makerName}
+                  </div>
+                )}
+              </div>
+            )}
             <h2 className="text-[18px] font-semibold text-gray-900">
               {onSelect && !isSelected ? (
                 <button type="button" onClick={() => onSelect(ui.id, raw)} className="text-left hover:underline focus:outline-none">
