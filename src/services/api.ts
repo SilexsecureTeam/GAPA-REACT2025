@@ -544,8 +544,8 @@ async function fetchStaticGigToken(): Promise<string> {
   // De-dup parallel requests
   if (gigTokenFetchInFlight) return gigTokenFetchInFlight
   gigTokenFetchInFlight = (async () => {
-    const primaryUrl = 'https://gapaautoparts.com/logistics/access-token'
-    const proxyUrl = (import.meta as any)?.env?.VITE_GIG_TOKEN_PROXY || '/api/gig-token'
+    // const primaryUrl = 'https://gapaautoparts.com/logistics/access-token'
+    const proxyUrl = '/api/gig-token' 
     const tryFetch = async (url: string) => {
       console.info('[GIG DEBUG] Fetching static token from', url)
       const res = await fetch(url, { method: 'GET' })
@@ -560,7 +560,7 @@ async function fetchStaticGigToken(): Promise<string> {
     }
     let token: string
     try {
-      token = await tryFetch(primaryUrl)
+      token = await tryFetch(proxyUrl)
     } catch (e: any) {
       // Likely CORS in browser – attempt proxy fallback (same-origin serverless function)
       console.warn('[GIG DEBUG] Primary token fetch failed, trying proxy fallback', e?.message)
