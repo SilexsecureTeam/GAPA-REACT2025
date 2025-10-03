@@ -15,7 +15,7 @@ import useWishlist from '../hooks/useWishlist'
 import useManufacturers from '../hooks/useManufacturers'
 import WishlistButton from '../components/WishlistButton'
 import { toast } from 'react-hot-toast'
-import { brandOf, categoryOf, isViewEnabledCategory, makerIdOf, mapProductToActionData, toSlug } from '../utils/productMapping'
+import { brandOf, categoryOf, makerIdOf, mapProductToActionData, toSlug } from '../utils/productMapping'
 // import TopBrands from '../components/TopBrands'
 
 // Error boundary to surface runtime errors on the page
@@ -822,21 +822,19 @@ function CarPartsInner() {
             </div>
           )}
 
-          {renderManufacturers('mt-6')}
+          {/* Filters side by side */}
+          <div className="mt-6 grid gap-4 md:grid-cols-2">
+            {/* Vehicle filter hidden for NON_VEHICLE categories */}
+            {!NON_VEHICLE_CATEGORY_IDS.has(String(activeCatId)) && (
+              <div>
+                <VehicleFilter onSearch={(url) => navigate(url)} onChange={setVehFilter} />
+              </div>
+            )}
+            {renderManufacturers('mt-0')}
+          </div>
 
-          {/* Sidebar + content */}
-          <div className="mt-6 grid gap-6 md:grid-cols-[280px_1fr]">
-            {/* <aside className="rounded-xl bg-white p-4 ring-1 h-max sticky top-4 self-start"> */}
-            {/* <h3 className="text-[14px] font-semibold text-gray-900">Select vehicle</h3> */}
-            <div className="mt-3">
-              {/* Vehicle filter hidden for NON_VEHICLE categories */}
-              {!NON_VEHICLE_CATEGORY_IDS.has(String(activeCatId)) && (
-                <div className="mt-3">
-                  <VehicleFilter onSearch={(url) => navigate(url)} onChange={setVehFilter} />
-                </div>
-              )}
-            </div>
-            {/* </aside> */}
+          {/* Content */}
+          <div className="mt-6">
 
             <div>
               {/* Sub Categories */}
@@ -923,13 +921,12 @@ function CarPartsInner() {
                     <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
                       {filteredSubProducts.map((p, i) => {
                         const cardProduct = mapProductToActionData(p, i)
-                        const viewEnabled = isViewEnabledCategory(activeCategoryName)
                         return (
                           <ProductActionCard
                             key={cardProduct.id}
                             product={cardProduct}
-                            enableView={viewEnabled}
-                            onView={viewEnabled ? () => onViewProduct(p) : undefined}
+                            enableView={true}
+                            onView={() => onViewProduct(p)}
                             onAddToCart={() => onAddToCart(p)}
                           />
                         )
@@ -967,7 +964,13 @@ function CarPartsInner() {
             </div>
           )}
 
-          {renderManufacturers('mt-6')}
+          {/* Filters side by side */}
+          <div className="mt-6 grid gap-4 md:grid-cols-2">
+            <div>
+              <VehicleFilter onSearch={(url) => navigate(url)} onChange={setVehFilter} />
+            </div>
+            {renderManufacturers('mt-0')}
+          </div>
 
           {/* Filters + results */}
           <div className="mt-6 grid gap-6 md:grid-cols-[240px_1fr]">
@@ -984,11 +987,6 @@ function CarPartsInner() {
                     Clear
                   </button>
                 ) : null}
-              </div>
-
-              {/* Vehicle filter available in search mode */}
-              <div className="mt-4">
-                <VehicleFilter onSearch={(url) => navigate(url)} onChange={setVehFilter} />
               </div>
 
               {/* Brands */}
@@ -1050,14 +1048,12 @@ function CarPartsInner() {
                   <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
                     {filteredSearchResults.map((p: ApiProduct, i: number) => {
                       const cardProduct = mapProductToActionData(p, i)
-                      const resolvedCategory = resolveCategoryName((p as any)?.category) || categoryOf(p)
-                      const viewEnabled = isViewEnabledCategory(resolvedCategory)
                       return (
                         <li key={cardProduct.id}>
                           <ProductActionCard
                             product={cardProduct}
-                            enableView={viewEnabled}
-                            onView={viewEnabled ? () => onViewProduct(p) : undefined}
+                            enableView={true}
+                            onView={() => onViewProduct(p)}
                             onAddToCart={() => onAddToCart(p)}
                           />
                         </li>
@@ -1086,12 +1082,13 @@ function CarPartsInner() {
           </div>
         )}
 
-        {/* Quick vehicle filter on catalogue page */}
-        <div className="mt-4 max-w-sm">
-          <VehicleFilter onSearch={(url) => navigate(url)} onChange={setVehFilter} />
+        {/* Filters side by side */}
+        <div className="mt-6 grid gap-4 md:grid-cols-2">
+          <div>
+            <VehicleFilter onSearch={(url) => navigate(url)} onChange={setVehFilter} />
+          </div>
+          {renderManufacturers('mt-0')}
         </div>
-
-        {renderManufacturers('mt-6')}
 
         {/* Car Accessories grid (restored) */}
         <div className="mt-6 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">

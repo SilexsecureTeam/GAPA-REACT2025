@@ -340,10 +340,10 @@ export default function CarPartDetails() {
         let detail: any
         
         if (shouldFetchDetails) {
-          // 1. Fetch detail from API for view-enabled categories (CAR PARTS, CAR ELECTRICALS)
+          // 1. Fetch detail from API for view-enabled categories (CAR PARTS, CAR ELECTRICALS, BATTERY)
           detail = await getProductById(pid)
         } else if (localProduct) {
-          // Use local product data for non-view-enabled categories (CAR CARE, etc.)
+          // Use local product data for non-view-enabled categories (CAR CARE, TOOLS, ACCESSORIES)
           detail = localProduct
         } else {
           // Fallback: try to fetch anyway if not found locally
@@ -385,7 +385,8 @@ export default function CarPartDetails() {
             }
           })()
         } else {
-          // For non-view-enabled categories, don't fetch related products
+          // For non-view-enabled categories, skip API call for related products
+          // Frontend fallback will be used instead (frontendRelated)
           setRelated([])
           setRelatedLoading(false)
         }
@@ -414,7 +415,7 @@ export default function CarPartDetails() {
       }
     })()
     return () => { alive = false; relAbort.abort() }
-  }, [pid, products])
+  }, [pid, products, enhanceWithManufacturerData])
 
   // Frontend-related suggestions when search fails or related API fails
   const frontendRelated = useMemo(() => {
@@ -954,7 +955,7 @@ export default function CarPartDetails() {
                 ) : (
                   <div className="space-y-4">
                     {(showAllReviews ? reviews : reviews.slice(0, 3)).map((review, idx) => {
-                      const userName = review.user_name || review.user?.name || 'Anonymous'
+                      const userName = review.name || review.user?.name || 'Anonymous'
                       const rating = Number(review.rating || 0)
                       const reviewText = review.review || ''
                       const date = review.created_at ? new Date(review.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : ''
