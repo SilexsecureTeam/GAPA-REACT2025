@@ -29,7 +29,7 @@ if (typeof window !== 'undefined' && !(window as any).__GIG_ENV_LOGGED__) {
     console.warn('[GIG ENV CHECK] failed to log env vars', e)
   }
 }
-
+ 
 function sanitizeKey(val: any): string | undefined {
   const s = typeof val === 'string' ? val.trim() : ''
   if (!s) return undefined

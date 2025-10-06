@@ -205,6 +205,7 @@ export const ENDPOINTS = {
   productById: (id: string) => `/product/product/${id}`,
   productOEM: (id: string) => `/product/getProductOEM/${id}`,
   relatedProducts: (id: string) => `/product/getRelatedProduct/${id}`,
+  productProperties: (id: string) => `/product/getProductProperties/${id}`,
   // vehicle drill-down
   modelsByBrandId: (brandId: string) => `/getModelByBrandId?brand_id=${encodeURIComponent(brandId)}`,
   subModelsByModelId: (modelId: string) => `/getSubModelByModelId?model_id=${encodeURIComponent(modelId)}`,
@@ -364,6 +365,11 @@ export async function getProductOEM(id: string) {
 export async function getRelatedProducts(id: string) {
   const res = await apiRequest<any>(ENDPOINTS.relatedProducts(id), { auth: true })
   return unwrapArray<ApiProduct>(res)
+}
+
+export async function getProductProperties(id: string) {
+  const res = await apiRequest<any>(ENDPOINTS.productProperties(id), { auth: true })
+  return unwrapArray<any>(res)
 }
 
 // Vehicle drill-down helpers

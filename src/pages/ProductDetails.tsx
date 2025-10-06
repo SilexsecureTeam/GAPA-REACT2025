@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, useCallback } from 'react'
 import { Link, useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import WishlistButton from '../components/WishlistButton'
 import useWishlist from '../hooks/useWishlist'
-import { getProductById, getProductOEM, getProductReviews, getRelatedProducts, addToCartApi, type ApiReview } from '../services/api'
+import { getProductById, getProductOEM, getProductReviews, getRelatedProducts, getProductProperties, addToCartApi, type ApiReview } from '../services/api'
 import logoImg from '../assets/gapa-logo.png'
 import { normalizeApiImage, pickImage, productImageFrom, manufacturerImageFrom } from '../services/images'
 import { useAuth } from '../services/auth'
@@ -177,6 +177,8 @@ export default function ProductDetails() {
   const [activeTab, setActiveTab] = useState<'description' | 'specs' | 'compatibility' | 'reviews'>('description')
   const [relatedProducts, setRelatedProducts] = useState<any[]>([])
   const [relatedLoading, setRelatedLoading] = useState(false)
+  const [properties, setProperties] = useState<any[]>([])
+  const [propertiesLoading, setPropertiesLoading] = useState(false)
 
   const inc = () => {
     if (!prod?.soldInPairs) {
@@ -263,6 +265,27 @@ export default function ProductDetails() {
         if (alive) setRelatedProducts([])
       } finally {
         if (alive) setRelatedLoading(false)
+      }
+    })()
+    return () => { alive = false }
+  }, [id])
+
+  // Fetch product properties
+  useEffect(() => {
+    let alive = true
+    if (!id) return
+    setPropertiesLoading(true)
+    ;(async () => {
+      try {
+        const p = await getProductProperties(id)
+        if (alive) {
+          const arr = Array.isArray(p) ? p : []
+          setProperties(arr)
+        }
+      } catch {
+        if (alive) setProperties([])
+      } finally {
+        if (alive) setPropertiesLoading(false)
       }
     })()
     return () => { alive = false }
@@ -618,20 +641,45 @@ export default function ProductDetails() {
           )}
 
           {activeTab === 'specs' && (
-            <div>
-              <h2 className="mb-4 text-xl font-bold text-gray-900">Specifications</h2>
-              {prod.attributes.length > 0 ? (
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {prod.attributes.map((attr, i) => (
-                    <div key={i} className="flex overflow-hidden rounded-lg ring-1 ring-black/10">
-                      <div className="bg-[#FBF5E9] px-4 py-3 font-semibold text-gray-800 sm:w-48">{attr.label}</div>
-                      <div className="flex-1 bg-white px-4 py-3 text-gray-700">{attr.value}</div>
-                    </div>
-                  ))}
+            <div className="space-y-8">
+              <div>
+                <h2 className="mb-4 text-xl font-bold text-gray-900">Specifications</h2>
+                {prod.attributes.length > 0 ? (
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {prod.attributes.map((attr, i) => (
+                      <div key={i} className="flex overflow-hidden rounded-lg ring-1 ring-black/10">
+                        <div className="bg-[#FBF5E9] px-4 py-3 font-semibold text-gray-800 sm:w-48">{attr.label}</div>
+                        <div className="flex-1 bg-white px-4 py-3 text-gray-700">{attr.value}</div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-gray-500">No specifications available for this product.</p>
+                )}
+              </div>
+
+              {/* Product Properties */}
+              {propertiesLoading ? (
+                <div className="text-center text-gray-500">
+                  <p>Loading properties...</p>
                 </div>
-              ) : (
-                <p className="text-gray-500">No specifications available for this product.</p>
-              )}
+              ) : properties.length > 0 ? (
+                <div>
+                  <h2 className="mb-4 text-xl font-bold text-gray-900">Product Properties</h2>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {properties.map((prop, i) => (
+                      <div key={i} className="flex overflow-hidden rounded-lg ring-1 ring-black/10">
+                        <div className="bg-[#FBF5E9] px-4 py-3 font-semibold text-gray-800 sm:w-48">
+                          {prop.property || prop.property_name || 'Property'}
+                        </div>
+                        <div className="flex-1 bg-white px-4 py-3 text-gray-700">
+                          {prop.value || 'N/A'}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
             </div>
           )}
 
