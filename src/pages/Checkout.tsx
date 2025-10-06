@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../services/auth'
-import { getCartForUser, removeCartItem, updateCartQuantity, getProductById, getAllStatesApi, getStatesByLocation, updateDeliveryAddress, /* getUserCartTotal, */ getPriceByState, paymentSuccessfull, getGigQuote, increaseCartItem } from '../services/api'
+import { getCartForUser, removeCartItem, addToCartApi, getProductById, getAllStatesApi, getStatesByLocation, updateDeliveryAddress, /* getUserCartTotal, */ getPriceByState, paymentSuccessfull, getGigQuote } from '../services/api'
 import { getGuestCart, setGuestCart, type GuestCart } from '../services/cart'
 import { normalizeApiImage, pickImage, productImageFrom } from '../services/images'
 import logoImg from '../assets/gapa-logo.png'
@@ -380,90 +380,78 @@ export default function Checkout() {
     const current = items.find(i => i.productId === productId)
     if (!current) return
     const nextQty = Math.min(99, current.quantity + 1)
+    if (nextQty === current.quantity) return // Already at max
+    
     setBusyId(productId)
     try {
       if (user && (user as any).id) {
-        const raw = rawItems.find(r => [r?.product_id, r?.id, r?.product?.id, r?.part?.id].some((v:any)=> String(v) === productId)) || null
-        const primaryProductId = raw?.product_id ?? raw?.id ?? productId
-        let success = false
-        
-        // PRIMARY: Use increase_cart endpoint (recommended for increment operations)
+        // NEW LOGIC: Just add 1 more to cart using addToCartApi
         try {
-          await increaseCartItem({ user_id: (user as any).id, product_id: String(primaryProductId) })
-          success = true
+          await addToCartApi({ 
+            user_id: (user as any).id, 
+            product_id: productId, 
+            quantity: 1 
+          })
         } catch (e) {
-          console.warn('Increase cart endpoint failed, trying fallback:', e)
-          
-          // FALLBACK 1: Try updateCartQuantity with explicit quantity
-          try {
-            await updateCartQuantity({ user_id: (user as any).id, product_id: String(primaryProductId), quantity: nextQty })
-            success = true
-          } catch (e2) {
-            console.warn('UpdateCartQuantity failed, trying alternate ID:', e2)
-            
-            // FALLBACK 2: If raw.id differs, try again using raw.id as product_id
-            if (!success && raw && raw.id && raw.id !== raw.product_id) {
-              try {
-                await increaseCartItem({ user_id: (user as any).id, product_id: String(raw.id) })
-                success = true
-              } catch (e3) {
-                // Last attempt with updateCartQuantity and raw.id
-                try {
-                  await updateCartQuantity({ user_id: (user as any).id, product_id: String(raw.id), quantity: nextQty })
-                  success = true
-                } catch {}
-              }
-            }
-          }
-        }
-        
-        if (!success) {
-          toast.error('Unable to update quantity')
+          console.error('Failed to increase quantity:', e)
+          toast.error('Unable to increase quantity')
           return
         }
       } else {
+        // Guest cart
         const cart = getGuestCart()
         const idx = cart.items.findIndex(it => it.product_id === productId)
-        if (idx >= 0) { cart.items[idx].quantity = nextQty; setGuestCart(cart) }
+        if (idx >= 0) { 
+          cart.items[idx].quantity = nextQty
+          setGuestCart(cart) 
+        }
       }
       await reload()
-    } finally { setBusyId(null) }
+    } finally { 
+      setBusyId(null) 
+    }
   }
 
   const onDec = async (productId: string) => {
     const current = items.find(i => i.productId === productId)
     if (!current) return
     const nextQty = Math.max(1, current.quantity - 1)
-    if (nextQty === current.quantity) return
+    if (nextQty === current.quantity) return // Already at min
+    
     setBusyId(productId)
     try {
       if (user && (user as any).id) {
-        const raw = rawItems.find(r => [r?.product_id, r?.id, r?.product?.id, r?.part?.id].some((v:any)=> String(v) === productId)) || null
-        const primaryProductId = raw?.product_id ?? raw?.id ?? productId
-        let success = false
+        // NEW LOGIC: Remove item completely, then re-add with remaining quantity
         try {
-          await updateCartQuantity({ user_id: (user as any).id, product_id: String(primaryProductId), quantity: nextQty })
-          success = true
-        } catch (e) {
-          // Try with raw.id if different
-          if (!success && raw && raw.id && raw.id !== raw.product_id) {
-            try {
-              await updateCartQuantity({ user_id: (user as any).id, product_id: String(raw.id), quantity: nextQty })
-              success = true
-            } catch {}
+          // Step 1: Remove the item
+          await removeCartItem((user as any).id, productId)
+          
+          // Step 2: Re-add with the remaining quantity (if > 0)
+          if (nextQty > 0) {
+            await addToCartApi({ 
+              user_id: (user as any).id, 
+              product_id: productId, 
+              quantity: nextQty 
+            })
           }
-        }
-        if (!success) {
-          toast.error('Unable to update quantity')
+        } catch (e) {
+          console.error('Failed to decrease quantity:', e)
+          toast.error('Unable to decrease quantity')
           return
         }
       } else {
+        // Guest cart
         const cart = getGuestCart()
         const idx = cart.items.findIndex(it => it.product_id === productId)
-        if (idx >= 0) { cart.items[idx].quantity = nextQty; setGuestCart(cart) }
+        if (idx >= 0) { 
+          cart.items[idx].quantity = nextQty
+          setGuestCart(cart) 
+        }
       }
       await reload()
-    } finally { setBusyId(null) }
+    } finally { 
+      setBusyId(null) 
+    }
   }
 
   const onRemove = async (productId: string) => {

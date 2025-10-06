@@ -231,8 +231,6 @@ export default function Header() {
     }
   }
 
-  const toSlug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
-
   const pad2 = (n: number) => n.toString().padStart(2, '0')
 
   // Helpers to derive category and images from products (mirrors CarParts.tsx)
@@ -782,8 +780,7 @@ export default function Header() {
                   ) : (
                     <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
                       {brandsMenu.map((b) => {
-                        const brandSlug = toSlug(b.name)
-                        const href = `/parts/${brandSlug}/brake-discs`
+                        const href = `/parts?brand=${encodeURIComponent(b.name)}`
                         return (
                           <li key={b.id}>
                             <Link
@@ -855,10 +852,9 @@ export default function Header() {
             {mobileBrandsOpen && (
               <ul className="mt-2 max-h-72 overflow-y-auto grid grid-cols-2 gap-2">
                 {brandsLoading ? <li className="p-3 col-span-2 text-[12px] text-gray-500">Loading…</li> : brandsMenu.slice(0, 40).map((b) => {
-                  const brandSlug = b.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
                   return (
                     <li key={b.id}>
-                      <Link to={`/parts/${brandSlug}/brake-discs`} onClick={closeAllMobile} className="flex items-center gap-2 rounded-md border border-gray-100 bg-white p-2 hover:bg-gray-50">
+                      <Link to={`/parts?brand=${encodeURIComponent(b.name)}`} onClick={closeAllMobile} className="flex items-center gap-2 rounded-md border border-gray-100 bg-white p-2 hover:bg-gray-50">
                         <span className="flex h-8 w-8 items-center justify-center overflow-hidden rounded bg-[#F6F5FA] ring-1 ring-black/10"><img src={b.image} alt={b.name} className="h-full w-full object-contain" /></span>
                         <span className="truncate text-[12px] font-medium">{b.name}</span>
                       </Link>

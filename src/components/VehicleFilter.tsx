@@ -162,58 +162,137 @@ export default function VehicleFilter({ onSearch, onChange, className = '' }: Ve
     if (onSearch) onSearch(url)
   }
 
+  // Calculate progress (0-100%)
+  const progress = useMemo(() => {
+    let completed = 0
+    if (brandId) completed += 33.33
+    if (modelId) completed += 33.33
+    if (engineId) completed += 33.34
+    return Math.round(completed)
+  }, [brandId, modelId, engineId])
+
   return (
-    <div className={`rounded-xl bg-white p-4 ring-1 ring-black/10 ${className}`}>
-      <h4 className="text-[12px] font-bold tracking-wide text-white">
-        <span className="inline-block rounded bg-brand px-2 py-1">SELECT VEHICLE</span>
-      </h4>
-      <div className="mt-3 space-y-3">
-        <div className="relative">
+    <div className={`rounded-xl bg-gradient-to-br from-white via-[#FFFBF0] to-white p-5 ring-2 ring-[#F7CD3A]/40 shadow-md ${className}`}>
+      <div className="mb-4">
+        <div className="flex items-center justify-between mb-2">
+          <h4 className="text-[13px] font-extrabold tracking-wide text-[#201A2B] uppercase">
+            SELECT YOUR VEHICLE
+          </h4>
+          <span className="text-[11px] font-bold text-gray-600">{progress}%</span>
+        </div>
+        
+        {/* Progress Bar */}
+        <div className="relative h-2 w-full overflow-hidden rounded-full bg-gray-200">
+          <div 
+            className="h-full bg-gradient-to-r from-[#F7CD3A] to-[#e6bd2a] transition-all duration-500 ease-out"
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+      </div>
+      
+      <div className="space-y-3">
+        {/* Step 1: Maker */}
+        <div className="relative group">
+          <label className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-gray-700">
+            <span className="inline-flex items-center gap-1.5">
+              <span className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold transition-colors ${brandId ? 'bg-[#F7CD3A] text-[#201A2B]' : 'bg-gray-300 text-gray-600'}`}>1</span>
+              Maker
+            </span>
+          </label>
           <select
             value={brandId}
             onChange={(e)=>{ const v=(e.target as HTMLSelectElement).value; setBrandId(v); setBrandName(brandLabelById(v)) }}
             disabled={loadingBrands}
-            className="h-11 w-full appearance-none rounded-md bg-gray-100 px-3 pr-10 text-sm text-gray-800 outline-none ring-1 ring-gray-200 focus:bg-white focus:ring-gray-300 disabled:opacity-60"
+            className="h-11 w-full appearance-none rounded-lg border-2 border-gray-300 bg-white px-3 pr-10 text-[13px] font-medium text-gray-900 outline-none transition-all focus:border-[#F7CD3A] focus:ring-2 focus:ring-[#F7CD3A]/20 disabled:opacity-60 disabled:cursor-not-allowed group-hover:border-gray-400"
           >
             <option value="" disabled hidden>{brandName || 'Select Maker'}</option>
             {brandOptions.map((o)=> (<option key={o.value} value={o.value}>{o.label}</option>))}
           </select>
-          <span className="pointer-events-none absolute inset-y-0 right-3 inline-flex items-center text-gray-500">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
+          <span className="pointer-events-none absolute right-3 bottom-[10px] inline-flex items-center text-gray-600">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
           </span>
         </div>
-        <div className="relative">
+
+        {/* Step 2: Model */}
+        <div className="relative group">
+          <label className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-gray-700">
+            <span className="inline-flex items-center gap-1.5">
+              <span className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold transition-colors ${modelId ? 'bg-[#F7CD3A] text-[#201A2B]' : 'bg-gray-300 text-gray-600'}`}>2</span>
+              Model
+            </span>
+          </label>
           <select
             value={modelId}
             onChange={(e)=>{ const v=(e.target as HTMLSelectElement).value; setModelId(v); setModelName(modelLabelById(v)) }}
             disabled={!brandId}
-            className="h-11 w-full appearance-none rounded-md bg-gray-100 px-3 pr-10 text-sm text-gray-800 outline-none ring-1 ring-gray-200 focus:bg-white focus:ring-gray-300 disabled:opacity-60"
+            className="h-11 w-full appearance-none rounded-lg border-2 border-gray-300 bg-white px-3 pr-10 text-[13px] font-medium text-gray-900 outline-none transition-all focus:border-[#F7CD3A] focus:ring-2 focus:ring-[#F7CD3A]/20 disabled:opacity-60 disabled:cursor-not-allowed group-hover:border-gray-400"
           >
             <option value="" disabled hidden>{modelName || 'Select Model'}</option>
             {modelOptions.map((o)=> (<option key={o.value} value={o.value}>{o.label}</option>))}
           </select>
-          <span className="pointer-events-none absolute inset-y-0 right-3 inline-flex items-center text-gray-500">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
+          <span className="pointer-events-none absolute right-3 bottom-[10px] inline-flex items-center text-gray-600">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
           </span>
         </div>
-        <div className="relative">
+
+        {/* Step 3: Engine */}
+        <div className="relative group">
+          <label className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-gray-700">
+            <span className="inline-flex items-center gap-1.5">
+              <span className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold transition-colors ${engineId ? 'bg-[#F7CD3A] text-[#201A2B]' : 'bg-gray-300 text-gray-600'}`}>3</span>
+              Engine
+            </span>
+          </label>
           <select
             value={engineId}
             onChange={(e)=>{ const v=(e.target as HTMLSelectElement).value; setEngineId(v); setEngineName(engineLabelById(v)) }}
             disabled={!brandId || !modelId}
-            className="h-11 w-full appearance-none rounded-md bg-gray-100 px-3 pr-10 text-sm text-gray-800 outline-none ring-1 ring-gray-200 focus:bg-white focus:ring-gray-300 disabled:opacity-60"
+            className="h-11 w-full appearance-none rounded-lg border-2 border-gray-300 bg-white px-3 pr-10 text-[13px] font-medium text-gray-900 outline-none transition-all focus:border-[#F7CD3A] focus:ring-2 focus:ring-[#F7CD3A]/20 disabled:opacity-60 disabled:cursor-not-allowed group-hover:border-gray-400"
           >
             <option value="" disabled hidden>{engineName || (engineOptions.length ? 'Select Engine' : 'Base')}</option>
             {engineOptions.map((o)=> (<option key={o.value} value={o.value}>{o.label}</option>))}
           </select>
-          <span className="pointer-events-none absolute inset-y-0 right-3 inline-flex items-center text-gray-500">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
+          <span className="pointer-events-none absolute right-3 bottom-[10px] inline-flex items-center text-gray-600">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
           </span>
         </div>
-        {onSearch && (
-          <button onClick={handleSearch} disabled={busy || !brandId || !modelId} className="mt-1 inline-flex h-10 w-full items-center justify-center rounded-md bg-[#F7CD3A] text-[14px] font-semibold text-gray-900 ring-1 ring-black/10 disabled:opacity-60">{busy ? 'Searching…' : 'Search'}</button>
-        )}
-        <button onClick={handleReset} className="h-9 w-full rounded-md bg-gray-100 text-[12px] font-medium ring-1 ring-black/10">Reset vehicle</button>
+
+        {/* Action Buttons */}
+        <div className="flex gap-2 pt-2">
+          {onSearch && (
+            <button 
+              onClick={handleSearch} 
+              disabled={busy || !brandId || !modelId} 
+              className="flex-1 inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-[#F7CD3A] to-[#e6bd2a] text-[13px] font-bold uppercase tracking-wide text-[#201A2B] shadow-md ring-1 ring-[#F7CD3A]/50 transition-all hover:shadow-lg hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+            >
+              {busy ? (
+                <>
+                  <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Searching…
+                </>
+              ) : (
+                <>
+                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                  Search
+                </>
+              )}
+            </button>
+          )}
+          <button 
+            onClick={handleReset} 
+            className="flex-shrink-0 h-10 px-3 rounded-lg border-2 border-gray-300 bg-white text-[13px] font-semibold text-gray-700 transition-all hover:border-gray-400 hover:bg-gray-50"
+            title="Reset vehicle selection"
+          >
+            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+          </button>
+        </div>
       </div>
     </div>
   )

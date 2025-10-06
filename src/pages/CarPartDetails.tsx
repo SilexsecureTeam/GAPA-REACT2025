@@ -97,16 +97,28 @@ function mapApiToUi(p: any) {
 
 // Stateful image component to avoid infinite onError loops where React keeps re-setting a broken src.
 // Once a fallback is applied it persists until the original src prop changes.
-function ImageWithFallback({ src, alt, className }: { src: string | undefined; alt: string; className?: string }) {
-  const safeSrc = src || logoImg
+function ImageWithFallback({ src, alt, className, showFallback = false }: { src: string | undefined; alt: string; className?: string; showFallback?: boolean }) {
+  const safeSrc = src || (showFallback ? logoImg : '')
   const [current, setCurrent] = useState(safeSrc)
-  useEffect(() => { setCurrent(safeSrc) }, [safeSrc])
+  const [hasError, setHasError] = useState(false)
+  useEffect(() => { setCurrent(safeSrc); setHasError(false) }, [safeSrc])
+  
+  if (!current || hasError && !showFallback) {
+    return <div className={className} />
+  }
+  
   return (
     <img
       src={current}
       alt={alt}
       className={className}
-      onError={() => { if (current !== logoImg) setCurrent(logoImg) }}
+      onError={() => { 
+        if (showFallback && current !== logoImg) {
+          setCurrent(logoImg)
+        } else {
+          setHasError(true)
+        }
+      }}
       loading="lazy"
     />
   )
@@ -634,19 +646,23 @@ export default function CarPartDetails() {
 
     const oemList = useMemo(() => {
       if (!rawSrc || !isSelected) return [] as string[]
-      // ...existing code...
       const src: any = rawSrc
-      const o = src?.oem ?? src?.oem_no ?? src?.oem_number ?? src?.oem_numbers ?? src?.oemNumbers ?? src?.oem_list ?? src?.oemList
+      // Check multiple possible OEM field names
+      const o = src?.oem ?? src?.oem_no ?? src?.oem_number ?? src?.oem_numbers ?? src?.oemNumbers ?? src?.oem_list ?? src?.oemList ?? src?.OEM ?? src?.OEM_NO
       const out: string[] = []
       const push = (v: any) => {
         if (!v) return
-        if (typeof v === 'string') { v.split(/[\n,;]+/).map((s) => s.trim()).filter(Boolean).forEach((s) => out.push(s)); return }
+        if (typeof v === 'string') { 
+          // Split by newlines, commas, semicolons, and spaces
+          v.split(/[\n,;\s]+/).map((s) => s.trim()).filter(s => s.length > 0).forEach((s) => out.push(s))
+          return
+        }
         if (Array.isArray(v)) { v.forEach(push); return }
         if (typeof v === 'object') { Object.values(v).map((x) => String(x).trim()).filter(Boolean).forEach((x) => out.push(x)); return }
         out.push(String(v))
       }
       push(o)
-      return Array.from(new Set(out))
+      return Array.from(new Set(out)).filter(s => s && s !== 'null' && s !== 'undefined')
     }, [rawSrc, isSelected])
 
     const [copiedOEM, setCopiedOEM] = useState<number | null>(null)
@@ -705,14 +721,15 @@ export default function CarPartDetails() {
 
           <div className="space-y-3 col-span-2">
             <div className="flex items-start gap-2">
+              <p className='font-semibold'>Article No: {ui.articleNo}</p>
               <div className="ml-auto flex items-center gap-2">
                 <WishlistButton ariaLabel={wished ? 'Remove from wishlist' : 'Add to wishlist'} size={22} active={wished} onToggle={(active) => { wishlistToggle(ui.id); if (active) toast.success('Added to wishlist') }} />
 
               </div>
             </div>
-            {ui.makerImage && (
+            {ui.makerId && ui.makerId !== 'null' && (ui.makerImage || ui.makerName) && (
               <div className="flex items-center gap-3 rounded-lg bg-white p-3 ring-1 ring-black/10">
-                <ImageWithFallback src={ui.makerImage} alt={ui.makerName || 'Manufacturer'} className="h-12 w-12 object-contain" />
+                {ui.makerImage && <ImageWithFallback src={ui.makerImage} alt={ui.makerName || 'Manufacturer'} className="h-12 w-12 object-contain" />}
                 {ui.makerName && (
                   <div className="text-[12px] text-gray-600">
                     <span className="font-medium">Manufacturer:</span> {ui.makerName}
@@ -730,8 +747,8 @@ export default function CarPartDetails() {
             <div className="grid grid-cols-1 gap-1">
               {ui.attributes.map((a) => (
                 <div key={a.label + a.value} className="grid grid-cols-1 text-[13px] sm:grid-cols-[160px_1fr]">
-                  <div className="rounded-t-md bg-[#FBF5E9] px-3 py-1.5 font-medium text-gray-800 sm:rounded-l-md sm:rounded-tr-none">{a.label}</div>
-                  <div className="rounded-b-md bg-[#FBF5E9] px-3 py-1.5 text-gray-700 break-words sm:rounded-r-md sm:rounded-bl-none">{a.value}</div>
+                  <div className="rounded-t-md bg-[#FBF5E9] pl-3 py-1.5 font-medium text-gray-800 sm:rounded-l-md sm:rounded-tr-none">{a.label}</div>
+                  <div className="rounded-b-md bg-[#FBF5E9] px-0 py-1.5 text-gray-700 break-words sm:rounded-r-md sm:rounded-bl-none">{a.value}</div>
                 </div>
               ))}
               <div className="mt-2 text-[12px] text-orange-700">⚠ WARNING <button className="underline">More</button></div>
@@ -755,6 +772,12 @@ export default function CarPartDetails() {
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="21" r="1" /><circle cx="20" cy="21" r="1" /><path d="M1 1h4l2.68 12.39a2 2 0 0 0 2 1.61h7.72a2 2 0 0 0 2-1.61L23 6H6" /></svg>
               {adding ? 'Adding…' : 'Add to cart'}
             </button>
+            {isSelected && (
+              <Link to={`/product/${ui.id}?from=${encodeURIComponent(window.location.pathname + window.location.search)}`} className="mt-2 inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-white text-[13px] font-medium text-gray-900 ring-1 ring-black/10 hover:bg-gray-50">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                View Full Details
+              </Link>
+            )}
             {!isSelected && onSelect && (
               <button type="button" onClick={() => onSelect(ui.id, raw)} className="mt-2 w-full rounded-md bg-white text-[12px] font-medium text-accent underline-offset-2 hover:underline">View details</button>
             )}
@@ -869,13 +892,47 @@ export default function CarPartDetails() {
         <span className="text-gray-900">{breadcrumbPartLabel}</span>
       </nav>
 
-      <div className="grid min-w-0 gap-6 lg:grid-cols-[280px_1fr] lg:items-start">
+      <div className="grid min-w-0 gap-6 lg:grid-cols-[280px_1fr]">
         <aside className="hidden lg:block">
-          <div className="sticky top-24 space-y-4">
-            <VehicleFilter onChange={handleVehFilterChange} className="shadow-sm" />
+          <div className="sticky top-20 space-y-4 self-start">
+            {/* Vehicle Filter Card */}
+            <div className="rounded-xl bg-gradient-to-br from-[#201A2B] via-[#2d2436] to-[#201A2B] p-[2px] shadow-xl">
+              <div className="rounded-[10px] bg-white p-2">
+                <div className="rounded-lg bg-gradient-to-br from-white to-[#FFFBF0]">
+                  <div className="mb-3 flex items-center gap-2">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-[#F7CD3A] to-[#e6bd2a] shadow-md">
+                      <svg className="h-5 w-5 text-[#201A2B]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                      </svg>
+                    </div>
+                    <h3 className="text-[12px] font-black uppercase tracking-wide text-gray-900">
+                      Filter by Vehicle
+                    </h3>
+                  </div>
+                  
+                  <VehicleFilter onChange={handleVehFilterChange} />
+                  
+                  {/* Active Selection Badge */}
+                  {hasVehicleFilter && (
+                    <div className="mt-3 rounded-lg bg-gradient-to-r from-green-50 to-emerald-50 p-3 ring-1 ring-green-500/20">
+                      <div className="flex items-start gap-2">
+                        <svg className="h-4 w-4 text-green-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                        </svg>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-[10px] font-bold text-green-700 uppercase tracking-wide">Active Filter</div>
+                          <div className="text-[11px] font-bold text-gray-900 break-words">{selectedVehicleLabel}</div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
             {categoryImage && (
-              <div className="rounded-lg bg-[#F6F5FA] p-3 ring-1 ring-black/10">
-                <ImageWithFallback src={categoryImage} alt="Category" className="mx-auto h-28 w-auto object-contain" />
+              <div className="rounded-xl bg-white p-3 ring-1 ring-black/10 shadow-sm">
+                <ImageWithFallback src={categoryImage} alt="Category" className="mx-auto h-28 w-auto object-contain" showFallback={true} />
               </div>
             )}
           </div>
@@ -902,7 +959,7 @@ export default function CarPartDetails() {
             </div>
             {categoryImage && (
               <div className="mb-4 rounded-lg bg-[#F6F5FA] p-3 ring-1 ring-black/10">
-                <ImageWithFallback src={categoryImage} alt="Category" className="mx-auto h-24 w-auto object-contain" />
+                <ImageWithFallback src={categoryImage} alt="Category" className="mx-auto h-24 w-auto object-contain" showFallback={true} />
               </div>
             )}
           </div>
