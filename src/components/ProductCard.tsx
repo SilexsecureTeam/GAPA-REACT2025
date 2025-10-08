@@ -1,7 +1,7 @@
 import Rating from './Rating'
 import WishlistButton from './WishlistButton'
 import useWishlist from '../hooks/useWishlist'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { normalizeApiImage, productImageFrom } from '../services/images'
 import  logoImg from '../assets/gapa-logo.png'
 import { toast } from 'react-hot-toast'
@@ -18,6 +18,8 @@ export type Product = {
   // Optional slugs from API mapping for accurate routing
   brandSlug?: string
   partSlug?: string
+  // Optional raw product data for navigation state
+  rawProduct?: any
 }
 
 export type ProductCardProps = {
@@ -37,10 +39,22 @@ export default function ProductCard({ product, hideWishlistButton, hideAddToCart
   // Prefer provided slugs; fallback to heuristics
   const knownBrands = ['audi','bmw','toyota','honda','mercedes','mercedes-benz','hyundai','ford','kia','lexus','volkswagen','vw','peugeot','land rover']
   const titleSlug = toSlug(product.title)
-  const derivedBrand = product.brandSlug || knownBrands.find(b => titleSlug.startsWith(b.replace(/\s+/g, '-')))?.replace(/\s+/g, '-') || 'bmw'
-  const partSlug = product.partSlug || 'brake-discs'
+  const derivedBrand = product.brandSlug || knownBrands.find(b => titleSlug.startsWith(b.replace(/\s+/g, '-')))?.replace(/\s+/g, '-') || 'gapa'
+  const partSlug = product.partSlug || 'parts'
   const base = `/parts/${derivedBrand}/${partSlug}`
   const to = `${base}?pid=${encodeURIComponent(product.id)}`
+  
+  // Create navigation handler with raw product data
+  const handleNavigate = (e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault()
+    }
+    if (product.rawProduct) {
+      navigate(to, { state: { productData: product.rawProduct } })
+    } else {
+      navigate(to)
+    }
+  }
 
   // Use productImageFrom path logic if original image looks relative/placeholder
   const directImg = product.image
@@ -76,7 +90,13 @@ export default function ProductCard({ product, hideWishlistButton, hideAddToCart
     <div className="group relative rounded-md bg-[#F6F5FA] p-4 ring-1 ring-black/5 transition hover:bg-white hover:shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <Link to={to} className="block truncate text-[14px] font-semibold text-gray-900 hover:underline">{product.title}</Link>
+          <button 
+            type="button" 
+            onClick={handleNavigate} 
+            className="block truncate text-[14px] font-semibold text-gray-900 hover:underline text-left w-full"
+          >
+            {product.title}
+          </button>
           <Rating value={product.rating} className="mt-1" />
         </div>
         {!hideWishlistButton && (
@@ -84,13 +104,17 @@ export default function ProductCard({ product, hideWishlistButton, hideAddToCart
         )}
       </div>
       <div className="mb-4 flex items-center justify-between">
-        <Link to={to} className="inline-flex items-center gap-1 text-[14px] text-gray-700 hover:text-gray-900">
+        <button 
+          type="button"
+          onClick={handleNavigate}
+          className="inline-flex items-center gap-1 text-[14px] text-gray-700 hover:text-gray-900"
+        >
           Shop Now
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M5 12h14" />
             <path d="M12 5l7 7-7 7" />
           </svg>
-        </Link>
+        </button>
         {!hideAddToCartButton && (
           <button
             type="button"
@@ -104,14 +128,18 @@ export default function ProductCard({ product, hideWishlistButton, hideAddToCart
         )}
       </div>
 
-      <Link to={to} className="mt-4 block aspect-[4/3] w-full overflow-hidden rounded-lg">
+      <button 
+        type="button"
+        onClick={handleNavigate}
+        className="mt-4 block aspect-[4/3] w-full overflow-hidden rounded-lg"
+      >
         <img
           src={imgSrc}
           alt={product.title}
           onError={(e) => { (e.currentTarget as HTMLImageElement).src = logoImg }}
           className="h-full w-full object-contain transition-transform duration-300 group-hover:scale-105"
         />
-      </Link>
+      </button>
     </div>
   )
 }

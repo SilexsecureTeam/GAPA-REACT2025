@@ -10,6 +10,7 @@ import TopBrands from '../components/TopBrands'
 import { useAuth } from '../services/auth'
 import { addGuestCartItem } from '../services/cart'
 import VehicleFilter from '../components/VehicleFilter'
+import BrandDrilldown from '../components/BrandDrilldown'
 import { getPersistedVehicleFilter, setPersistedVehicleFilter, vehicleMatches as sharedVehicleMatches, type VehicleFilterState as VehState } from '../services/vehicle'
 import useWishlist from '../hooks/useWishlist'
 import useManufacturers from '../hooks/useManufacturers'
@@ -157,7 +158,17 @@ function CarPartsInner() {
   }, [])
 
   // --- Shared vehicle filter (persisted across pages) ---
-  const [vehFilter, setVehFilter] = useState<VehState>(() => getPersistedVehicleFilter())
+  const [vehFilter, setVehFilter] = useState<VehState>(() => {
+    const initial = getPersistedVehicleFilter()
+    console.log('🔧 Initial vehFilter from localStorage:', initial)
+    return initial
+  })
+  
+  // Log vehFilter changes
+  useEffect(() => {
+    console.log('🔄 vehFilter state changed:', vehFilter)
+  }, [vehFilter])
+  
   const hasVehicleFilter = useMemo(() => Boolean(vehFilter.brandName || vehFilter.modelName || vehFilter.engineName), [vehFilter])
   // Categories where vehicle compatibility does NOT apply (Car Care=3, Accessories=4, Tools=7)
   const NON_VEHICLE_CATEGORY_IDS = useMemo(() => new Set(['3','4','7']), [])
@@ -244,11 +255,20 @@ function CarPartsInner() {
   
   // Brand filter from query params (when clicking brand in header)
   const brandParam = searchParams.get('brand') || ''
+  
+  // NEW: Brand drilldown (brand -> model -> submodel) from header brand clicks
+  const brandIdParam = searchParams.get('brandId') || ''
 
   const [activeCatId, setActiveCatId] = useState<string>(catIdParam)
   const [activeSubCatId, setActiveSubCatId] = useState<string>(subCatIdParam)
   const [activeSubSubCatId, setActiveSubSubCatId] = useState<string>(subSubCatIdParam)
   const [activeBrandFilter, setActiveBrandFilter] = useState<string>(brandParam)
+  
+  // Determine if vehicle filter should be shown for current category
+  const shouldShowVehicleFilter = useMemo(() => 
+    !activeCatId || !NON_VEHICLE_CATEGORY_IDS.has(String(activeCatId)), 
+    [activeCatId, NON_VEHICLE_CATEGORY_IDS]
+  )
 
   // Vehicle brand drill-down state (from header brand clicks)
   const vehicleBrandParam = searchParams.get('vehicleBrand') || ''
@@ -265,6 +285,7 @@ function CarPartsInner() {
   const [vehicleEnginesLoading, setVehicleEnginesLoading] = useState(false)
   
   const inVehicleDrillMode = Boolean(vehicleBrandParam)
+  const inBrandDrillMode = Boolean(brandIdParam)
 
   const [subCats, setSubCats] = useState<Array<{ id: string; name: string; image: string }>>([])
   const [subCatsLoading, setSubCatsLoading] = useState(false)
@@ -530,28 +551,37 @@ function CarPartsInner() {
     async function load() {
       try {
         setLoading(true)
+        console.log('🔄 CarParts: Loading products...', { inBrandDrillMode, catIdParam, qParam })
         const [prods, c] = await Promise.all([
           getAllProducts(),
           getAllCategories(),
         ])
         if (!alive) return
+        console.log('✅ CarParts: Products loaded:', Array.isArray(prods) ? prods.length : 0)
         setProducts(Array.isArray(prods) ? prods : [])
         setCategories(Array.isArray(c) ? c : [])
-      } catch (_) {
+      } catch (err) {
+        console.error('❌ CarParts: Failed to load products:', err)
         if (!alive) return
         setProducts([])
       } finally {
         if (alive) setLoading(false)
       }
     }
-    // Only load full catalog when not in drill-down or search mode
+    // Load products for: main catalog, brand drilldown mode, and when no category drill-down or search active
+    console.log('🎯 CarParts useEffect triggered:', { catIdParam, qParam, inBrandDrillMode })
     if (!catIdParam && !qParam) {
+      console.log('📦 Loading products: no category, no search')
+      load()
+    } else if (inBrandDrillMode) {
+      console.log('🚗 Loading products: brand drilldown mode')
       load()
     } else {
+      console.log('⏭️ Skipping product load')
       setLoading(false)
     }
     return () => { alive = false }
-  }, [catIdParam, qParam])
+  }, [catIdParam, qParam, inBrandDrillMode])
 
   // Ensure categories are available for search/drilldown mapping (if not already loaded)
   useEffect(() => {
@@ -650,6 +680,12 @@ function CarPartsInner() {
 
   // Apply vehicle compatibility filter globally for catalogue views
   const filtered = useMemo(() => {
+    console.log('🔍 Filtering products:', { 
+      totalProducts: products.length,
+      inBrandDrillMode,
+      hasVehicleFilter,
+      vehFilter
+    })
     let list = products
     
     // Filter by brand compatibility (from header brand selection)
@@ -727,8 +763,9 @@ function CarPartsInner() {
       list = list.filter((p) => makerIdOf(p) === selectedManufacturerId)
     }
     
+    console.log('✨ Filtered results:', list.length, 'products')
     return list
-  }, [products, hasVehicleFilter, selectedManufacturerId, vehFilter, inVehicleDrillMode, activeVehicleBrand, activeVehicleModel, activeVehicleEngine, activeBrandFilter, isCompatibleWithBrand])
+  }, [products, hasVehicleFilter, selectedManufacturerId, vehFilter, inVehicleDrillMode, activeVehicleBrand, activeVehicleModel, activeVehicleEngine, activeBrandFilter, isCompatibleWithBrand, inBrandDrillMode])
 
   // Group by category (all filtered items)
   const grouped = useMemo(() => {
@@ -940,56 +977,58 @@ function CarPartsInner() {
             </ol>
           </nav>
 
-          {/* Sidebar + Content Layout */}
-          <div className="mt-6 grid gap-6 lg:grid-cols-[280px_1fr]">
-            {/* Sticky Sidebar - Vehicle Filter */}
-            <aside className="hidden lg:block">
-              <div className="sticky top-40 space-y-4">
-                {/* Vehicle Filter Card */}
-                <div className="rounded-xl bg-gradient-to-br from-[#201A2B] via-[#2d2436] to-[#201A2B] p-[2px] shadow-xl">
-                  <div className="rounded-[10px] bg-white p-1">
-                    <div className="rounded-lg bg-gradient-to-br from-white to-[#FFFBF0]">
-                      <VehicleFilter 
-                        onSearch={(url) => navigate(url)} 
-                        onChange={setVehFilter}
-                      />
-                      
-                      {/* Active Selection Badge */}
-                      {hasVehicleFilter && (
-                        <div className="mx-4 mb-4 rounded-lg bg-gradient-to-r from-green-50 to-emerald-50 p-3 ring-1 ring-green-500/20">
-                          <div className="flex items-start gap-2">
-                            <svg className="h-4 w-4 text-green-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                            </svg>
-                            <div className="flex-1 min-w-0">
-                              <div className="text-[10px] font-bold text-green-700 uppercase tracking-wide">Active Filter</div>
-                              <div className="text-[11px] font-bold text-gray-900 break-words">{[vehFilter.brandName, vehFilter.modelName, vehFilter.engineName].filter(Boolean).join(' › ')}</div>
-                            </div>
-                            <button
-                              onClick={() => { setPersistedVehicleFilter({}); setVehFilter({}); }}
-                              className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-white hover:bg-red-50 shadow-sm ring-1 ring-green-500/20 hover:ring-red-500/40 transition-all"
-                              aria-label="Clear selection"
-                            >
-                              <svg className="h-3 w-3 text-gray-600 hover:text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          {/* Sidebar + Content Layout - Dynamic grid based on whether sidebar should show */}
+          <div className={`mt-6 grid gap-6 ${shouldShowVehicleFilter ? 'lg:grid-cols-[280px_1fr]' : ''}`}>
+            {/* Sticky Sidebar - Vehicle Filter (only show for vehicle-compatible categories) */}
+            {shouldShowVehicleFilter && (
+              <aside className="hidden lg:block">
+                <div className="sticky top-40 space-y-4">
+                  {/* Vehicle Filter Card */}
+                  <div className="rounded-xl bg-gradient-to-br from-[#201A2B] via-[#2d2436] to-[#201A2B] p-[2px] shadow-xl">
+                    <div className="rounded-[10px] bg-white p-1">
+                      <div className="rounded-lg bg-gradient-to-br from-white to-[#FFFBF0]">
+                        <VehicleFilter 
+                          onSearch={(url) => navigate(url)} 
+                          onChange={setVehFilter}
+                        />
+                        
+                        {/* Active Selection Badge */}
+                        {hasVehicleFilter && (
+                          <div className="mx-4 mb-4 rounded-lg bg-gradient-to-r from-green-50 to-emerald-50 p-3 ring-1 ring-green-500/20">
+                            <div className="flex items-start gap-2">
+                              <svg className="h-4 w-4 text-green-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                               </svg>
-                            </button>
+                              <div className="flex-1 min-w-0">
+                                <div className="text-[10px] font-bold text-green-700 uppercase tracking-wide">Active Filter</div>
+                                <div className="text-[11px] font-bold text-gray-900 break-words">{[vehFilter.brandName, vehFilter.modelName, vehFilter.engineName].filter(Boolean).join(' › ')}</div>
+                              </div>
+                              <button
+                                onClick={() => { setPersistedVehicleFilter({}); setVehFilter({}); }}
+                                className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-white hover:bg-red-50 shadow-sm ring-1 ring-green-500/20 hover:ring-red-500/40 transition-all"
+                                aria-label="Clear selection"
+                              >
+                                <svg className="h-3 w-3 text-gray-600 hover:text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </button>
+                            </div>
                           </div>
-                        </div>
-                      )}
-                      
-                      {/* Results Count */}
-                      {hasVehicleFilter && filtered.length > 0 && (
-                        <div className="mx-4 mb-4 text-center">
-                          <div className="text-lg font-black text-[#F7CD3A]">{filtered.length.toLocaleString()}</div>
-                          <div className="text-[10px] font-semibold text-gray-600">compatible parts</div>
-                        </div>
-                      )}
+                        )}
+                        
+                        {/* Results Count */}
+                        {hasVehicleFilter && filtered.length > 0 && (
+                          <div className="mx-4 mb-4 text-center">
+                            <div className="text-lg font-black text-[#F7CD3A]">{filtered.length.toLocaleString()}</div>
+                            <div className="text-[10px] font-semibold text-gray-600">compatible parts</div>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            </aside>
+              </aside>
+            )}
 
             {/* Mobile Filter - Show at top on mobile */}
             <div className="lg:hidden col-span-full mb-4">
@@ -1210,6 +1249,137 @@ function CarPartsInner() {
     )
   }
 
+  // --- NEW: Brand drill-down mode (brand -> model -> submodel) ---
+  if (inBrandDrillMode && !qParam) {
+    // Scroll to products when they become available
+    const productsRef = useRef<HTMLDivElement>(null)
+    useEffect(() => {
+      if (vehFilter.brandName && vehFilter.modelName && filtered.length > 0 && productsRef.current) {
+        setTimeout(() => {
+          const y = (productsRef.current?.getBoundingClientRect().top || 0) + window.scrollY - SCROLL_OFFSET
+          window.scrollTo({ top: y, behavior: 'smooth' })
+        }, 300)
+      }
+    }, [vehFilter.brandName, vehFilter.modelName, filtered.length])
+
+    return (
+      <div className="bg-white !pt-10">
+        <section className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
+          <h1 className="text-2xl font-medium text-gray-900 sm:text-[32px]">
+            Select Your Vehicle
+          </h1>
+          <nav aria-label="Breadcrumb" className="mt-2 text-[14px] text-gray-700">
+            <ol className="flex items-center gap-2 font-medium">
+              <li>
+                <Link to="/parts" className="hover:underline">Parts Catalogue</Link>
+              </li>
+              <li aria-hidden className='text-[22px] -mt-1'>›</li>
+              <li className="font-semibold text-brand">Vehicle Selection</li>
+            </ol>
+          </nav>
+
+          {/* Sidebar + Content Layout - Dynamic grid based on whether sidebar should show */}
+          <div className="mt-6 grid gap-6 lg:grid-cols-[280px_1fr]">
+            {/* Sticky Sidebar - NOT shown in brand drilldown mode (BrandDrilldown handles filter) */}
+            <aside className="hidden lg:block">
+              <div className="sticky top-40 space-y-4">
+                {/* Brand Drilldown shows its own selection UI, so no VehicleFilter needed */}
+                {renderManufacturers('mt-0')}
+              </div>
+            </aside>
+
+            {/* Main Content - Brand Drilldown */}
+            <div className="min-w-0">
+              <BrandDrilldown
+                brandId={brandIdParam}
+                onComplete={(state) => {
+                  console.log('📥 CarParts received filter update:', state)
+                  // Update vehicle filter state
+                  setVehFilter(state)
+                  console.log('📝 CarParts setVehFilter called')
+                }}
+              />
+
+              {/* Show filtered products once brand and model are selected */}
+              {(() => {
+                console.log('🎨 Render check:', { 
+                  brandName: vehFilter.brandName, 
+                  modelName: vehFilter.modelName,
+                  willShow: !!(vehFilter.brandName && vehFilter.modelName),
+                  filteredCount: filtered.length,
+                  loading
+                })
+                return null
+              })()}
+              {vehFilter.brandName && vehFilter.modelName && (
+                <div ref={productsRef} className="mt-8">
+                  <div className="mb-4 flex items-center justify-between">
+                    <div>
+                      <h3 className="text-[18px] font-semibold text-gray-900">
+                        Compatible Parts
+                      </h3>
+                      <p className="mt-1 text-[13px] text-gray-600">
+                        {vehFilter.brandName} {vehFilter.modelName}
+                        {vehFilter.engineName && ` - ${vehFilter.engineName}`}
+                      </p>
+                    </div>
+                    <div className="rounded-full bg-brand px-3 py-1 text-[13px] font-semibold text-white">
+                      {filtered.length} {filtered.length === 1 ? 'Part' : 'Parts'}
+                    </div>
+                  </div>
+
+                  {loading ? (
+                    <FallbackLoader label="Loading products…" />
+                  ) : filtered.length === 0 ? (
+                    <div className="rounded-xl bg-white p-8 text-center ring-1 ring-black/10">
+                      <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <h4 className="mt-4 text-[15px] font-semibold text-gray-900">No Compatible Parts Found</h4>
+                      <div className="mt-2 text-[14px] text-gray-600">
+                        {selectedManufacturerId
+                          ? `No parts from ${selectedManufacturerName || 'the selected manufacturer'} match your ${vehFilter.brandName} ${vehFilter.modelName}${vehFilter.engineName ? ` ${vehFilter.engineName}` : ''}.`
+                          : `We couldn't find any parts compatible with your ${vehFilter.brandName} ${vehFilter.modelName}${vehFilter.engineName ? ` ${vehFilter.engineName}` : ''}. Try selecting a different model or sub-model.`}
+                      </div>
+                      {vehFilter.engineName && (
+                        <button
+                          onClick={() => setVehFilter({ ...vehFilter, engineId: undefined, engineName: undefined })}
+                          className="mt-4 text-[13px] font-medium text-brand hover:underline"
+                        >
+                          Try without sub-model filter
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                      {filtered.map((p, i) => {
+                        const cardProduct = mapProductToActionData(p, i)
+                        return (
+                          <ProductActionCard
+                            key={cardProduct.id}
+                            product={cardProduct}
+                            enableView={true}
+                            onView={() => onViewProduct(p)}
+                            onAddToCart={() => onAddToCart(p)}
+                          />
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Mobile Manufacturers - BrandDrilldown handles vehicle selection */}
+          <div className="mt-6 lg:hidden">
+            {renderManufacturers('mt-0')}
+          </div>
+        </section>
+      </div>
+    )
+  }
+
   // --- Drilldown start mode (no category selected yet) ---
   if (inDrillMode && !activeCatId && !qParam) {
     return (
@@ -1226,76 +1396,128 @@ function CarPartsInner() {
             </ol>
           </nav>
 
-          {/* Prominent Vehicle Filter Section */}
-          <div className="mt-6 rounded-2xl bg-gradient-to-br from-[#F7CD3A]/20 via-[#F7CD3A]/10 to-white p-6 ring-2 ring-[#F7CD3A]/30 shadow-lg">
-            <div className="flex flex-col lg:flex-row gap-5 items-start">
-              <div className="flex-shrink-0 hidden sm:block">
-                <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-gradient-to-br from-[#F7CD3A] to-[#e6bd2a] shadow-lg">
-                  <svg className="h-7 w-7 text-[#201A2B]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
-                  </svg>
-                </div>
-              </div>
-              
-              <div className="flex-1 min-w-0">
-                <h2 className="text-lg font-black uppercase tracking-wide text-gray-900 mb-2 sm:text-xl">
-                  🚗 First, Select Your Vehicle
-                </h2>
-                <p className="text-sm text-gray-700 mb-4 sm:text-base">Filter parts by your vehicle to see only compatible options</p>
-                
-                {hasVehicleFilter && (
-                  <div className="mb-4 inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-green-50 to-emerald-50 px-4 py-2.5 shadow-sm ring-2 ring-green-500/20">
-                    <svg className="h-5 w-5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                    </svg>
-                    <div>
-                      <div className="text-xs font-semibold text-green-700 uppercase">Selected</div>
-                      <div className="text-sm font-bold text-gray-900">{[vehFilter.brandName, vehFilter.modelName, vehFilter.engineName].filter(Boolean).join(' › ')}</div>
+          {/* Sidebar + Content Layout - Dynamic grid based on whether sidebar should show */}
+          <div className={`mt-6 grid gap-6 ${shouldShowVehicleFilter ? 'lg:grid-cols-[280px_1fr]' : ''}`}>
+            {/* Sticky Sidebar - Vehicle Filter (only show for vehicle-compatible categories) */}
+            {shouldShowVehicleFilter && (
+              <aside className="hidden lg:block">
+                <div className="sticky top-40 space-y-4">
+                  {/* Vehicle Filter Card */}
+                  <div className="rounded-xl bg-gradient-to-br from-[#201A2B] via-[#2d2436] to-[#201A2B] p-[2px] shadow-xl">
+                    <div className="rounded-[10px] bg-white p-1">
+                      <VehicleFilter 
+                        onSearch={(url) => navigate(url)} 
+                        onChange={setVehFilter}
+                        className="!ring-0 !shadow-none"
+                      />
+                      
+                      {/* Active Selection Badge */}
+                      {hasVehicleFilter && (
+                        <div className="mx-4 mb-4 rounded-lg bg-gradient-to-r from-green-50 to-emerald-50 p-3 ring-1 ring-green-500/20">
+                          <div className="flex items-start gap-2">
+                            <svg className="h-4 w-4 text-green-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                            </svg>
+                            <div className="flex-1 min-w-0">
+                              <div className="text-[10px] font-bold text-green-700 uppercase tracking-wide">Active Filter</div>
+                              <div className="text-[11px] font-bold text-gray-900 break-words">{[vehFilter.brandName, vehFilter.modelName, vehFilter.engineName].filter(Boolean).join(' › ')}</div>
+                            </div>
+                            <button
+                              onClick={() => { setPersistedVehicleFilter({}); setVehFilter({}); }}
+                              className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-white hover:bg-red-50 shadow-sm ring-1 ring-green-500/20 hover:ring-red-500/40 transition-all"
+                              aria-label="Clear selection"
+                            >
+                              <svg className="h-3 w-3 text-gray-600 hover:text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
-                )}
-                
-                <div className="max-w-md">
-                  <VehicleFilter onSearch={(url) => navigate(url)} onChange={setVehFilter} />
+
+                  {renderManufacturers('mt-0')}
+                </div>
+              </aside>
+            )}
+
+            {/* Mobile Vehicle Filter - Show at top on mobile (only for vehicle-compatible categories) */}
+            {shouldShowVehicleFilter && (
+              <div className="lg:hidden col-span-full">
+              <div className="rounded-xl bg-gradient-to-br from-[#201A2B] via-[#2d2436] to-[#201A2B] p-[2px] shadow-xl">
+                <div className="rounded-[10px] bg-white p-1">
+                  <VehicleFilter 
+                    onSearch={(url) => navigate(url)} 
+                    onChange={setVehFilter}
+                    className="!ring-0 !shadow-none"
+                  />
+                  
+                  {hasVehicleFilter && (
+                    <div className="mx-4 mb-4 rounded-lg bg-gradient-to-r from-green-50 to-emerald-50 p-3 ring-1 ring-green-500/20">
+                      <div className="flex items-start gap-2">
+                        <svg className="h-4 w-4 text-green-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                        </svg>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-[10px] font-bold text-green-700 uppercase tracking-wide">Active Filter</div>
+                          <div className="text-[11px] font-bold text-gray-900 break-words">{[vehFilter.brandName, vehFilter.modelName, vehFilter.engineName].filter(Boolean).join(' › ')}</div>
+                        </div>
+                        <button
+                          onClick={() => { setPersistedVehicleFilter({}); setVehFilter({}); }}
+                          className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-white hover:bg-red-50 shadow-sm ring-1 ring-green-500/20 hover:ring-red-500/40 transition-all"
+                          aria-label="Clear selection"
+                        >
+                          <svg className="h-3 w-3 text-gray-600 hover:text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
-          </div>
-
-          {renderManufacturers('mt-6')}
-
-          {/* Categories grid */}
-          <div className="mt-6">
-            {loading ? (
-              <FallbackLoader label="Loading categories…" />
-            ) : categories.length === 0 ? (
-              <div className="text-sm text-gray-700">No categories found.</div>
-            ) : (
-              <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
-                {categories.map((c: any, i: number) => {
-                  const id = String((c?.id ?? c?.category_id ?? i))
-                  const name = String(c?.title || c?.name || 'Category')
-                  const image = categoryImageFrom(c) || normalizeApiImage(pickImage(c) || '') || logoImg
-                  return (
-                    <li key={id}>
-                      <button
-                        onClick={() => setParams({ catId: id, subCatId: '', subSubCatId: '' })}
-                        className="w-full rounded-2xl bg-white p-4 text-left ring-1 ring-black/10 transition hover:shadow"
-                      >
-                        <div className="flex w-full flex-col items-center gap-3">
-                          <div className="overflow-hidden rounded-lg bg-[#F6F5FA] ring-1 ring-black/10">
-                            <img src={image} alt="" className="h-full w-full object-contain" onError={(e) => { (e.currentTarget as HTMLImageElement).src = logoImg }} />
-                          </div>
-                          <div className="min-w-0">
-                            <div className="truncate text-[13px] font-semibold text-gray-900">{name}</div>
-                          </div>
-                        </div>
-                      </button>
-                    </li>
-                  )
-                })}
-              </ul>
             )}
+
+            {/* Main Content - Categories grid */}
+            <div className="min-w-0">
+              {/* Mobile Manufacturers */}
+              <div className="lg:hidden mb-6">
+                {renderManufacturers('mt-0')}
+              </div>
+
+              {loading ? (
+                <FallbackLoader label="Loading categories…" />
+              ) : categories.length === 0 ? (
+                <div className="text-sm text-gray-700">No categories found.</div>
+              ) : (
+                <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
+                  {categories.map((c: any, i: number) => {
+                    const id = String((c?.id ?? c?.category_id ?? i))
+                    const name = String(c?.title || c?.name || 'Category')
+                    const image = categoryImageFrom(c) || normalizeApiImage(pickImage(c) || '') || logoImg
+                    return (
+                      <li key={id}>
+                        <button
+                          onClick={() => setParams({ catId: id, subCatId: '', subSubCatId: '' })}
+                          className="w-full rounded-2xl bg-white p-4 text-left ring-1 ring-black/10 transition hover:shadow"
+                        >
+                          <div className="flex w-full flex-col items-center gap-3">
+                            <div className="overflow-hidden rounded-lg bg-[#F6F5FA] ring-1 ring-black/10">
+                              <img src={image} alt="" className="h-full w-full object-contain" onError={(e) => { (e.currentTarget as HTMLImageElement).src = logoImg }} />
+                            </div>
+                            <div className="min-w-0">
+                              <div className="truncate text-[13px] font-semibold text-gray-900">{name}</div>
+                            </div>
+                          </div>
+                        </button>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+            </div>
           </div>
         </section>
       </div>
@@ -1336,10 +1558,10 @@ function CarPartsInner() {
             </ol>
           </nav>
 
-          {/* Sidebar + content layout */}
-          <div className="mt-6 grid gap-6 lg:grid-cols-[280px_1fr]">
-            {/* Sticky Sidebar - Vehicle Filter */}
-            {!NON_VEHICLE_CATEGORY_IDS.has(String(activeCatId)) && (
+          {/* Sidebar + content layout - Dynamic grid based on whether sidebar should show */}
+          <div className={`mt-6 grid gap-6 ${shouldShowVehicleFilter ? 'lg:grid-cols-[280px_1fr]' : ''}`}>
+            {/* Sticky Sidebar - Vehicle Filter (only show for vehicle-compatible categories) */}
+            {shouldShowVehicleFilter && (
               <aside className="hidden lg:block">
                 <div className="sticky top-40 space-y-4">
                   {/* Vehicle Filter Card */}
@@ -1390,8 +1612,8 @@ function CarPartsInner() {
               </aside>
             )}
 
-            {/* Mobile Filter - Show at top on mobile */}
-            {!NON_VEHICLE_CATEGORY_IDS.has(String(activeCatId)) && (
+            {/* Mobile Filter - Show at top on mobile (only for vehicle-compatible categories) */}
+            {shouldShowVehicleFilter && (
               <div className="lg:hidden col-span-full mb-4">
                 <div className="rounded-xl bg-gradient-to-br from-[#201A2B] via-[#2d2436] to-[#201A2B] p-[2px] shadow-xl">
                   <div className="rounded-[10px] bg-white p-1">

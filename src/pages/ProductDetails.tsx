@@ -416,7 +416,7 @@ export default function ProductDetails() {
   const mainImage = prod.gallery[activeIdx] || prod.image
 
   return (
-    <div className="mx-auto w-full max-w-7xl px-4 py-8">
+    <div className="mx-auto w-full max-w-7xl px-4 py-8 pt-12">
       {/* Breadcrumbs */}
       <nav className="mb-6 text-sm text-gray-600">
         <Link to="/" className="hover:text-gray-900">Home</Link>

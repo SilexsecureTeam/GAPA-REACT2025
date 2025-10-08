@@ -76,7 +76,7 @@ export default function Header() {
   // Dropdown state for Car Brands
   const [brandsOpen, setBrandsOpen] = useState(false)
   const [brandsLoading, setBrandsLoading] = useState(false)
-  const [brandsMenu, setBrandsMenu] = useState<Array<{ id: string; name: string; image: string }>>([])
+  const [brandsMenu, setBrandsMenu] = useState<Array<{ id: string; name: string; image: string; car_id: string }>>([])
 
   // Cart count state (now uses API for authenticated users)
   const [cartCount, setCartCount] = useState<number>(0)
@@ -305,9 +305,10 @@ export default function Header() {
       const arr = Array.isArray(res) ? (res as ApiBrand[]) : []
       const menu = (arr || []).map((b, i) => {
         const id = String((b as any)?.id ?? i)
+        const car_id = String((b as any)?.car_id || (b as any)?.id || i)
         const name = String((b as any)?.name || (b as any)?.title || 'Brand')
         const img = brandImageFrom(b) || normalizeApiImage(pickImage(b) || '') || '/gapa-logo.png'
-        return { id, name, image: img }
+        return { id, name, image: img, car_id }
       }).sort((a, b) => a.name.localeCompare(b.name))
       setBrandsMenu(menu)
     } catch (_) {
@@ -780,7 +781,7 @@ export default function Header() {
                   ) : (
                     <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
                       {brandsMenu.map((b) => {
-                        const href = `/parts?brand=${encodeURIComponent(b.name)}`
+                        const href = `/parts?brandId=${encodeURIComponent(b.car_id)}`
                         return (
                           <li key={b.id}>
                             <Link
@@ -854,7 +855,7 @@ export default function Header() {
                 {brandsLoading ? <li className="p-3 col-span-2 text-[12px] text-gray-500">Loading…</li> : brandsMenu.slice(0, 40).map((b) => {
                   return (
                     <li key={b.id}>
-                      <Link to={`/parts?brand=${encodeURIComponent(b.name)}`} onClick={closeAllMobile} className="flex items-center gap-2 rounded-md border border-gray-100 bg-white p-2 hover:bg-gray-50">
+                      <Link to={`/parts?brandId=${encodeURIComponent(b.car_id)}`} onClick={closeAllMobile} className="flex items-center gap-2 rounded-md border border-gray-100 bg-white p-2 hover:bg-gray-50">
                         <span className="flex h-8 w-8 items-center justify-center overflow-hidden rounded bg-[#F6F5FA] ring-1 ring-black/10"><img src={b.image} alt={b.name} className="h-full w-full object-contain" /></span>
                         <span className="truncate text-[12px] font-medium">{b.name}</span>
                       </Link>

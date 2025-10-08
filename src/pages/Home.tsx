@@ -51,13 +51,36 @@ type Offer = Product & { price: number; reviews: number }
 
 function formatNaira(n: number) { return `\u20a6${n.toLocaleString('en-NG')}` }
 
-function OfferCard({ offer }: { offer: Offer }) {
+function OfferCard({ offer, rawProduct }: { offer: Offer; rawProduct?: any }) {
   const wishlist = useWishlist()
   const isFav = wishlist.has(offer.id)
+  const navigate = useNavigate()
+  const toSlug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
+  
+  // Extract brand and category for proper URL routing
+  const brandName = String(rawProduct?.brand?.name || rawProduct?.brand || rawProduct?.manufacturer || rawProduct?.maker || '').trim()
+  const catRaw = rawProduct?.category
+  const catName = typeof catRaw === 'string' ? catRaw : String(catRaw?.name || catRaw?.title || rawProduct?.category_name || '').trim()
+  
+  const brandSlug = brandName ? toSlug(brandName) : 'gapa'
+  const partSlug = catName ? toSlug(catName) : 'parts'
+  
+  const handleClick = () => {
+    const url = `/parts/${brandSlug}/${partSlug}?pid=${encodeURIComponent(offer.id)}`
+    navigate(url, { state: { productData: rawProduct } })
+  }
+  
   return (
-    <div className="relative rounded-xl bg-white ring-1 ring-black/10">
+    <div className="relative rounded-xl bg-white ring-1 ring-black/10 cursor-pointer" onClick={handleClick}>
       <div className="absolute right-3 top-3 z-10">
-        <WishlistButton active={isFav} onToggle={(active) => { wishlist.toggle(offer.id); if (active) toast.success('Added to wishlist') }} ariaLabel="Add to wishlist" />
+        <WishlistButton 
+          active={isFav} 
+          onToggle={(active) => { 
+            wishlist.toggle(offer.id); 
+            if (active) toast.success('Added to wishlist') 
+          }} 
+          ariaLabel="Add to wishlist" 
+        />
       </div>
       <div className="p-4">
         <div className="flex h-40 items-center justify-center overflow-hidden rounded-lg ">
@@ -68,7 +91,7 @@ function OfferCard({ offer }: { offer: Offer }) {
             <Rating value={offer.rating} size={12} />
             <span className="text-gray-500">({offer.reviews.toLocaleString()})</span>
           </div>
-          <a href="#" className="block text-[13px] font-semibold text-gray-900 hover:underline">{offer.title}</a>
+          <span className="block text-[13px] font-semibold text-gray-900 hover:underline">{offer.title}</span>
           <div className="text-[13px] font-extrabold text-gray-900">{formatNaira(offer.price)}</div>
           <div className="text-[10px] leading-3 text-gray-500">NG/ECOM tax</div>
           <div className="text-[10px] leading-3 text-gray-500">Incl. 30% VAT</div>
@@ -135,20 +158,21 @@ export default function Home() {
       rating: Number((it as any)?.rating || 4),
       brandSlug: brandNameLocal ? toSlug(brandNameLocal) : undefined,
       partSlug: catName ? toSlug(catName) : undefined,
+      rawProduct: it, // Keep raw product data for navigation
     }
   })
 
-  const offers: Offer[] = featured.slice(0, 8).map((it, i) => ({
+  const offers: Array<Offer & { rawProduct: any }> = featured.slice(0, 8).map((it, i) => ({
     id: String((it as any)?.product_id ?? (it as any)?.id ?? i),
     title: (it as any)?.name || (it as any)?.title || (it as any)?.product_name || 'Car Part',
     image: productImageFrom(it) || normalizeApiImage(pickImage(it) || '') || logoImg,
     rating: Number((it as any)?.rating || 4.2),
     price: Number((it as any)?.price || (it as any)?.selling_price || (it as any)?.amount || 40000),
     reviews: Number((it as any)?.reviews_count || (it as any)?.reviews || 0),
-    // In offers we don't navigate, but include for consistency
     brandSlug: undefined,
     partSlug: undefined,
-  })) as Offer[]
+    rawProduct: it, // Keep raw product data for navigation
+  }))
 
   // Tabs a11y helpers
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([])
@@ -432,7 +456,7 @@ export default function Home() {
               {offers.length === 0 ? (
                 <div className="text-sm text-gray-600">No offers available.</div>
               ) : offers.map((o) => (
-                <div key={o.id} className="shrink-0"><OfferCard offer={o} /></div>
+                <div key={o.id} className="shrink-0"><OfferCard offer={o} rawProduct={o.rawProduct} /></div>
               ))}
             </div>
           </div>

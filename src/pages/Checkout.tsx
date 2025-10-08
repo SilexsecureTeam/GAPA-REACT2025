@@ -385,12 +385,16 @@ export default function Checkout() {
     setBusyId(productId)
     try {
       if (user && (user as any).id) {
-        // NEW LOGIC: Just add 1 more to cart using addToCartApi
+        // NEW LOGIC: Remove product from cart, then add it back with new quantity
         try {
+          // Step 1: Remove the product from cart
+          await removeCartItem((user as any).id, productId)
+          
+          // Step 2: Add it back with the new quantity
           await addToCartApi({ 
             user_id: (user as any).id, 
             product_id: productId, 
-            quantity: 1 
+            quantity: nextQty 
           })
         } catch (e) {
           console.error('Failed to increase quantity:', e)

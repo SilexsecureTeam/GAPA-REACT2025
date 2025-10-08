@@ -122,21 +122,21 @@ export default function VehicleFilter({ onSearch, onChange, className = '' }: Ve
 
   const brandOptions = useMemo(() => (
     (brands || [])
-      .map((b: any) => ({ value: String((b?.brand_id ?? b?.id) ?? ''), label: String(b?.name || b?.title || '') }))
+      .map((b: any) => ({ value: String(b?.id ?? b?.brand_id ?? ''), label: String(b?.name || b?.title || '') }))
       .filter((o: any) => o.value && o.label)
       .sort((a: any, b: any) => a.label.localeCompare(b.label))
   ), [brands])
 
   const modelOptions = useMemo(() => (
     (models || [])
-      .map((m: any) => ({ value: String((m?.id ?? m?.model_id) ?? ''), label: String(m?.name || m?.model_name || m?.model || '') }))
+      .map((m: any) => ({ value: String(m?.id ?? m?.model_id ?? ''), label: String(m?.name || m?.model_name || m?.model || '') }))
       .filter((o: any) => o.value && o.label)
       .sort((a: any, b: any) => a.label.localeCompare(b.label))
   ), [models])
 
   const engineOptions = useMemo(() => (
     (subModels || [])
-      .map((e: any) => ({ value: String((e?.id ?? e?.sub_model_id) ?? ''), label: String(e?.name || e?.engine || e?.trim || e?.submodel_name || e?.sub_model_name || '') }))
+      .map((e: any) => ({ value: String(e?.id ?? e?.sub_model_id ?? ''), label: String(e?.name || e?.engine || e?.trim || e?.submodel_name || e?.sub_model_name || '') }))
       .filter((o: any) => o.value && o.label)
       .sort((a: any, b: any) => a.label.localeCompare(b.label))
   ), [subModels])
