@@ -86,6 +86,8 @@ export default function Header() {
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false)
   const [mobileBrandsOpen, setMobileBrandsOpen] = useState(false)
   const [mobileCatsOpen, setMobileCatsOpen] = useState(true)
+  const [profileDropdownOpen, setProfileDropdownOpen] = useState(false)
+  const profileDropdownRef = useRef<HTMLDivElement>(null)
 
   // Lock body scroll when overlays open
   useEffect(() => {
@@ -180,6 +182,10 @@ export default function Header() {
         mobileSearchRef.current && !mobileSearchRef.current.contains(e.target as Node)
       ) {
         setShowSuggestions(false)
+      }
+      // Close profile dropdown when clicking outside
+      if (profileDropdownRef.current && !profileDropdownRef.current.contains(e.target as Node)) {
+        setProfileDropdownOpen(false)
       }
     }
 
@@ -500,28 +506,145 @@ export default function Header() {
               )}
             </Link>
 
-            {/* Auth */}
+            {/* Auth - Desktop Dropdown */}
             {user ? (
-              <Link to="/profile" className="inline-flex items-center gap-2 bg-white px-3 py-2 text-[14px] font-semibold text-gray-900 ring-1 ring-black/10 hover:bg-white/90">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-700">
-                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                  <circle cx="12" cy="7" r="4" />
-                </svg>
-                <span className="truncate max-w-[120px]">{user.name || user.email}</span>
-              </Link>
+              <div ref={profileDropdownRef} className="relative">
+                <button
+                  onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
+                  className="inline-flex items-center gap-2 bg-white px-3 py-2 text-[14px] font-semibold text-gray-900 ring-1 ring-black/10 hover:bg-gray-50 transition-all hover:shadow-md"
+                >
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-brand to-yellow-500 text-white font-bold text-[13px] ring-2 ring-white shadow-sm">
+                    {(user.name || user.email || 'U').charAt(0).toUpperCase()}
+                  </div>
+                  <span className="truncate max-w-[100px]">{user.name || user.email}</span>
+                  <svg 
+                    width="16" 
+                    height="16" 
+                    viewBox="0 0 24 24" 
+                    fill="none" 
+                    stroke="currentColor" 
+                    strokeWidth="2" 
+                    strokeLinecap="round" 
+                    strokeLinejoin="round"
+                    className={`transition-transform ${profileDropdownOpen ? 'rotate-180' : ''}`}
+                  >
+                    <polyline points="6 9 12 15 18 9" />
+                  </svg>
+                </button>
+
+                {/* Dropdown Menu */}
+                {profileDropdownOpen && (
+                  <div className="absolute right-0 top-full mt-2 w-64 rounded-xl bg-white shadow-2xl ring-1 ring-black/10 overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                    {/* User Info Header */}
+                    <div className="bg-gradient-to-br from-brand/10 to-yellow-50 p-4 border-b border-gray-100">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-brand to-yellow-500 text-white font-bold text-[16px] ring-2 ring-white shadow-md">
+                          {(user.name || user.email || 'U').charAt(0).toUpperCase()}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[14px] font-bold text-gray-900 truncate">{user.name || 'Guest User'}</p>
+                          <p className="text-[12px] text-gray-600 truncate">{user.email}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Menu Items */}
+                    <div className="py-2">
+                      <Link
+                        to="/profile"
+                        onClick={() => setProfileDropdownOpen(false)}
+                        className="flex items-center gap-3 px-4 py-2.5 text-[14px] text-gray-700 hover:bg-gray-50 transition-colors"
+                      >
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-brand">
+                          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                          <circle cx="12" cy="7" r="4" />
+                        </svg>
+                        <span className="font-medium">My Profile</span>
+                      </Link>
+
+                      <Link
+                        to="/order-history"
+                        onClick={() => setProfileDropdownOpen(false)}
+                        className="flex items-center gap-3 px-4 py-2.5 text-[14px] text-gray-700 hover:bg-gray-50 transition-colors"
+                      >
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-brand">
+                          <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+                          <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+                          <line x1="12" y1="22.08" x2="12" y2="12" />
+                        </svg>
+                        <span className="font-medium">Order History</span>
+                      </Link>
+
+                      <Link
+                        to="/wishlist"
+                        onClick={() => setProfileDropdownOpen(false)}
+                        className="flex items-center gap-3 px-4 py-2.5 text-[14px] text-gray-700 hover:bg-gray-50 transition-colors"
+                      >
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-brand">
+                          <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+                        </svg>
+                        <span className="font-medium">My Wishlist</span>
+                      </Link>
+
+                      <Link
+                        to="/account-settings"
+                        onClick={() => setProfileDropdownOpen(false)}
+                        className="flex items-center gap-3 px-4 py-2.5 text-[14px] text-gray-700 hover:bg-gray-50 transition-colors"
+                      >
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-brand">
+                          <circle cx="12" cy="12" r="3" />
+                          <path d="M12 1v6m0 6v6m5.657-13.657l-4.243 4.243m-6.364 0L2.808 5.343M23 12h-6m-6 0H5m13.657 5.657l-4.243-4.243m-6.364 0l-4.242 4.243" />
+                        </svg>
+                        <span className="font-medium">Settings</span>
+                      </Link>
+
+                      <Link
+                        to="/help"
+                        onClick={() => setProfileDropdownOpen(false)}
+                        className="flex items-center gap-3 px-4 py-2.5 text-[14px] text-gray-700 hover:bg-gray-50 transition-colors"
+                      >
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-brand">
+                          <circle cx="12" cy="12" r="10" />
+                          <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+                          <line x1="12" y1="17" x2="12.01" y2="17" />
+                        </svg>
+                        <span className="font-medium">Help & Support</span>
+                      </Link>
+
+                      <div className="my-2 border-t border-gray-100" />
+
+                      <button
+                        onClick={() => {
+                          setProfileDropdownOpen(false)
+                          // Add your logout logic here
+                          navigate('/login')
+                        }}
+                        className="flex w-full items-center gap-3 px-4 py-2.5 text-[14px] text-red-600 hover:bg-red-50 transition-colors"
+                      >
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                          <polyline points="16 17 21 12 16 7" />
+                          <line x1="21" y1="12" x2="9" y2="12" />
+                        </svg>
+                        <span className="font-semibold">Sign Out</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             ) : (
               <div className="flex items-center gap-2">
                 <Link
                   to="/login"
-                  className="inline-flex items-center gap-2 bg-white px-3 py-2 text-[14px] font-semibold text-gray-900 ring-1 ring-black/10 hover:bg-white/90"
+                  className="inline-flex items-center gap-2 rounded-lg bg-white px-4 py-2.5 text-[14px] font-semibold text-gray-900 ring-1 ring-black/10 hover:bg-gray-50 hover:shadow-md transition-all"
                 >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-700">
-                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                    <circle cx="12" cy="7" r="4" />
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-brand">
+                    <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
+                    <polyline points="10 17 15 12 10 7" />
+                    <line x1="15" y1="12" x2="3" y2="12" />
                   </svg>
                   <span>Sign In</span>
                 </Link>
-                {/* <Link to="/signup" className="text:[14px] font-medium text-white hover:underline">Create account</Link> */}
               </div>
             )}
           </div>
@@ -536,12 +659,16 @@ export default function Header() {
               {cartCount > 0 && (<span className="absolute -right-1 -top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-purple-600 px-1 text-[10px] font-bold text-white ring-2 ring-white">{cartCount}</span>)}
             </Link>
             {user ? (
-              <Link to="/profile" aria-label="Profile" className="inline-flex h-10 w-10 items-center justify-center rounded-md bg-white/70 ring-1 ring-black/10 text-gray-700 hover:bg-white">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
-              </Link>
+              <button 
+                onClick={() => setMobileMenuOpen(true)} 
+                aria-label="Profile menu" 
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-brand to-yellow-500 text-white font-bold text-[14px] ring-2 ring-white shadow-md hover:shadow-lg transition-all"
+              >
+                {(user.name || user.email || 'U').charAt(0).toUpperCase()}
+              </button>
             ) : (
               <Link to="/login" aria-label="Sign in" className="inline-flex h-10 w-10 items-center justify-center rounded-md bg-white/70 ring-1 ring-black/10 text-gray-700 hover:bg-white">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" /><polyline points="10 17 15 12 10 7" /><line x1="15" y1="12" x2="3" y2="12" /></svg>
               </Link>
             )}
           </div>
@@ -866,15 +993,118 @@ export default function Header() {
             )}
           </div>
 
-          {/* Auth quick action */}
+          {/* Auth quick action - Mobile */}
           <div className="pt-1 border-t border-gray-100">
             {user ? (
-              <Link to="/profile" onClick={closeAllMobile} className="flex items-center gap-3 rounded-md bg-gray-50 px-3 py-3 text-[13px] font-semibold ring-1 ring-black/5 hover:bg-gray-100">
-                <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-brand text-white font-bold">{(user.name || user.email || 'U').charAt(0).toUpperCase()}</span>
-                <span className="truncate">{user.name || user.email}</span>
-              </Link>
+              <div className="space-y-2">
+                {/* User Info Card */}
+                <div className="rounded-xl bg-gradient-to-br from-brand/10 to-yellow-50 p-4 ring-1 ring-black/5">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-brand to-yellow-500 text-white font-bold text-[16px] ring-2 ring-white shadow-md">
+                      {(user.name || user.email || 'U').charAt(0).toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[14px] font-bold text-gray-900 truncate">{user.name || 'Guest User'}</p>
+                      <p className="text-[12px] text-gray-600 truncate">{user.email}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Menu Items */}
+                <div className="grid grid-cols-2 gap-2">
+                  <Link
+                    to="/profile"
+                    onClick={closeAllMobile}
+                    className="flex flex-col items-center gap-2 rounded-lg bg-white p-3 ring-1 ring-black/5 hover:bg-gray-50 transition-colors"
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-brand">
+                      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                      <circle cx="12" cy="7" r="4" />
+                    </svg>
+                    <span className="text-[12px] font-semibold text-gray-900">Profile</span>
+                  </Link>
+
+                  <Link
+                    to="/order-history"
+                    onClick={closeAllMobile}
+                    className="flex flex-col items-center gap-2 rounded-lg bg-white p-3 ring-1 ring-black/5 hover:bg-gray-50 transition-colors"
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-brand">
+                      <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+                      <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+                      <line x1="12" y1="22.08" x2="12" y2="12" />
+                    </svg>
+                    <span className="text-[12px] font-semibold text-gray-900">Orders</span>
+                  </Link>
+
+                  <Link
+                    to="/wishlist"
+                    onClick={closeAllMobile}
+                    className="flex flex-col items-center gap-2 rounded-lg bg-white p-3 ring-1 ring-black/5 hover:bg-gray-50 transition-colors"
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-brand">
+                      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+                    </svg>
+                    <span className="text-[12px] font-semibold text-gray-900">Wishlist</span>
+                  </Link>
+
+                  <Link
+                    to="/account-settings"
+                    onClick={closeAllMobile}
+                    className="flex flex-col items-center gap-2 rounded-lg bg-white p-3 ring-1 ring-black/5 hover:bg-gray-50 transition-colors"
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-brand">
+                      <circle cx="12" cy="12" r="3" />
+                      <path d="M12 1v6m0 6v6m5.657-13.657l-4.243 4.243m-6.364 0L2.808 5.343M23 12h-6m-6 0H5m13.657 5.657l-4.243-4.243m-6.364 0l-4.242 4.243" />
+                    </svg>
+                    <span className="text-[12px] font-semibold text-gray-900">Settings</span>
+                  </Link>
+                </div>
+
+                {/* Help & Sign Out */}
+                <div className="space-y-2">
+                  <Link
+                    to="/help"
+                    onClick={closeAllMobile}
+                    className="flex items-center justify-center gap-2 rounded-lg bg-white px-4 py-2.5 text-[13px] font-semibold text-gray-900 ring-1 ring-black/5 hover:bg-gray-50 transition-colors"
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-brand">
+                      <circle cx="12" cy="12" r="10" />
+                      <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+                      <line x1="12" y1="17" x2="12.01" y2="17" />
+                    </svg>
+                    <span>Help & Support</span>
+                  </Link>
+
+                  <button
+                    onClick={() => {
+                      closeAllMobile()
+                      navigate('/login')
+                    }}
+                    className="flex w-full items-center justify-center gap-2 rounded-lg bg-red-50 px-4 py-2.5 text-[13px] font-bold text-red-600 ring-1 ring-red-200 hover:bg-red-100 transition-colors"
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                      <polyline points="16 17 21 12 16 7" />
+                      <line x1="21" y1="12" x2="9" y2="12" />
+                    </svg>
+                    <span>Sign Out</span>
+                  </button>
+                </div>
+              </div>
             ) : (
-              <Link to="/login" onClick={closeAllMobile} className="flex items-center justify-center rounded-md bg-brand px-4 py-3 text-[13px] font-semibold text-white shadow hover:brightness-110">Sign In</Link>
+              <Link 
+                to="/login" 
+                onClick={closeAllMobile} 
+                className="flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-brand to-yellow-500 px-4 py-3.5 text-[14px] font-bold text-white shadow-lg hover:shadow-xl hover:brightness-110 transition-all"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
+                  <polyline points="10 17 15 12 10 7" />
+                  <line x1="15" y1="12" x2="3" y2="12" />
+                </svg>
+                <span>Sign In to Your Account</span>
+              </Link>
             )}
           </div>
         </div>

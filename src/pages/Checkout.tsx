@@ -372,7 +372,7 @@ export default function Checkout() {
       const locValid = locations.length === 0 || Boolean(address.deliveryLocationId)
       return locValid && gapaDeliveryPrice > 0 // must have explicit price
     } else {
-      return gigQuoteAmount > 0 && !gigLoading && !gigError
+      return gigQuoteAmount > 0 && !gigLoading && !gigError  
     }
   }, [address, locations.length, address.deliveryLocationId, gapaDeliveryPrice, deliveryMethod, gigQuoteAmount, gigLoading, gigError])
 
@@ -806,7 +806,15 @@ export default function Checkout() {
                 <label className="text-[13px] text-gray-700 md:col-span-2">Address line 2 (optional)
                   <input value={address.address2} onChange={(e)=>setAddress((a: Address)=>({ ...a, address2: e.target.value }))} className="mt-1 w-full rounded-md border border-black/10 px-3 py-2 text-[14px] outline-none focus:ring-2 focus:ring-brand" placeholder="Apartment, suite, etc." />
                 </label>
-                <label className="text-[13px] text-gray-700">State
+                <label className={`text-[13px] font-medium transition-all ${!address.regionId && deliveryMethod ? 'text-brand' : 'text-gray-700'}`}>
+                  <span className="flex items-center gap-2">
+                    State
+                    {!address.regionId && deliveryMethod && (
+                      <span className="inline-flex h-5 items-center rounded-full bg-brand/10 px-2 text-[10px] font-semibold text-brand animate-pulse">
+                        Select here →
+                      </span>
+                    )}
+                  </span>
                   <select value={String(address.regionId || '')} onChange={(e)=>{
                     const id = e.target.value
                     const st = states.find((s) => String(s.id ?? '') === id)
@@ -814,7 +822,11 @@ export default function Checkout() {
                     setAddress((a: Address)=>({ ...a, regionId: id, region: label, deliveryLocationId: undefined, deliveryLocationName: undefined }))
                     // reset quotes / prices on state change
                     setGigQuoteAmount(0); setGigError(null); setGapaDeliveryPrice(0)
-                  }} className="mt-1 h-10 w-full rounded-md border border-black/10 bg-white px-3 text-[14px] outline-none focus:ring-2 focus:ring-brand">
+                  }} className={`mt-1 h-10 w-full rounded-md border bg-white px-3 text-[14px] outline-none transition-all ${
+                    !address.regionId && deliveryMethod 
+                      ? 'border-brand ring-2 ring-brand/30 shadow-md animate-pulse' 
+                      : 'border-black/10 focus:ring-2 focus:ring-brand'
+                  }`}>
                     <option value="">{statesLoading ? 'Loading states…' : 'Select state'}</option>
                     {(deliveryMethod==='gapa' ? states.filter(isAllowedForGapa) : states).map((s) => {
                       const label = (s.title || s.name || s.state || '') as string

@@ -665,6 +665,9 @@ function CarPartsInner() {
     return () => { alive = false }
   }, [accSubCats])
 
+  // Ref for auto-scroll in brand drilldown mode (must be declared before any conditional returns)
+  const productsRef = useRef<HTMLDivElement>(null)
+
   // Helper to check if product is compatible with a brand
   const isCompatibleWithBrand = useCallback((p: any, brandName: string): boolean => {
     const pData = (p as any)?.part || p
@@ -766,6 +769,16 @@ function CarPartsInner() {
     console.log('✨ Filtered results:', list.length, 'products')
     return list
   }, [products, hasVehicleFilter, selectedManufacturerId, vehFilter, inVehicleDrillMode, activeVehicleBrand, activeVehicleModel, activeVehicleEngine, activeBrandFilter, isCompatibleWithBrand, inBrandDrillMode])
+
+  // Auto-scroll effect for brand drilldown (conditional logic inside, but hook declared at top)
+  useEffect(() => {
+    if (inBrandDrillMode && vehFilter.brandName && vehFilter.modelName && filtered.length > 0 && productsRef.current) {
+      setTimeout(() => {
+        const y = (productsRef.current?.getBoundingClientRect().top || 0) + window.scrollY - SCROLL_OFFSET
+        window.scrollTo({ top: y, behavior: 'smooth' })
+      }, 300)
+    }
+  }, [inBrandDrillMode, vehFilter.brandName, vehFilter.modelName, filtered.length])
 
   // Group by category (all filtered items)
   const grouped = useMemo(() => {
@@ -882,6 +895,9 @@ function CarPartsInner() {
     )
   }
 
+  // Wishlist hook - MUST be declared before any conditional returns
+  const wishlist = useWishlist()
+
   // Actions for drill-down products
   const onViewProduct = (p: any) => {
     const pid = String((p as any)?.product_id ?? (p as any)?.id ?? '')
@@ -907,9 +923,6 @@ function CarPartsInner() {
       navigate({ hash: '#cart' })
     }
   }
-
-  // Wishlist hook
-  const wishlist = useWishlist()
 
   // Map product for card display (match Tools)
   // Derived values for drill-down (must not be inside conditionals to respect Hooks rules)
@@ -1251,17 +1264,6 @@ function CarPartsInner() {
 
   // --- NEW: Brand drill-down mode (brand -> model -> submodel) ---
   if (inBrandDrillMode && !qParam) {
-    // Scroll to products when they become available
-    const productsRef = useRef<HTMLDivElement>(null)
-    useEffect(() => {
-      if (vehFilter.brandName && vehFilter.modelName && filtered.length > 0 && productsRef.current) {
-        setTimeout(() => {
-          const y = (productsRef.current?.getBoundingClientRect().top || 0) + window.scrollY - SCROLL_OFFSET
-          window.scrollTo({ top: y, behavior: 'smooth' })
-        }, 300)
-      }
-    }, [vehFilter.brandName, vehFilter.modelName, filtered.length])
-
     return (
       <div className="bg-white !pt-10">
         <section className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
