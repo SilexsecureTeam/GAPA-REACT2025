@@ -86,11 +86,11 @@ export default function VehicleFilter({ onSearch, onChange, className = '' }: Ve
     return () => { alive = false }
   }, [brandId])
 
-  // Validate saved model against fetched models (do not clear the saved names; only clear invalid IDs)
+  // Validate saved model against fetched models (only validate once models are loaded)
   useEffect(() => {
-    if (!brandId || !modelId) return
+    if (!brandId || !modelId || models.length === 0) return
     const exists = (models || []).some((m: any) => String((m?.id ?? m?.model_id) ?? '') === modelId)
-    if (!exists) { setModelId(''); /* keep modelName as placeholder */ setEngineId(''); /* keep engineName */ }
+    if (!exists) { setModelId(''); setModelName(''); setEngineId(''); setEngineName('') }
   }, [brandId, models, modelId])
 
   // Load engines on model change (reset engine only on true user change)
@@ -158,7 +158,8 @@ export default function VehicleFilter({ onSearch, onChange, className = '' }: Ve
   const handleSearch = async () => {
     const term = [brandName, modelName, engineName].filter(Boolean).join(' ').trim()
     if (!term) return
-    const url = `/parts?drill=1`
+    // Use vehicleSearch flag to show products directly (not category selection)
+    const url = `/parts?vehicleSearch=1`
     if (onSearch) onSearch(url)
   }
 

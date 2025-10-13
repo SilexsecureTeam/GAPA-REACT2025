@@ -755,7 +755,7 @@ export default function CarPartDetails() {
             </div>
           </div>
 
-          <aside className="rounded-lg bg-white col-span-2">
+          <aside className="rounded-lg bg-white col-span-2 px-1">
             <div className="text-right">
               <div className="text-[22px] font-bold text-gray-900">₦{ui.price.toLocaleString('en-NG')}</div>
               <div className="mt-1 text-[10px] text-gray-600">Incl. 20% VAT, excl delivery cost</div>
@@ -772,12 +772,30 @@ export default function CarPartDetails() {
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="21" r="1" /><circle cx="20" cy="21" r="1" /><path d="M1 1h4l2.68 12.39a2 2 0 0 0 2 1.61h7.72a2 2 0 0 0 2-1.61L23 6H6" /></svg>
               {adding ? 'Adding…' : 'Add to cart'}
             </button>
-            {isSelected && (
-              <Link to={`/product/${ui.id}?from=${encodeURIComponent(window.location.pathname + window.location.search)}`} className="mt-2 inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-white text-[13px] font-medium text-gray-900 ring-1 ring-black/10 hover:bg-gray-50">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                View Full Details
-              </Link>
-            )}
+{isSelected && (() => {
+              // Only show "View Full Details" for CAR PARTS and CAR ELECTRICALS
+              const productCategoryRaw = rawSrc ? categoryOf(rawSrc) : ''
+              
+              // Resolve category ID to category name
+              let categoryName = productCategoryRaw
+              if (/^\d+$/.test(productCategoryRaw)) {
+                // It's a category ID, look up the name from categories array
+                const categoryId = productCategoryRaw
+                const categoryObj = categories.find(c => String(c.id) === categoryId)
+                categoryName = categoryObj ? String(categoryObj.title || categoryObj.name || '').trim().toUpperCase() : ''
+              } else {
+                // It's already a name, normalize it
+                categoryName = productCategoryRaw.trim().toUpperCase()
+              }
+              
+              const shouldShowFullDetails = isViewEnabledCategory(categoryName)
+              return shouldShowFullDetails ? (
+                <Link to={`/product/${ui.id}?from=${encodeURIComponent(window.location.pathname + window.location.search)}`} className="mt-2 inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-white text-[13px] font-medium text-gray-900 ring-1 ring-black/10 hover:bg-gray-50">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                  View Full Details
+                </Link>
+              ) : null
+            })()}
             {!isSelected && onSelect && (
               <button type="button" onClick={() => onSelect(ui.id, raw)} className="mt-2 w-full rounded-md bg-white text-[12px] font-medium text-accent underline-offset-2 hover:underline">View details</button>
             )}

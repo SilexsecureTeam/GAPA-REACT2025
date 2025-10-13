@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { getModelsByBrandId, getSubModelsByModelId, getAllBrands } from '../services/api'
 import { setPersistedVehicleFilter, type VehicleFilterState } from '../services/vehicle'
+import { carImageFrom } from '../services/images'
 import logoImg from '../assets/gapa-logo.png'
 
 type Model = {
@@ -155,13 +156,9 @@ export default function BrandDrilldown({ brandId, onComplete, className = '' }: 
     setSelectedSubModelName(subModel.name)
   }
 
-  const getImageUrl = (imgPath: string | null | undefined) => {
-    if (!imgPath) return logoImg
-    // Handle both absolute and relative paths
-    if (imgPath.startsWith('http://') || imgPath.startsWith('https://')) return imgPath
-    if (imgPath.startsWith('/')) return imgPath
-    // Use the uploads/cars/ prefix
-    return `/uploads/cars/${imgPath}`
+  const getImageUrl = (model: Model | SubModel) => {
+    const url = carImageFrom(model)
+    return url || logoImg
   }
 
   const resetSelection = () => {
@@ -241,7 +238,7 @@ export default function BrandDrilldown({ brandId, onComplete, className = '' }: 
                   <div className="flex items-start gap-3">
                     <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg bg-gray-100 ring-1 ring-black/5">
                       <img
-                        src={getImageUrl(model.img_url)}
+                        src={getImageUrl(model)}
                         alt={model.name}
                         className="h-full w-full object-contain"
                         onError={(e) => { (e.currentTarget as HTMLImageElement).src = logoImg }}
@@ -306,7 +303,7 @@ export default function BrandDrilldown({ brandId, onComplete, className = '' }: 
                     <div className="flex items-start gap-3">
                       <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg bg-gray-100 ring-1 ring-black/5">
                         <img
-                          src={getImageUrl(subModel.img_url)}
+                          src={getImageUrl(subModel)}
                           alt={subModel.name}
                           className="h-full w-full object-contain"
                           onError={(e) => { (e.currentTarget as HTMLImageElement).src = logoImg }}

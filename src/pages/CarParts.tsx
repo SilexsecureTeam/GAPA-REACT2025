@@ -2,8 +2,7 @@ import React, { useEffect, useMemo, useState, Fragment, useCallback, useRef } fr
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import FallbackLoader from '../components/FallbackLoader'
 import ProductActionCard from '../components/ProductActionCard'
-import ManufacturerSelector from '../components/ManufacturerSelector'
-import { getAllCategories, getAllProducts, type ApiCategory, type ApiManufacturer, type ApiProduct, getSubCategories, getSubSubCategories, getProductsBySubSubCategory, liveSearch, addToCartApi } from '../services/api'
+import { getAllCategories, getAllProducts, type ApiCategory, type ApiProduct, getSubCategories, getSubSubCategories, getProductsBySubSubCategory, liveSearch, addToCartApi } from '../services/api'
 import { normalizeApiImage, pickImage, productImageFrom, categoryImageFrom, subCategoryImageFrom, subSubCategoryImageFrom } from '../services/images'
 import logoImg from '../assets/gapa-logo.png'
 import TopBrands from '../components/TopBrands'
@@ -13,10 +12,9 @@ import VehicleFilter from '../components/VehicleFilter'
 import BrandDrilldown from '../components/BrandDrilldown'
 import { getPersistedVehicleFilter, setPersistedVehicleFilter, vehicleMatches as sharedVehicleMatches, type VehicleFilterState as VehState } from '../services/vehicle'
 import useWishlist from '../hooks/useWishlist'
-import useManufacturers from '../hooks/useManufacturers'
 import WishlistButton from '../components/WishlistButton'
 import { toast } from 'react-hot-toast'
-import { brandOf, categoryOf, makerIdOf, mapProductToActionData, toSlug } from '../utils/productMapping'
+import { brandOf, categoryOf, mapProductToActionData, toSlug } from '../utils/productMapping'
 // import TopBrands from '../components/TopBrands'
 
 // Error boundary to surface runtime errors on the page
@@ -118,9 +116,6 @@ function CarPartsInner() {
   const [loading, setLoading] = useState(true)
   const [products, setProducts] = useState<ApiProduct[]>([])
   const [categories, setCategories] = useState<ApiCategory[]>([])
-  const { manufacturers, loading: manufacturersLoading, error: manufacturersError } = useManufacturers()
-  const [selectedManufacturerId, setSelectedManufacturerId] = useState<string>('')
-  const [selectedManufacturerName, setSelectedManufacturerName] = useState<string>('')
 
   // Build a quick lookup for categories by id to resolve names/images
   const categoriesById = useMemo(() => {
@@ -141,37 +136,21 @@ function CarPartsInner() {
   const [selectedBrands, setSelectedBrands] = useState<Set<string>>(new Set())
   const [selectedCats, setSelectedCats] = useState<Set<string>>(new Set())
 
-  const handleManufacturerSelect = useCallback((manufacturer: ApiManufacturer | null) => {
-    if (!manufacturer) {
-      setSelectedManufacturerId('')
-      setSelectedManufacturerName('')
-      return
-    }
-    const rawId = manufacturer.id
-      ?? (manufacturer as any)?.maker_id_
-      ?? (manufacturer as any)?.maker_id
-      ?? (manufacturer as any)?.manufacturer_id
-    const id = rawId != null ? String(rawId) : ''
-    setSelectedManufacturerId(id)
-    const name = String(manufacturer.name || manufacturer.title || (manufacturer as any)?.maker_name || 'Manufacturer').trim()
-    setSelectedManufacturerName(name)
-  }, [])
-
   // --- Shared vehicle filter (persisted across pages) ---
   const [vehFilter, setVehFilter] = useState<VehState>(() => {
     const initial = getPersistedVehicleFilter()
     console.log('🔧 Initial vehFilter from localStorage:', initial)
     return initial
   })
-  
+
   // Log vehFilter changes
   useEffect(() => {
     console.log('🔄 vehFilter state changed:', vehFilter)
   }, [vehFilter])
-  
+
   const hasVehicleFilter = useMemo(() => Boolean(vehFilter.brandName || vehFilter.modelName || vehFilter.engineName), [vehFilter])
   // Categories where vehicle compatibility does NOT apply (Car Care=3, Accessories=4, Tools=7)
-  const NON_VEHICLE_CATEGORY_IDS = useMemo(() => new Set(['3','4','7']), [])
+  const NON_VEHICLE_CATEGORY_IDS = useMemo(() => new Set(['3', '4', '7']), [])
 
   // Helper to extract category id (string) from product
   const categoryIdOf = (p: any): string => {
@@ -182,9 +161,22 @@ function CarPartsInner() {
     return ''
   }
 
+  // Helper to check if product has complete data (used to filter out incomplete products)
+  const isCompleteProduct = (p: any): boolean => {
+    const hasTitle = !!(p?.part_name || p?.name || p?.title)
+    const hasPrice = !!(p?.price || p?.selling_price || p?.sellingPrice || p?.amount || p?.cost || p?.unit_price)
+    const hasImage = !!(p?.img_url || p?.imgUrl || p?.image || p?.photo)
+    // Product must have title and at least price or image
+    return hasTitle && (hasPrice || hasImage)
+  }
+
   // Detect drilldown-start flag (from home search)
   const drillFlag = searchParams.get('drill')
   const inDrillMode = !!drillFlag
+  
+  // NEW: Vehicle search mode - show products directly instead of category selection
+  const vehicleSearchFlag = searchParams.get('vehicleSearch')
+  const inVehicleSearchMode = !!vehicleSearchFlag
 
   // Helper to toggle entries in a Set state
   const toggleSet = <T,>(setter: React.Dispatch<React.SetStateAction<Set<T>>>, value: T) => {
@@ -242,20 +234,19 @@ function CarPartsInner() {
         const cName = resolveCategoryName((p as any)?.category) || categoryOf(p)
         const brandPass = selectedBrands.size === 0 || (b && selectedBrands.has(b))
         const catPass = selectedCats.size === 0 || (cName && selectedCats.has(cName))
-        const makerPass = !selectedManufacturerId || makerIdOf(p) === selectedManufacturerId
-        return brandPass && catPass && makerPass
+        return brandPass && catPass
       })
       .filter(productMatchesVehicle)
-  }, [searchResults, selectedBrands, selectedCats, selectedManufacturerId, vehFilter])
+  }, [searchResults, selectedBrands, selectedCats, vehFilter])
 
   // Hierarchical navigation state (via query params)
   const catIdParam = searchParams.get('catId') || ''
   const subCatIdParam = searchParams.get('subCatId') || ''
   const subSubCatIdParam = searchParams.get('subSubCatId') || ''
-  
+
   // Brand filter from query params (when clicking brand in header)
   const brandParam = searchParams.get('brand') || ''
-  
+
   // NEW: Brand drilldown (brand -> model -> submodel) from header brand clicks
   const brandIdParam = searchParams.get('brandId') || ''
 
@@ -264,9 +255,12 @@ function CarPartsInner() {
   const [activeSubSubCatId, setActiveSubSubCatId] = useState<string>(subSubCatIdParam)
   const [activeBrandFilter, setActiveBrandFilter] = useState<string>(brandParam)
   
+  // Category filter for vehicle search mode
+  const [vehicleSearchCategoryFilter, setVehicleSearchCategoryFilter] = useState<string>('')
+
   // Determine if vehicle filter should be shown for current category
-  const shouldShowVehicleFilter = useMemo(() => 
-    !activeCatId || !NON_VEHICLE_CATEGORY_IDS.has(String(activeCatId)), 
+  const shouldShowVehicleFilter = useMemo(() =>
+    !activeCatId || !NON_VEHICLE_CATEGORY_IDS.has(String(activeCatId)),
     [activeCatId, NON_VEHICLE_CATEGORY_IDS]
   )
 
@@ -274,16 +268,16 @@ function CarPartsInner() {
   const vehicleBrandParam = searchParams.get('vehicleBrand') || ''
   const vehicleModelParam = searchParams.get('vehicleModel') || ''
   const vehicleEngineParam = searchParams.get('vehicleEngine') || ''
-  
+
   const [activeVehicleBrand, setActiveVehicleBrand] = useState<string>(vehicleBrandParam)
   const [activeVehicleModel, setActiveVehicleModel] = useState<string>(vehicleModelParam)
   const [activeVehicleEngine, setActiveVehicleEngine] = useState<string>(vehicleEngineParam)
-  
+
   const [vehicleModels, setVehicleModels] = useState<string[]>([])
   const [vehicleEngines, setVehicleEngines] = useState<string[]>([])
   const [vehicleModelsLoading, setVehicleModelsLoading] = useState(false)
   const [vehicleEnginesLoading, setVehicleEnginesLoading] = useState(false)
-  
+
   const inVehicleDrillMode = Boolean(vehicleBrandParam)
   const inBrandDrillMode = Boolean(brandIdParam)
 
@@ -350,19 +344,19 @@ function CarPartsInner() {
   useEffect(() => {
     let alive = true
     if (!activeVehicleBrand) { setVehicleModels([]); return }
-    ;(async () => {
+    ; (async () => {
       try {
         setVehicleModelsLoading(true)
         // Extract unique models for the selected brand from product compatibility data
         const allProds = await getAllProducts()
         const prods = Array.isArray(allProds) ? allProds : []
-        
+
         const modelsSet = new Set<string>()
         for (const p of prods) {
           const pData = (p as any)?.part || p
           const compat = pData?.compatibility || pData?.vehicle_compatibility || []
           const compatList = Array.isArray(compat) ? compat : (compat ? [compat] : [])
-          
+
           for (const c of compatList) {
             const cStr = typeof c === 'string' ? c : JSON.stringify(c)
             // Check if this compatibility entry mentions our brand
@@ -376,7 +370,7 @@ function CarPartsInner() {
             }
           }
         }
-        
+
         if (!alive) return
         setVehicleModels(Array.from(modelsSet).sort())
       } catch (err) {
@@ -394,24 +388,24 @@ function CarPartsInner() {
   useEffect(() => {
     let alive = true
     if (!activeVehicleModel || !activeVehicleBrand) { setVehicleEngines([]); return }
-    ;(async () => {
+    ; (async () => {
       try {
         setVehicleEnginesLoading(true)
         const allProds = await getAllProducts()
         const prods = Array.isArray(allProds) ? allProds : []
-        
+
         const enginesSet = new Set<string>()
         for (const p of prods) {
           const pData = (p as any)?.part || p
           const compat = pData?.compatibility || pData?.vehicle_compatibility || []
           const compatList = Array.isArray(compat) ? compat : (compat ? [compat] : [])
-          
+
           for (const c of compatList) {
             const cStr = typeof c === 'string' ? c : JSON.stringify(c)
             // Check if this compatibility mentions our brand and model
             const brandMatch = cStr.toLowerCase().includes(activeVehicleBrand.toLowerCase())
             const modelMatch = cStr.toLowerCase().includes(activeVehicleModel.toLowerCase())
-            
+
             if (brandMatch && modelMatch) {
               // Extract engine info (look for patterns like "2.5L", "V6", "1.8 TFSI" etc)
               const engineMatches = cStr.match(/\b\d+\.\d+\s*[LTV]?\w*\b|\bV\d+\b|\b\d+\.\d+\s+\w+\b/gi)
@@ -421,7 +415,7 @@ function CarPartsInner() {
             }
           }
         }
-        
+
         if (!alive) return
         setVehicleEngines(Array.from(enginesSet).sort())
       } catch (err) {
@@ -494,7 +488,12 @@ function CarPartsInner() {
         setSubProductsLoading(true)
         const res = await getProductsBySubSubCategory(activeSubSubCatId)
         if (!alive) return
-        setSubProducts(Array.isArray(res) ? res : [])
+        
+        // Filter out incomplete products
+        const rawProducts = Array.isArray(res) ? res : []
+        const completeProducts = rawProducts.filter(isCompleteProduct)
+        
+        setSubProducts(completeProducts)
       } catch (_) {
         if (!alive) return
         setSubProducts([])
@@ -516,7 +515,16 @@ function CarPartsInner() {
         if (!alive) return
         const list = Array.isArray(res) ? res : (res as any)?.data
         const items = Array.isArray(list) ? list : []
-        setSearchResults(items as ApiProduct[])
+        
+        // Filter out products with missing critical data (price or image)
+        const completeProducts = items.filter(isCompleteProduct)
+        
+        const filtered = items.length - completeProducts.length
+        if (filtered > 0) {
+          console.info(`ℹ️ Filtered out ${filtered} incomplete products from search results (${completeProducts.length} valid products shown)`)
+        }
+        
+        setSearchResults(completeProducts as ApiProduct[])
       } catch (_) {
         if (!alive) return
         setSearchResults([])
@@ -557,8 +565,18 @@ function CarPartsInner() {
           getAllCategories(),
         ])
         if (!alive) return
-        console.log('✅ CarParts: Products loaded:', Array.isArray(prods) ? prods.length : 0)
-        setProducts(Array.isArray(prods) ? prods : [])
+        
+        // Filter out products with missing critical data
+        const rawProducts = Array.isArray(prods) ? prods : []
+        const completeProducts = rawProducts.filter(isCompleteProduct)
+        
+        const filtered = rawProducts.length - completeProducts.length
+        if (filtered > 0) {
+          console.info(`ℹ️ Filtered out ${filtered} incomplete products from catalog (${completeProducts.length} valid products shown)`)
+        }
+        
+        console.log('✅ CarParts: Products loaded:', completeProducts.length)
+        setProducts(completeProducts)
         setCategories(Array.isArray(c) ? c : [])
       } catch (err) {
         console.error('❌ CarParts: Failed to load products:', err)
@@ -603,65 +621,67 @@ function CarPartsInner() {
   // Load accessories subcategories and products (real data from category id 4)
   useEffect(() => {
     let alive = true
-    ;(async () => {
-      try {
-        setAccSubCatsLoading(true)
-        const res = await getSubCategories(ACCESSORIES_CAT_ID)
-        if (!alive) return
-        const arr = Array.isArray(res) ? res : []
-        const mapped = arr.map((sc: any, i: number) => ({
-          id: String(sc?.sub_cat_id ?? sc?.id ?? sc?.sub_category_id ?? i),
-          name: String(sc?.sub_title || sc?.title || sc?.name || 'Accessory'),
-          image: subCategoryImageFrom(sc) || normalizeApiImage(pickImage(sc) || '') || logoImg,
-        }))
-        setAccSubCats(mapped)
-      } catch {
-        if (!alive) return
-        setAccSubCats([])
-      } finally {
-        if (alive) setAccSubCatsLoading(false)
-      }
-    })()
+      ; (async () => {
+        try {
+          setAccSubCatsLoading(true)
+          const res = await getSubCategories(ACCESSORIES_CAT_ID)
+          if (!alive) return
+          const arr = Array.isArray(res) ? res : []
+          const mapped = arr.map((sc: any, i: number) => ({
+            id: String(sc?.sub_cat_id ?? sc?.id ?? sc?.sub_category_id ?? i),
+            name: String(sc?.sub_title || sc?.title || sc?.name || 'Accessory'),
+            image: subCategoryImageFrom(sc) || normalizeApiImage(pickImage(sc) || '') || logoImg,
+          }))
+          setAccSubCats(mapped)
+        } catch {
+          if (!alive) return
+          setAccSubCats([])
+        } finally {
+          if (alive) setAccSubCatsLoading(false)
+        }
+      })()
     return () => { alive = false }
   }, [])
 
   useEffect(() => {
     let alive = true
-    ;(async () => {
-      try {
-        setAccProductsLoading(true)
-        // For performance, use first few subcategories and their first few sub-sub categories
-        const subCats = accSubCats.slice(0, 4)
-        const subSubLists = await Promise.all(subCats.map(sc => getSubSubCategories(sc.id)))
-        const subSubIds: string[] = []
-        subSubLists.forEach(list => {
-          const arr = Array.isArray(list) ? list : []
-          for (const ssc of arr.slice(0, 3)) {
-            const id = String((ssc as any)?.sub_sub_cat_id ?? (ssc as any)?.subsubcatID ?? (ssc as any)?.id ?? '')
-            if (id) subSubIds.push(id)
+      ; (async () => {
+        try {
+          setAccProductsLoading(true)
+          // For performance, use first few subcategories and their first few sub-sub categories
+          const subCats = accSubCats.slice(0, 4)
+          const subSubLists = await Promise.all(subCats.map(sc => getSubSubCategories(sc.id)))
+          const subSubIds: string[] = []
+          subSubLists.forEach(list => {
+            const arr = Array.isArray(list) ? list : []
+            for (const ssc of arr.slice(0, 3)) {
+              const id = String((ssc as any)?.sub_sub_cat_id ?? (ssc as any)?.subsubcatID ?? (ssc as any)?.id ?? '')
+              if (id) subSubIds.push(id)
+            }
+          })
+          const productLists = await Promise.all(subSubIds.slice(0, 8).map(id => getProductsBySubSubCategory(id)))
+          const combined: ApiProduct[] = []
+          const seen = new Set<string>()
+          for (const list of productLists) {
+            const arr = Array.isArray(list) ? list : []
+            for (const p of arr) {
+              const pid = String((p as any)?.product_id ?? (p as any)?.id ?? '')
+              if (!pid || seen.has(pid)) continue
+              // Filter out incomplete products
+              if (!isCompleteProduct(p)) continue
+              seen.add(pid)
+              combined.push(p)
+            }
           }
-        })
-        const productLists = await Promise.all(subSubIds.slice(0, 8).map(id => getProductsBySubSubCategory(id)))
-        const combined: ApiProduct[] = []
-        const seen = new Set<string>()
-        for (const list of productLists) {
-          const arr = Array.isArray(list) ? list : []
-          for (const p of arr) {
-            const pid = String((p as any)?.product_id ?? (p as any)?.id ?? '')
-            if (!pid || seen.has(pid)) continue
-            seen.add(pid)
-            combined.push(p)
-          }
+          if (!alive) return
+          setAccProducts(combined)
+        } catch {
+          if (!alive) return
+          setAccProducts([])
+        } finally {
+          if (alive) setAccProductsLoading(false)
         }
-        if (!alive) return
-        setAccProducts(combined)
-      } catch {
-        if (!alive) return
-        setAccProducts([])
-      } finally {
-        if (alive) setAccProductsLoading(false)
-      }
-    })()
+      })()
     return () => { alive = false }
   }, [accSubCats])
 
@@ -673,48 +693,48 @@ function CarPartsInner() {
     const pData = (p as any)?.part || p
     const compat = pData?.compatibility || pData?.vehicle_compatibility || ''
     const compatStr = typeof compat === 'string' ? compat : JSON.stringify(compat)
-    
+
     // Skip products with "Universal" compatibility
     if (compatStr.toLowerCase().trim() === 'universal') return false
-    
+
     // Check if brand name appears in compatibility string (case-insensitive)
     return compatStr.toLowerCase().includes(brandName.toLowerCase())
   }, [])
 
   // Apply vehicle compatibility filter globally for catalogue views
   const filtered = useMemo(() => {
-    console.log('🔍 Filtering products:', { 
+    console.log('🔍 Filtering products:', {
       totalProducts: products.length,
       inBrandDrillMode,
       hasVehicleFilter,
       vehFilter
     })
     let list = products
-    
+
     // Filter by brand compatibility (from header brand selection)
     if (activeBrandFilter) {
       list = list.filter((p) => isCompatibleWithBrand(p, activeBrandFilter))
     }
-    
+
     // Filter by vehicle brand drill-down (from header) - only for Car Parts & Car Electricals
     if (inVehicleDrillMode && activeVehicleEngine) {
       list = list.filter((p) => {
         const cid = categoryIdOf(p)
         // Only apply to Car Parts (1) and Car Electricals (2)
         if (cid !== '1' && cid !== '2') return false
-        
+
         const pData = (p as any)?.part || p
         const compat = pData?.compatibility || pData?.vehicle_compatibility || []
         const compatList = Array.isArray(compat) ? compat : (compat ? [compat] : [])
-        
+
         for (const c of compatList) {
           const cStr = typeof c === 'string' ? c : JSON.stringify(c)
           const lowerStr = cStr.toLowerCase()
-          
+
           const brandMatch = lowerStr.includes(activeVehicleBrand.toLowerCase())
           const modelMatch = lowerStr.includes(activeVehicleModel.toLowerCase())
           const engineMatch = lowerStr.includes(activeVehicleEngine.toLowerCase())
-          
+
           if (brandMatch && modelMatch && engineMatch) return true
         }
         return false
@@ -723,18 +743,18 @@ function CarPartsInner() {
       list = list.filter((p) => {
         const cid = categoryIdOf(p)
         if (cid !== '1' && cid !== '2') return false
-        
+
         const pData = (p as any)?.part || p
         const compat = pData?.compatibility || pData?.vehicle_compatibility || []
         const compatList = Array.isArray(compat) ? compat : (compat ? [compat] : [])
-        
+
         for (const c of compatList) {
           const cStr = typeof c === 'string' ? c : JSON.stringify(c)
           const lowerStr = cStr.toLowerCase()
-          
+
           const brandMatch = lowerStr.includes(activeVehicleBrand.toLowerCase())
           const modelMatch = lowerStr.includes(activeVehicleModel.toLowerCase())
-          
+
           if (brandMatch && modelMatch) return true
         }
         return false
@@ -743,11 +763,11 @@ function CarPartsInner() {
       list = list.filter((p) => {
         const cid = categoryIdOf(p)
         if (cid !== '1' && cid !== '2') return false
-        
+
         const pData = (p as any)?.part || p
         const compat = pData?.compatibility || pData?.vehicle_compatibility || []
         const compatList = Array.isArray(compat) ? compat : (compat ? [compat] : [])
-        
+
         for (const c of compatList) {
           const cStr = typeof c === 'string' ? c : JSON.stringify(c)
           if (cStr.toLowerCase().includes(activeVehicleBrand.toLowerCase())) return true
@@ -755,20 +775,40 @@ function CarPartsInner() {
         return false
       })
     }
-    
+
     // Apply regular vehicle filter
     if (hasVehicleFilter) {
       list = list.filter(productMatchesVehicle)
     }
-    
-    // Apply manufacturer filter
-    if (selectedManufacturerId) {
-      list = list.filter((p) => makerIdOf(p) === selectedManufacturerId)
-    }
-    
+
     console.log('✨ Filtered results:', list.length, 'products')
     return list
-  }, [products, hasVehicleFilter, selectedManufacturerId, vehFilter, inVehicleDrillMode, activeVehicleBrand, activeVehicleModel, activeVehicleEngine, activeBrandFilter, isCompatibleWithBrand, inBrandDrillMode])
+  }, [products, hasVehicleFilter, vehFilter, inVehicleDrillMode, activeVehicleBrand, activeVehicleModel, activeVehicleEngine, activeBrandFilter, isCompatibleWithBrand, inBrandDrillMode])
+
+  // Apply category filter for vehicle search mode
+  const filteredWithCategory = useMemo(() => {
+    if (!vehicleSearchCategoryFilter) return filtered
+    return filtered.filter(p => {
+      const raw = (p as any)?.category
+      const catName = resolveCategoryName(raw) || categoryOf(p)
+      return catName.toLowerCase() === vehicleSearchCategoryFilter.toLowerCase()
+    })
+  }, [filtered, vehicleSearchCategoryFilter, resolveCategoryName])
+
+  // Extract unique categories from filtered products for vehicle search
+  const availableCategories = useMemo(() => {
+    const catSet = new Map<string, number>()
+    for (const p of filtered) {
+      const raw = (p as any)?.category
+      const catName = resolveCategoryName(raw) || categoryOf(p)
+      if (catName) {
+        catSet.set(catName, (catSet.get(catName) || 0) + 1)
+      }
+    }
+    return Array.from(catSet.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count)
+  }, [filtered, resolveCategoryName])
 
   // Auto-scroll effect for brand drilldown (conditional logic inside, but hook declared at top)
   useEffect(() => {
@@ -847,9 +887,6 @@ function CarPartsInner() {
   const ACCESSORIES: Accessory[] = useMemo(() => {
     if (!accProducts || accProducts.length === 0) return []
     let source = accProducts
-    if (selectedManufacturerId) {
-      source = source.filter((p) => makerIdOf(p) === selectedManufacturerId)
-    }
     if (!source.length) return []
     return source.slice(0, 20).map((p, i) => {
       const m = {
@@ -862,7 +899,7 @@ function CarPartsInner() {
       }
       return m
     })
-  }, [accProducts, selectedManufacturerId])
+  }, [accProducts])
 
   function AccessoryCard({ a }: { a: Accessory }) {
     return (
@@ -931,11 +968,8 @@ function CarPartsInner() {
     if (!NON_VEHICLE_CATEGORY_IDS.has(String(activeCatId)) && hasVehicleFilter) {
       base = base.filter(productMatchesVehicle)
     }
-    if (selectedManufacturerId) {
-      base = base.filter((p) => makerIdOf(p) === selectedManufacturerId)
-    }
     return base
-  }, [subProducts, selectedManufacturerId, hasVehicleFilter, activeCatId, vehFilter])
+  }, [subProducts, hasVehicleFilter, activeCatId, vehFilter])
 
   const activeCategoryName = useMemo(() => {
     const c = categoriesById.get(String(activeCatId))
@@ -951,26 +985,6 @@ function CarPartsInner() {
     const ssc = subSubCats.find((x) => x.id === activeSubSubCatId)
     return ssc?.name || ''
   }, [subSubCats, activeSubSubCatId])
-
-  const renderManufacturers = (className = 'mt-6') => (
-    <div className={className}>
-      <ManufacturerSelector
-        manufacturers={manufacturers}
-        loading={manufacturersLoading}
-        selectedId={selectedManufacturerId || null}
-        onSelect={handleManufacturerSelect}
-        title="Shop by manufacturer"
-      />
-      {manufacturersError && (
-        <div className="mt-2 text-[11px] text-red-600">{manufacturersError}</div>
-      )}
-      {selectedManufacturerId && selectedManufacturerName && (
-        <div className="mt-2 text-[12px] text-gray-700">
-          Showing parts from <span className="font-semibold text-brand">{selectedManufacturerName}</span>
-        </div>
-      )}
-    </div>
-  )
 
   // --- Brand filter mode (from header brand selection) ---
   if (activeBrandFilter && !qParam && !activeCatId) {
@@ -1000,11 +1014,11 @@ function CarPartsInner() {
                   <div className="rounded-xl bg-gradient-to-br from-[#201A2B] via-[#2d2436] to-[#201A2B] p-[2px] shadow-xl">
                     <div className="rounded-[10px] bg-white p-1">
                       <div className="rounded-lg bg-gradient-to-br from-white to-[#FFFBF0]">
-                        <VehicleFilter 
-                          onSearch={(url) => navigate(url)} 
+                        <VehicleFilter
+                          onSearch={(url) => navigate(url)}
                           onChange={setVehFilter}
                         />
-                        
+
                         {/* Active Selection Badge */}
                         {hasVehicleFilter && (
                           <div className="mx-4 mb-4 rounded-lg bg-gradient-to-r from-green-50 to-emerald-50 p-3 ring-1 ring-green-500/20">
@@ -1028,7 +1042,7 @@ function CarPartsInner() {
                             </div>
                           </div>
                         )}
-                        
+
                         {/* Results Count */}
                         {hasVehicleFilter && filtered.length > 0 && (
                           <div className="mx-4 mb-4 text-center">
@@ -1058,12 +1072,12 @@ function CarPartsInner() {
                         Filter by Vehicle
                       </h3>
                     </div>
-                    
-                    <VehicleFilter 
-                      onSearch={(url) => navigate(url)} 
+
+                    <VehicleFilter
+                      onSearch={(url) => navigate(url)}
                       onChange={setVehFilter}
                     />
-                    
+
                     {hasVehicleFilter && (
                       <div className="mt-3 rounded-lg bg-gradient-to-r from-green-50 to-emerald-50 p-3 ring-1 ring-green-500/20">
                         <div className="flex items-start gap-2">
@@ -1093,8 +1107,6 @@ function CarPartsInner() {
 
             {/* Main Content */}
             <div className="min-w-0 overflow-hidden">
-              {renderManufacturers('mb-6')}
-
               {/* Products Grid */}
               <div>
                 <div className="mb-4 flex items-center justify-between">
@@ -1108,11 +1120,9 @@ function CarPartsInner() {
                 ) : filtered.length === 0 ? (
                   <div className="rounded-xl bg-white p-6 text-center ring-1 ring-black/10">
                     <div className="text-[14px] text-gray-700">
-                      {selectedManufacturerId
-                        ? `No ${activeBrandFilter} compatible parts from ${selectedManufacturerName || 'the selected manufacturer'}.`
-                        : hasVehicleFilter
-                          ? `No ${activeBrandFilter} compatible parts for your selected vehicle. Adjust or reset the vehicle filter.`
-                          : `No products found compatible with ${activeBrandFilter}.`}
+                      {hasVehicleFilter
+                        ? `No ${activeBrandFilter} compatible parts for your selected vehicle. Adjust or reset the vehicle filter.`
+                        : `No products found compatible with ${activeBrandFilter}.`}
                     </div>
                   </div>
                 ) : (
@@ -1145,9 +1155,9 @@ function CarPartsInner() {
       <div className="bg-white !pt-10">
         <section className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
           <h1 className="text-2xl font-medium text-gray-900 sm:text-[32px]">
-            {activeVehicleEngine ? `${activeVehicleBrand} ${activeVehicleModel} ${activeVehicleEngine}` : 
-             activeVehicleModel ? `${activeVehicleBrand} ${activeVehicleModel}` : 
-             activeVehicleBrand}
+            {activeVehicleEngine ? `${activeVehicleBrand} ${activeVehicleModel} ${activeVehicleEngine}` :
+              activeVehicleModel ? `${activeVehicleBrand} ${activeVehicleModel}` :
+                activeVehicleBrand}
           </h1>
           <nav aria-label="Breadcrumb" className="mt-2 text-[14px] text-gray-700">
             <ol className="flex items-center gap-2 font-medium">
@@ -1155,14 +1165,14 @@ function CarPartsInner() {
                 <Link to="/parts" className="hover:underline">Parts Catalogue</Link>
               </li>
               <li aria-hidden className='text-[22px] -mt-1'>›</li>
-              <li 
+              <li
                 className={(activeVehicleModel || activeVehicleEngine) ? 'text-brand cursor-pointer hover:underline' : 'font-semibold text-brand'}
                 onClick={() => activeVehicleModel && setParams({ vehicleBrand: activeVehicleBrand, vehicleModel: '', vehicleEngine: '' })}
               >{activeVehicleBrand}</li>
               {activeVehicleModel && (
                 <>
                   <li aria-hidden className='text-[22px] -mt-1'>›</li>
-                  <li 
+                  <li
                     className={activeVehicleEngine ? 'text-brand cursor-pointer hover:underline' : 'font-semibold text-brand'}
                     onClick={() => activeVehicleEngine && setParams({ vehicleBrand: activeVehicleBrand, vehicleModel: activeVehicleModel, vehicleEngine: '' })}
                   >{activeVehicleModel}</li>
@@ -1176,8 +1186,6 @@ function CarPartsInner() {
               )}
             </ol>
           </nav>
-
-          {renderManufacturers('mt-6')}
 
           {/* Show models if only brand selected */}
           {activeVehicleBrand && !activeVehicleModel && (
@@ -1286,7 +1294,6 @@ function CarPartsInner() {
             <aside className="hidden lg:block">
               <div className="sticky top-40 space-y-4">
                 {/* Brand Drilldown shows its own selection UI, so no VehicleFilter needed */}
-                {renderManufacturers('mt-0')}
               </div>
             </aside>
 
@@ -1304,8 +1311,8 @@ function CarPartsInner() {
 
               {/* Show filtered products once brand and model are selected */}
               {(() => {
-                console.log('🎨 Render check:', { 
-                  brandName: vehFilter.brandName, 
+                console.log('🎨 Render check:', {
+                  brandName: vehFilter.brandName,
                   modelName: vehFilter.modelName,
                   willShow: !!(vehFilter.brandName && vehFilter.modelName),
                   filteredCount: filtered.length,
@@ -1339,9 +1346,7 @@ function CarPartsInner() {
                       </svg>
                       <h4 className="mt-4 text-[15px] font-semibold text-gray-900">No Compatible Parts Found</h4>
                       <div className="mt-2 text-[14px] text-gray-600">
-                        {selectedManufacturerId
-                          ? `No parts from ${selectedManufacturerName || 'the selected manufacturer'} match your ${vehFilter.brandName} ${vehFilter.modelName}${vehFilter.engineName ? ` ${vehFilter.engineName}` : ''}.`
-                          : `We couldn't find any parts compatible with your ${vehFilter.brandName} ${vehFilter.modelName}${vehFilter.engineName ? ` ${vehFilter.engineName}` : ''}. Try selecting a different model or sub-model.`}
+                        We couldn't find any parts compatible with your {vehFilter.brandName} {vehFilter.modelName}{vehFilter.engineName ? ` ${vehFilter.engineName}` : ''}. Try selecting a different model or sub-model.
                       </div>
                       {vehFilter.engineName && (
                         <button
@@ -1372,10 +1377,183 @@ function CarPartsInner() {
               )}
             </div>
           </div>
+        </section>
+      </div>
+    )
+  }
 
-          {/* Mobile Manufacturers - BrandDrilldown handles vehicle selection */}
-          <div className="mt-6 lg:hidden">
-            {renderManufacturers('mt-0')}
+  // --- Vehicle Search Mode (show products directly from vehicle filter) ---
+  if (inVehicleSearchMode && !qParam) {
+    return (
+      <div className="bg-white !pt-10">
+        <section className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
+          <h1 className="text-2xl font-medium text-gray-900 sm:text-[32px]">
+            {hasVehicleFilter 
+              ? `Parts for ${[vehFilter.brandName, vehFilter.modelName, vehFilter.engineName].filter(Boolean).join(' ')}`
+              : 'Compatible Parts'
+            }
+          </h1>
+          <nav aria-label="Breadcrumb" className="mt-2 text-[14px] text-gray-700">
+            <ol className="flex items-center gap-2 font-medium">
+              <li>
+                <Link to="/parts" className="hover:underline">Parts Catalogue</Link>
+              </li>
+              <li aria-hidden className='text-[22px] -mt-1'>›</li>
+              <li className="font-semibold text-brand">
+                {[vehFilter.brandName, vehFilter.modelName, vehFilter.engineName].filter(Boolean).join(' ')}
+              </li>
+            </ol>
+          </nav>
+
+          {/* Sidebar + Content Layout */}
+          <div className="mt-6 grid gap-6 lg:grid-cols-[280px_1fr]">
+            {/* Sticky Sidebar - Vehicle Filter */}
+            <aside className="hidden lg:block">
+              <div className="sticky top-40 space-y-4">
+                <div className="rounded-xl bg-gradient-to-br from-[#201A2B] via-[#2d2436] to-[#201A2B] p-[2px] shadow-xl">
+                  <div className="rounded-[10px] bg-white p-1">
+                    <div className="rounded-lg bg-gradient-to-br from-white to-[#FFFBF0]">
+                      <VehicleFilter
+                        onSearch={(url) => navigate(url)}
+                        onChange={setVehFilter}
+                      />
+
+                      {/* Active Selection Badge */}
+                      {hasVehicleFilter && (
+                        <div className="mx-4 mb-4 rounded-lg bg-gradient-to-r from-green-50 to-emerald-50 p-3 ring-1 ring-green-500/20">
+                          <div className="flex items-start gap-2">
+                            <svg className="h-4 w-4 text-green-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                            </svg>
+                            <div className="flex-1 min-w-0">
+                              <div className="text-[10px] font-bold text-green-700 uppercase tracking-wide">Active Filter</div>
+                              <div className="text-[11px] font-bold text-gray-900 break-words">
+                                {[vehFilter.brandName, vehFilter.modelName, vehFilter.engineName].filter(Boolean).join(' • ')}
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => {
+                                setVehFilter({})
+                                navigate('/parts')
+                              }}
+                              className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-white hover:bg-red-50 shadow-sm ring-1 ring-green-500/20 hover:ring-red-500/40 transition-all"
+                              aria-label="Clear selection"
+                            >
+                              <svg className="h-3 w-3 text-gray-600 hover:text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Results Count */}
+                      {hasVehicleFilter && filtered.length > 0 && (
+                        <div className="mx-4 mb-4 text-center">
+                          <div className="text-lg font-black text-[#F7CD3A]">{filtered.length}</div>
+                          <div className="text-[10px] font-semibold text-gray-600">compatible parts</div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </aside>
+
+            {/* Mobile Filter - Show at top on mobile */}
+            <div className="lg:hidden col-span-full mb-4">
+              <div className="rounded-xl bg-gradient-to-br from-[#201A2B] via-[#2d2436] to-[#201A2B] p-[2px] shadow-xl">
+                <div className="rounded-[10px] bg-white p-1">
+                  <div className="rounded-lg bg-gradient-to-br from-white to-[#FFFBF0] p-4">
+                    <VehicleFilter
+                      onSearch={(url) => navigate(url)}
+                      onChange={setVehFilter}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Main Content - Products Grid */}
+            <div className="min-w-0 overflow-hidden">
+              {/* Category Filter Pills */}
+              {availableCategories.length > 0 && (
+                <div className="mb-6">
+                  <h4 className="mb-3 text-[13px] font-bold text-gray-900">Filter by Category</h4>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={() => setVehicleSearchCategoryFilter('')}
+                      className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-[13px] font-semibold transition-all ${
+                        !vehicleSearchCategoryFilter
+                          ? 'bg-[#F7CD3A] text-[#201A2B] ring-2 ring-[#F7CD3A]'
+                          : 'bg-white text-gray-700 ring-1 ring-gray-300 hover:ring-gray-400'
+                      }`}
+                    >
+                      <span>All Categories</span>
+                      <span className="text-[11px] opacity-75">({filtered.length})</span>
+                    </button>
+                    {availableCategories.map(({ name, count }) => (
+                      <button
+                        key={name}
+                        onClick={() => setVehicleSearchCategoryFilter(name)}
+                        className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-[13px] font-semibold transition-all ${
+                          vehicleSearchCategoryFilter === name
+                            ? 'bg-[#F7CD3A] text-[#201A2B] ring-2 ring-[#F7CD3A]'
+                            : 'bg-white text-gray-700 ring-1 ring-gray-300 hover:ring-gray-400'
+                        }`}
+                      >
+                        <span>{name}</span>
+                        <span className="text-[11px] opacity-75">({count})</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="mb-4 flex items-center justify-between">
+                <h3 className="text-[16px] font-semibold text-gray-900">
+                  {filteredWithCategory.length} Compatible Part{filteredWithCategory.length === 1 ? '' : 's'}
+                  {vehicleSearchCategoryFilter && ` in ${vehicleSearchCategoryFilter}`}
+                </h3>
+              </div>
+
+              {loading ? (
+                <FallbackLoader label="Loading products…" />
+              ) : filteredWithCategory.length === 0 ? (
+                <div className="rounded-xl bg-white p-6 text-center ring-1 ring-black/10">
+                  <div className="text-[14px] text-gray-700">
+                    {vehicleSearchCategoryFilter
+                      ? `No compatible parts found in ${vehicleSearchCategoryFilter} category. Try selecting a different category.`
+                      : hasVehicleFilter
+                      ? 'No compatible parts found for your selected vehicle. Try adjusting your vehicle selection.'
+                      : 'No products found.'}
+                  </div>
+                  {vehicleSearchCategoryFilter && (
+                    <button
+                      onClick={() => setVehicleSearchCategoryFilter('')}
+                      className="mt-3 text-[13px] font-semibold text-brand hover:underline"
+                    >
+                      Clear category filter
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  {filteredWithCategory.map((p, i) => {
+                    const cardProduct = mapProductToActionData(p, i)
+                    return (
+                      <ProductActionCard
+                        key={cardProduct.id}
+                        product={cardProduct}
+                        enableView={true}
+                        onView={() => onViewProduct(p)}
+                        onAddToCart={() => onAddToCart(p)}
+                      />
+                    )
+                  })}
+                </div>
+              )}
+            </div>
           </div>
         </section>
       </div>
@@ -1407,12 +1585,12 @@ function CarPartsInner() {
                   {/* Vehicle Filter Card */}
                   <div className="rounded-xl bg-gradient-to-br from-[#201A2B] via-[#2d2436] to-[#201A2B] p-[2px] shadow-xl">
                     <div className="rounded-[10px] bg-white p-1">
-                      <VehicleFilter 
-                        onSearch={(url) => navigate(url)} 
+                      <VehicleFilter
+                        onSearch={(url) => navigate(url)}
                         onChange={setVehFilter}
                         className="!ring-0 !shadow-none"
                       />
-                      
+
                       {/* Active Selection Badge */}
                       {hasVehicleFilter && (
                         <div className="mx-4 mb-4 rounded-lg bg-gradient-to-r from-green-50 to-emerald-50 p-3 ring-1 ring-green-500/20">
@@ -1438,8 +1616,6 @@ function CarPartsInner() {
                       )}
                     </div>
                   </div>
-
-                  {renderManufacturers('mt-0')}
                 </div>
               </aside>
             )}
@@ -1447,48 +1623,43 @@ function CarPartsInner() {
             {/* Mobile Vehicle Filter - Show at top on mobile (only for vehicle-compatible categories) */}
             {shouldShowVehicleFilter && (
               <div className="lg:hidden col-span-full">
-              <div className="rounded-xl bg-gradient-to-br from-[#201A2B] via-[#2d2436] to-[#201A2B] p-[2px] shadow-xl">
-                <div className="rounded-[10px] bg-white p-1">
-                  <VehicleFilter 
-                    onSearch={(url) => navigate(url)} 
-                    onChange={setVehFilter}
-                    className="!ring-0 !shadow-none"
-                  />
-                  
-                  {hasVehicleFilter && (
-                    <div className="mx-4 mb-4 rounded-lg bg-gradient-to-r from-green-50 to-emerald-50 p-3 ring-1 ring-green-500/20">
-                      <div className="flex items-start gap-2">
-                        <svg className="h-4 w-4 text-green-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                        </svg>
-                        <div className="flex-1 min-w-0">
-                          <div className="text-[10px] font-bold text-green-700 uppercase tracking-wide">Active Filter</div>
-                          <div className="text-[11px] font-bold text-gray-900 break-words">{[vehFilter.brandName, vehFilter.modelName, vehFilter.engineName].filter(Boolean).join(' › ')}</div>
-                        </div>
-                        <button
-                          onClick={() => { setPersistedVehicleFilter({}); setVehFilter({}); }}
-                          className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-white hover:bg-red-50 shadow-sm ring-1 ring-green-500/20 hover:ring-red-500/40 transition-all"
-                          aria-label="Clear selection"
-                        >
-                          <svg className="h-3 w-3 text-gray-600 hover:text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                <div className="rounded-xl bg-gradient-to-br from-[#201A2B] via-[#2d2436] to-[#201A2B] p-[2px] shadow-xl">
+                  <div className="rounded-[10px] bg-white p-1">
+                    <VehicleFilter
+                      onSearch={(url) => navigate(url)}
+                      onChange={setVehFilter}
+                      className="!ring-0 !shadow-none"
+                    />
+
+                    {hasVehicleFilter && (
+                      <div className="mx-4 mb-4 rounded-lg bg-gradient-to-r from-green-50 to-emerald-50 p-3 ring-1 ring-green-500/20">
+                        <div className="flex items-start gap-2">
+                          <svg className="h-4 w-4 text-green-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                           </svg>
-                        </button>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-[10px] font-bold text-green-700 uppercase tracking-wide">Active Filter</div>
+                            <div className="text-[11px] font-bold text-gray-900 break-words">{[vehFilter.brandName, vehFilter.modelName, vehFilter.engineName].filter(Boolean).join(' › ')}</div>
+                          </div>
+                          <button
+                            onClick={() => { setPersistedVehicleFilter({}); setVehFilter({}); }}
+                            className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-white hover:bg-red-50 shadow-sm ring-1 ring-green-500/20 hover:ring-red-500/40 transition-all"
+                            aria-label="Clear selection"
+                          >
+                            <svg className="h-3 w-3 text-gray-600 hover:text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
             )}
 
             {/* Main Content - Categories grid */}
             <div className="min-w-0">
-              {/* Mobile Manufacturers */}
-              <div className="lg:hidden mb-6">
-                {renderManufacturers('mt-0')}
-              </div>
-
               {loading ? (
                 <FallbackLoader label="Loading categories…" />
               ) : categories.length === 0 ? (
@@ -1570,11 +1741,11 @@ function CarPartsInner() {
                   <div className="rounded-xl bg-gradient-to-br from-[#201A2B] via-[#2d2436] to-[#201A2B] p-[2px] shadow-xl">
                     <div className="rounded-[10px] bg-white p-1">
                       <div className="rounded-lg bg-gradient-to-br from-white to-[#FFFBF0]">
-                        <VehicleFilter 
-                          onSearch={(url) => navigate(url)} 
+                        <VehicleFilter
+                          onSearch={(url) => navigate(url)}
                           onChange={setVehFilter}
                         />
-                        
+
                         {/* Active Selection Badge */}
                         {hasVehicleFilter && (
                           <div className="mx-4 mb-4 rounded-lg bg-gradient-to-r from-green-50 to-emerald-50 p-3 ring-1 ring-green-500/20">
@@ -1598,7 +1769,7 @@ function CarPartsInner() {
                             </div>
                           </div>
                         )}
-                        
+
                         {/* Results Count */}
                         {hasVehicleFilter && filteredSubProducts.length > 0 && (
                           <div className="mx-4 mb-4 text-center">
@@ -1630,12 +1801,12 @@ function CarPartsInner() {
                           Filter by Vehicle
                         </h3>
                       </div>
-                      
-                      <VehicleFilter 
-                        onSearch={(url) => navigate(url)} 
+
+                      <VehicleFilter
+                        onSearch={(url) => navigate(url)}
                         onChange={setVehFilter}
                       />
-                      
+
                       {hasVehicleFilter && (
                         <div className="mt-3 rounded-lg bg-gradient-to-r from-green-50 to-emerald-50 p-3 ring-1 ring-green-500/20">
                           <div className="flex items-start gap-2">
@@ -1666,25 +1837,6 @@ function CarPartsInner() {
 
             {/* Main Content Column */}
             <div className="min-w-0 overflow-hidden">
-              {/* Manufacturer Selector - Above Categories */}
-              <div className="mb-6 overflow-x-auto">
-                <ManufacturerSelector
-                  manufacturers={manufacturers}
-                  loading={manufacturersLoading}
-                  selectedId={selectedManufacturerId || null}
-                  onSelect={handleManufacturerSelect}
-                  title="Shop by manufacturer"
-                />
-                {manufacturersError && (
-                  <div className="mt-2 text-[11px] text-red-600">{manufacturersError}</div>
-                )}
-                {selectedManufacturerId && selectedManufacturerName && (
-                  <div className="mt-2 text-[12px] text-gray-700">
-                    Showing parts from <span className="font-semibold text-brand">{selectedManufacturerName}</span>
-                  </div>
-                )}
-              </div>
-
               {/* Sub Categories */}
               <div className="mt-0" ref={catSectionRef}>
                 <h3 className="text-[16px] font-semibold text-gray-900">{activeCategoryName || 'Sub Categories'}</h3>
@@ -1759,11 +1911,9 @@ function CarPartsInner() {
                     <div className="mt-3"><FallbackLoader label="Loading products…" /></div>
                   ) : filteredSubProducts.length === 0 ? (
                     <div className="mt-3 text-sm text-gray-700">
-                      {selectedManufacturerId
-                        ? `No products from ${selectedManufacturerName || 'the selected manufacturer'} under this type.`
-                        : (!NON_VEHICLE_CATEGORY_IDS.has(String(activeCatId)) && hasVehicleFilter)
-                          ? 'No compatible products for your selected vehicle in this type. Adjust or reset the vehicle filter.'
-                          : 'No products found under this type.'}
+                      {(!NON_VEHICLE_CATEGORY_IDS.has(String(activeCatId)) && hasVehicleFilter)
+                        ? 'No compatible products for your selected vehicle in this type. Adjust or reset the vehicle filter.'
+                        : 'No products found under this type.'}
                     </div>
                   ) : (
                     <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -1815,11 +1965,11 @@ function CarPartsInner() {
                 <div className="rounded-xl bg-gradient-to-br from-[#201A2B] via-[#2d2436] to-[#201A2B] p-[2px] shadow-xl">
                   <div className="rounded-[10px] bg-white p-1">
                     <div className="rounded-lg bg-gradient-to-br from-white to-[#FFFBF0]">
-                      <VehicleFilter 
-                        onSearch={(url) => navigate(url)} 
+                      <VehicleFilter
+                        onSearch={(url) => navigate(url)}
                         onChange={setVehFilter}
                       />
-                      
+
                       {/* Active Selection Badge */}
                       {hasVehicleFilter && (
                         <div className="mx-4 mb-4 rounded-lg bg-gradient-to-r from-green-50 to-emerald-50 p-3 ring-1 ring-green-500/20">
@@ -1843,7 +1993,7 @@ function CarPartsInner() {
                           </div>
                         </div>
                       )}
-                      
+
                       {/* Results Count */}
                       {hasVehicleFilter && filteredSearchResults.length > 0 && (
                         <div className="mx-4 mb-4 text-center">
@@ -1932,12 +2082,12 @@ function CarPartsInner() {
                         Filter by Vehicle
                       </h3>
                     </div>
-                    
-                    <VehicleFilter 
-                      onSearch={(url) => navigate(url)} 
+
+                    <VehicleFilter
+                      onSearch={(url) => navigate(url)}
                       onChange={setVehFilter}
                     />
-                    
+
                     {hasVehicleFilter && (
                       <div className="mt-3 rounded-lg bg-gradient-to-r from-green-50 to-emerald-50 p-3 ring-1 ring-green-500/20">
                         <div className="flex items-start gap-2">
@@ -1967,46 +2117,41 @@ function CarPartsInner() {
 
             {/* Main Content Column */}
             <div className="min-w-0 overflow-hidden">
-              {renderManufacturers('mb-6')}
-
               {/* Results list */}
               <div>
-              {searchLoading ? (
-                <FallbackLoader label="Searching…" />
-              ) : filteredSearchResults.length === 0 ? (
-                <div className="rounded-xl bg-white p-6 text-center ring-1 ring-black/10">
-                  <div className="text-[14px] text-gray-700">
-                    {selectedManufacturerId
-                      ? `No results for “${qParam}” from ${selectedManufacturerName || 'the selected manufacturer'}.`
-                      : hasVehicleFilter
+                {searchLoading ? (
+                  <FallbackLoader label="Searching…" />
+                ) : filteredSearchResults.length === 0 ? (
+                  <div className="rounded-xl bg-white p-6 text-center ring-1 ring-black/10">
+                    <div className="text-[14px] text-gray-700">
+                      {hasVehicleFilter
                         ? 'No compatible products for your selected vehicle. Adjust or reset the vehicle filter.'
-                        : `No results found for “${qParam}”.`}
-                  </div>
-                </div>
-              ) : (
-                <>
-                  <div className="mb-4 flex items-center justify-between">
-                    <div className="text-[14px] font-semibold text-gray-900">
-                      {filteredSearchResults.length} result{filteredSearchResults.length === 1 ? '' : 's'} for "{qParam}"
+                        : `No results found for "${qParam}".`}
                     </div>
                   </div>
-                  <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                    {filteredSearchResults.map((p: ApiProduct, i: number) => {
-                      const cardProduct = mapProductToActionData(p, i)
-                      return (
-                        <li key={cardProduct.id}>
+                ) : (
+                  <>
+                    <div className="mb-4 flex items-center justify-between">
+                      <div className="text-[14px] font-semibold text-gray-900">
+                        {filteredSearchResults.length} result{filteredSearchResults.length === 1 ? '' : 's'} for "{qParam}"
+                      </div>
+                    </div>
+                    <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                      {filteredSearchResults.map((p: ApiProduct, i: number) => {
+                        const cardProduct = mapProductToActionData(p, i)
+                        return (
                           <ProductActionCard
+                            key={cardProduct.id}
                             product={cardProduct}
                             enableView={true}
                             onView={() => onViewProduct(p)}
                             onAddToCart={() => onAddToCart(p)}
                           />
-                        </li>
-                      )
-                    })}
-                  </ul>
-                </>
-              )}
+                        )
+                      })}
+                    </ul>
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -2031,11 +2176,11 @@ function CarPartsInner() {
               <div className="rounded-xl bg-gradient-to-br from-[#201A2B] via-[#2d2436] to-[#201A2B] p-[2px] shadow-xl">
                 <div className="rounded-[10px] bg-white p-1">
                   <div className="rounded-lg bg-gradient-to-br from-white to-[#FFFBF0]">
-                    <VehicleFilter 
-                      onSearch={(url) => navigate(url)} 
+                    <VehicleFilter
+                      onSearch={(url) => navigate(url)}
                       onChange={setVehFilter}
                     />
-                    
+
                     {/* Active Selection Badge */}
                     {hasVehicleFilter && (
                       <div className="mx-4 mb-4 rounded-lg bg-gradient-to-r from-green-50 to-emerald-50 p-3 ring-1 ring-green-500/20">
@@ -2059,7 +2204,7 @@ function CarPartsInner() {
                         </div>
                       </div>
                     )}
-                    
+
                     {/* Results Count */}
                     {hasVehicleFilter && filtered.length > 0 && (
                       <div className="mx-4 mb-4 text-center">
@@ -2088,12 +2233,12 @@ function CarPartsInner() {
                       Filter by Vehicle
                     </h3>
                   </div>
-                  
-                  <VehicleFilter 
-                    onSearch={(url) => navigate(url)} 
+
+                  <VehicleFilter
+                    onSearch={(url) => navigate(url)}
                     onChange={setVehFilter}
                   />
-                  
+
                   {hasVehicleFilter && (
                     <div className="mt-3 rounded-lg bg-gradient-to-r from-green-50 to-emerald-50 p-3 ring-1 ring-green-500/20">
                       <div className="flex items-start gap-2">
@@ -2116,7 +2261,7 @@ function CarPartsInner() {
                       </div>
                     </div>
                   )}
-                  
+
                   {hasVehicleFilter && filtered.length > 0 && (
                     <div className="mt-3 text-center">
                       <div className="text-lg font-black text-[#F7CD3A]">{filtered.length.toLocaleString()}</div>
@@ -2130,8 +2275,6 @@ function CarPartsInner() {
 
           {/* Main Content */}
           <div className="min-w-0">
-            {renderManufacturers('mb-6')}
-
             {/* Car Accessories grid (restored) */}
             <div className="mt-6 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
               {SECTIONS.map((s, i) => (
@@ -2149,93 +2292,77 @@ function CarPartsInner() {
               <div className="mt-8"><FallbackLoader label="Loading parts…" /></div>
             ) : (
               <div className="mt-8 space-y-8">
-            {/* Category sections (no global pagination) */}
-            {grouped.length === 0 ? (
-              <div className="text-center text-sm text-gray-700">
-                {selectedManufacturerId ? (
-                  <>
-                    <div>No products from {selectedManufacturerName || 'the selected manufacturer'} match your current filters.</div>
-                    <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
-                      <button
-                        onClick={() => handleManufacturerSelect(null)}
-                        className="rounded-md bg-white px-3 py-1.5 text-[12px] font-medium text-brand ring-1 ring-brand/40 hover:bg-brand/5"
-                      >Clear manufacturer filter</button>
-                      {hasVehicleFilter && (
-                        <button
-                          onClick={() => { setPersistedVehicleFilter({}); setVehFilter({}); }}
-                          className="rounded-md bg-gray-100 px-3 py-1.5 text-[12px] font-medium ring-1 ring-black/10"
-                        >Reset vehicle filter</button>
-                      )}
-                    </div>
-                  </>
-                ) : hasVehicleFilter ? (
-                  <>
-                    <div>No compatible products for your selected vehicle.</div>
-                    <div className="mt-2">
-                      <button
-                        onClick={() => { setPersistedVehicleFilter({}); setVehFilter({}); }}
-                        className="rounded-md bg-gray-100 px-3 py-1.5 text-[12px] font-medium ring-1 ring-black/10"
-                      >Reset vehicle filter</button>
-                    </div>
-                  </>
-                ) : 'No products found.'}
-              </div>
-            ) : grouped.map(([_, list]) => {
-              const sample = list[0]
-              const info = catInfoFor(sample as any)
-              const catName = info.name || 'Category'
-              const catImg = info.image
-              const isExpanded = !!expanded[catName]
-              const visible = isExpanded ? list : list.slice(0, INITIAL_VISIBLE)
-              return (
-                <section id={`cat-${toSlug(catName)}`} key={catName} className="scroll-mt-28 rounded-xl bg-white p-4 ring-1 ring-black/10">
-                  <div className="grid gap-4 md:grid-cols-[260px_1fr] md:items-start">
-                    {/* Category card */}
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-lg bg-[#F6F5FA] ring-1 ring-black/10">
-                        <img src={catImg} alt={catName} className="h-full w-full object-contain" onError={(e) => { (e.currentTarget as HTMLImageElement).src = logoImg }} />
-                      </div>
-                      <div>
-                        <h3 className="text-[16px] font-semibold text-gray-900">{catName}</h3>
-                        <div className="text-[12px] text-gray-600">{list.length} item{list.length === 1 ? '' : 's'}</div>
-                      </div>
-                    </div>
-
-                    {/* Product names list with per-category expand */}
-                    <div>
-                      <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                        {visible.map((p, i) => {
-                          // Ensure product_id is used for view details
-                          const id = String((p as any)?.product_id ?? (p as any)?.id ?? i)
-                          const title = String((p as any)?.part_name || (p as any)?.name || (p as any)?.title || (p as any)?.product_name || 'Car Part')
-                          const brandSlug = toSlug(brandOf(p)) || 'gapa'
-                          const partSlug = toSlug(categoryOf(p)) || 'parts'
-                          const wished = wishlist.has(id)
-                          return (
-                            <li key={`${catName}-${id}-${i}`} className="truncate relative group pr-6">
-                              <Link to={`/parts/${encodeURIComponent(brandSlug)}/${encodeURIComponent(partSlug)}?pid=${encodeURIComponent(id)}`} className="text-[14px] text-brand hover:underline line-clamp-2">{title}</Link>
-                              <span className="absolute right-0 top-0">
-                                <WishlistButton size={16} active={wished} onToggle={(active) => { wishlist.toggle(id); if (active) toast.success('Added to wishlist') }} />
-                              </span>
-                            </li>
-                          )
-                        })}
-                      </ul>
-                      {list.length > INITIAL_VISIBLE && (
-                        <div className="mt-3">
+                {/* Category sections (no global pagination) */}
+                {grouped.length === 0 ? (
+                  <div className="text-center text-sm text-gray-700">
+                    {hasVehicleFilter ? (
+                      <>
+                        <div>No compatible products for your selected vehicle.</div>
+                        <div className="mt-2">
                           <button
-                            onClick={() => setExpanded((s) => ({ ...s, [catName]: !isExpanded }))}
-                            className="text-[13px] font-semibold text-brand hover:underline"
-                          >
-                            {isExpanded ? 'View less' : `View more (${list.length - INITIAL_VISIBLE} more)`}
-                          </button>
+                            onClick={() => { setPersistedVehicleFilter({}); setVehFilter({}); }}
+                            className="rounded-md bg-gray-100 px-3 py-1.5 text-[12px] font-medium ring-1 ring-black/10"
+                          >Reset vehicle filter</button>
                         </div>
-                      )}
-                    </div>
+                      </>
+                    ) : 'No products found.'}
                   </div>
-                </section>
-              )
-            })}
+                ) : grouped.map(([_, list]) => {
+                  const sample = list[0]
+                  const info = catInfoFor(sample as any)
+                  const catName = info.name || 'Category'
+                  const catImg = info.image
+                  const isExpanded = !!expanded[catName]
+                  const visible = isExpanded ? list : list.slice(0, INITIAL_VISIBLE)
+                  return (
+                    <section id={`cat-${toSlug(catName)}`} key={catName} className="scroll-mt-28 rounded-xl bg-white p-4 ring-1 ring-black/10">
+                      <div className="grid gap-4 md:grid-cols-[260px_1fr] md:items-start">
+                        {/* Category card */}
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-lg bg-[#F6F5FA] ring-1 ring-black/10">
+                            <img src={catImg} alt={catName} className="h-full w-full object-contain" onError={(e) => { (e.currentTarget as HTMLImageElement).src = logoImg }} />
+                          </div>
+                          <div>
+                            <h3 className="text-[16px] font-semibold text-gray-900">{catName}</h3>
+                            <div className="text-[12px] text-gray-600">{list.length} item{list.length === 1 ? '' : 's'}</div>
+                          </div>
+                        </div>
+
+                        {/* Product names list with per-category expand */}
+                        <div>
+                          <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                            {visible.map((p, i) => {
+                              // Ensure product_id is used for view details
+                              const id = String((p as any)?.product_id ?? (p as any)?.id ?? i)
+                              const title = String((p as any)?.part_name || (p as any)?.name || (p as any)?.title || (p as any)?.product_name || 'Car Part')
+                              const brandSlug = toSlug(brandOf(p)) || 'gapa'
+                              const partSlug = toSlug(categoryOf(p)) || 'parts'
+                              const wished = wishlist.has(id)
+                              return (
+                                <li key={`${catName}-${id}-${i}`} className="truncate relative group pr-6">
+                                  <Link to={`/parts/${encodeURIComponent(brandSlug)}/${encodeURIComponent(partSlug)}?pid=${encodeURIComponent(id)}`} className="text-[14px] text-brand hover:underline line-clamp-2">{title}</Link>
+                                  <span className="absolute right-0 top-0">
+                                    <WishlistButton size={16} active={wished} onToggle={(active) => { wishlist.toggle(id); if (active) toast.success('Added to wishlist') }} />
+                                  </span>
+                                </li>
+                              )
+                            })}
+                          </ul>
+                          {list.length > INITIAL_VISIBLE && (
+                            <div className="mt-3">
+                              <button
+                                onClick={() => setExpanded((s) => ({ ...s, [catName]: !isExpanded }))}
+                                className="text-[13px] font-semibold text-brand hover:underline"
+                              >
+                                {isExpanded ? 'View less' : `View more (${list.length - INITIAL_VISIBLE} more)`}
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </section>
+                  )
+                })}
               </div>
             )}
           </div>
