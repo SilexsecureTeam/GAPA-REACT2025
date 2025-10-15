@@ -2,7 +2,6 @@ import { Link } from 'react-router-dom'
 import aboutHero from '../assets/about.png'
 import about1 from '../assets/about1.png'
 import about2 from '../assets/about2.png'
-import aboutVid from '../assets/vidImg.png'
 import team1 from '../assets/team1.png'
 import team2 from '../assets/team2.png'
 import team3 from '../assets/team3.png'
@@ -115,16 +114,25 @@ export default function About() {
 
       {/* Promo/video */}
       <section className="mx-auto max-w-7xl px-4 sm:px-6 mt-12 sm:mt-16 mb-24">
-        <div className="relative overflow-hidden rounded-2xl">
-          <video className="w-full h-[360px] sm:h-[420px] object-cover" controls src="/vidImg.mp4" poster={aboutVid}></video>
-          <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-black/40 to-transparent"></div>
-          <div className="absolute inset-0 p-6 sm:p-10 flex flex-col justify-center">
-            <h4 className="text-white text-2xl sm:text-3xl font-extrabold max-w-md">Your trusted and reliable Car parts shop</h4>
-            <p className="mt-2 max-w-sm text-white/90">Praesent sed semper metus. Nunc aliquet dolor mauris, et fringilla elit gravida eget. Nunc consequat auctor urna a placerat.</p>
-            <button className="mt-6 inline-flex h-12 w-12 items-center justify-center rounded-full" style={{ backgroundColor: '#FACC15' }}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-            </button>
-          </div>
+        <div className="relative overflow-hidden rounded-2xl shadow-2xl">
+          <video 
+            className="w-full h-[360px] sm:h-[480px] object-cover" 
+            controls 
+            preload="metadata"
+            playsInline
+          >
+            <source src="/about_video.mp4" type="video/mp4" />
+            Your browser does not support the video tag.
+          </video>
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-black/40 to-transparent opacity-0 hover:opacity-100 transition-opacity duration-300"></div>
+        </div>
+        
+        {/* Video Description */}
+        <div className="mt-6 text-center">
+          <h4 className="text-2xl sm:text-3xl font-extrabold text-[#0F1020]">Your trusted and reliable Car parts shop</h4>
+          <p className="mt-3 text-[#4B5563] max-w-2xl mx-auto leading-7">
+            Watch how we deliver quality auto parts and exceptional service to thousands of satisfied customers across Nigeria. From genuine parts to fast delivery, see why Gapa Naija is your best choice for all car maintenance needs.
+          </p>
         </div>
       </section>
     </div>

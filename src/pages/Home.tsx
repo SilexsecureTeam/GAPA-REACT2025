@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import ProductCard, { type Product } from '../components/ProductCard'
 import Rating from '../components/Rating'
 import WishlistButton from '../components/WishlistButton'
@@ -13,6 +13,9 @@ import logoImg from '../assets/gapa-logo.png'
 import VehicleFilter from '../components/VehicleFilter'
 import { getPersistedVehicleFilter, type VehicleFilterState as VehState } from '../services/vehicle'
 import { toast } from 'react-hot-toast'
+import slider1 from '../assets/slider1.png'
+import slider2 from '../assets/slider2.png'
+import slider3 from '../assets/slider3.png'
 
 // Helpers to unwrap API shapes and map images safely
 function unwrap<T = any>(res: any): T[] {
@@ -275,34 +278,149 @@ export default function Home() {
     navigate(`/parts?${params.toString()}`)
   }
 
+  // Slider state and logic
+  const [currentSlide, setCurrentSlide] = React.useState(0)
+  const [isAutoPlaying, setIsAutoPlaying] = React.useState(true)
+  
+  const slides: Array<
+    | { type: 'text'; content: { title: string; subtitle: string; description: string } }
+    | { type: 'image'; src: string; alt: string }
+  > = [
+    {
+      type: 'text',
+      content: {
+        title: 'LOOKING FOR THE BEST CAR PARTS FOR YOUR CAR?',
+        subtitle: "WE'VE GOT YOU COVERED!",
+        description: 'Over 20,000 genuine parts with free delivery above ₦50,000'
+      }
+    },
+    { type: 'image', src: slider1, alt: 'Car Parts Showcase 1' },
+    { type: 'image', src: slider2, alt: 'Car Parts Showcase 2' },
+    { type: 'image', src: slider3, alt: 'Car Parts Showcase 3' }
+  ]
+
+  // Auto-play slider
+  React.useEffect(() => {
+    if (!isAutoPlaying) return
+    const interval = setInterval(() => {
+      setCurrentSlide((prev) => (prev + 1) % slides.length)
+    }, 6000)
+    return () => clearInterval(interval)
+  }, [isAutoPlaying, slides.length])
+
+  const goToPrevSlide = () => {
+    setCurrentSlide((prev) => (prev - 1 + slides.length) % slides.length)
+  }
+
+  const goToNextSlide = () => {
+    setCurrentSlide((prev) => (prev + 1) % slides.length)
+  }
+
+  const goToSlide = (index: number) => {
+    setCurrentSlide(index)
+  }
+
   return (
     <div className="min-h-screen bg-white">
-      {/* Hero: left promo + right form */}
-      <section className="bg-gradient-brand">
-        <div className="mx-auto grid max-w-7xl grid-cols-1 items-center gap-6 px-4 py-10 sm:px-6 md:grid-cols-2 md:py-14">
-          {/* Left copy */}
-          <div className="text-white">
-            <h1 className="text-2xl font-extrabold leading-tight sm:text-4xl md:text-[42px]">
-              LOOKING FOR THE BEST CAR PARTS FOR YOUR CAR?
-              <br /> <span className='font-semibold'>WE'VE GOT YOU COVERED! </span>
-            </h1>
-            <p className="mt-3 font-semibold text-[16px] max-w-md text-white/90">
-              Over 20,000 genuine parts with free delivery above ₦50,000
-            </p>
-            <a href="#" className="mt-6 inline-flex h-11 items-center justify-center rounded-md bg-[#F7CD3A] px-6 text-sm font-semibold text-[#201A2B] shadow hover:brightness-105">
-              START SHOPPING
-            </a>
-          </div>
-
-          {/* Right: shared vehicle filter card */}
-          <div className="md:justify-self-end">
-            <VehicleFilter className="md:min-w-[400px] shadow-md" onSearch={(url) => navigate(url)} onChange={setVehFilter} />
-            {hasVehicleFilter && (
-              <div className="mt-3 rounded-md bg-[#F7CD3A]/15 px-3 py-2 text-[12px] text-gray-800 ring-1 ring-[#F7CD3A]/30">
-                Selected vehicle: <strong>{[vehFilter.brandName, vehFilter.modelName, vehFilter.engineName].filter(Boolean).join(' › ')}</strong>
+      {/* Hero Slider */}
+      <section 
+        className="relative overflow-hidden min-h-[500px] md:min-h-[600px] pt-2"
+        onMouseEnter={() => setIsAutoPlaying(false)}
+        onMouseLeave={() => setIsAutoPlaying(true)}
+      >
+        {/* Full Background Slider */}
+        {slides.map((slide, index) => (
+          <div
+            key={index}
+            className={`absolute inset-0 transition-all duration-1000 ease-in-out ${
+              index === currentSlide
+                ? 'opacity-100 scale-100'
+                : 'opacity-0 scale-95 pointer-events-none'
+            }`}
+          >
+            {slide.type === 'text' ? (
+              <div className="absolute inset-0 bg-gradient-brand"></div>
+            ) : slide.type === 'image' ? (
+              <div className="absolute inset-0 bg-gray-100">
+                <img
+                  src={slide.src}
+                  alt={slide.alt}
+                  className="h-full w-full object-contain"
+                />
               </div>
-            )}
+            ) : null}
           </div>
+        ))}
+
+        {/* Content Overlay */}
+        <div className="relative z-10 mx-auto max-w-7xl px-4 py-10 sm:px-6 md:py-14 min-h-[500px] md:min-h-[600px] flex items-center">
+          <div className="grid grid-cols-1 items-center gap-6 w-full md:grid-cols-2">
+            {/* Left: Text Content (only visible on text slide) */}
+            <div className={`transition-opacity duration-1000 ${
+              slides[currentSlide].type === 'text' ? 'opacity-100' : 'opacity-0 pointer-events-none'
+            }`}>
+              {slides[currentSlide].type === 'text' && (
+                <div className="text-white">
+                  <h1 className="text-2xl font-extrabold leading-tight sm:text-4xl md:text-[42px]">
+                    {slides[currentSlide].content.title}
+                    <br /> <span className='font-semibold'>{slides[currentSlide].content.subtitle}</span>
+                  </h1>
+                  <p className="mt-3 font-semibold text-[16px] max-w-md text-white/90">
+                    {slides[currentSlide].content.description}
+                  </p>
+                  <a href="#" className="mt-6 inline-flex h-11 items-center justify-center rounded-md bg-[#F7CD3A] px-6 text-sm font-semibold text-[#201A2B] shadow hover:brightness-105 transition-all">
+                    START SHOPPING
+                  </a>
+                </div>
+              )}
+            </div>
+
+            {/* Right: Vehicle Filter - Always visible */}
+            <div className="md:justify-self-end">
+              <VehicleFilter className="md:min-w-[400px] shadow-lg" onSearch={(url) => navigate(url)} onChange={setVehFilter} />
+              {hasVehicleFilter && (
+                <div className="mt-3 rounded-md bg-[#F7CD3A]/15 px-3 py-2 text-[12px] text-gray-800 ring-1 ring-[#F7CD3A]/30">
+                  Selected vehicle: <strong>{[vehFilter.brandName, vehFilter.modelName, vehFilter.engineName].filter(Boolean).join(' › ')}</strong>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Navigation Arrows */}
+        <button
+          onClick={goToPrevSlide}
+          className="absolute left-4 top-1/2 -translate-y-1/2 z-20 flex h-12 w-12 items-center justify-center rounded-full bg-white/20 backdrop-blur-sm text-white hover:bg-white/30 transition-all"
+          aria-label="Previous slide"
+        >
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M15 18l-6-6 6-6" />
+          </svg>
+        </button>
+        <button
+          onClick={goToNextSlide}
+          className="absolute right-4 top-1/2 -translate-y-1/2 z-20 flex h-12 w-12 items-center justify-center rounded-full bg-white/20 backdrop-blur-sm text-white hover:bg-white/30 transition-all"
+          aria-label="Next slide"
+        >
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M9 18l6-6-6-6" />
+          </svg>
+        </button>
+
+        {/* Slide Indicators */}
+        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 flex gap-2">
+          {slides.map((_, index) => (
+            <button
+              key={index}
+              onClick={() => goToSlide(index)}
+              className={`h-2 rounded-full transition-all ${
+                index === currentSlide
+                  ? 'w-8 bg-[#F7CD3A]'
+                  : 'w-2 bg-white/50 hover:bg-white/70'
+              }`}
+              aria-label={`Go to slide ${index + 1}`}
+            />
+          ))}
         </div>
       </section>
 

@@ -727,6 +727,13 @@ function CarPartsInner() {
         const compat = pData?.compatibility || pData?.vehicle_compatibility || []
         const compatList = Array.isArray(compat) ? compat : (compat ? [compat] : [])
 
+        // Filter out universal compatibility products
+        const isUniversal = compatList.some((c: any) => {
+          const cStr = typeof c === 'string' ? c : JSON.stringify(c)
+          return cStr.toLowerCase().trim() === 'universal'
+        })
+        if (isUniversal) return false
+
         for (const c of compatList) {
           const cStr = typeof c === 'string' ? c : JSON.stringify(c)
           const lowerStr = cStr.toLowerCase()
@@ -748,6 +755,13 @@ function CarPartsInner() {
         const compat = pData?.compatibility || pData?.vehicle_compatibility || []
         const compatList = Array.isArray(compat) ? compat : (compat ? [compat] : [])
 
+        // Filter out universal compatibility products
+        const isUniversal = compatList.some((c: any) => {
+          const cStr = typeof c === 'string' ? c : JSON.stringify(c)
+          return cStr.toLowerCase().trim() === 'universal'
+        })
+        if (isUniversal) return false
+
         for (const c of compatList) {
           const cStr = typeof c === 'string' ? c : JSON.stringify(c)
           const lowerStr = cStr.toLowerCase()
@@ -767,6 +781,13 @@ function CarPartsInner() {
         const pData = (p as any)?.part || p
         const compat = pData?.compatibility || pData?.vehicle_compatibility || []
         const compatList = Array.isArray(compat) ? compat : (compat ? [compat] : [])
+
+        // Filter out universal compatibility products
+        const isUniversal = compatList.some((c: any) => {
+          const cStr = typeof c === 'string' ? c : JSON.stringify(c)
+          return cStr.toLowerCase().trim() === 'universal'
+        })
+        if (isUniversal) return false
 
         for (const c of compatList) {
           const cStr = typeof c === 'string' ? c : JSON.stringify(c)
@@ -1288,16 +1309,9 @@ function CarPartsInner() {
             </ol>
           </nav>
 
-          {/* Sidebar + Content Layout - Dynamic grid based on whether sidebar should show */}
-          <div className="mt-6 grid gap-6 lg:grid-cols-[280px_1fr]">
-            {/* Sticky Sidebar - NOT shown in brand drilldown mode (BrandDrilldown handles filter) */}
-            <aside className="hidden lg:block">
-              <div className="sticky top-40 space-y-4">
-                {/* Brand Drilldown shows its own selection UI, so no VehicleFilter needed */}
-              </div>
-            </aside>
-
-            {/* Main Content - Brand Drilldown */}
+          {/* Full Width Layout for Brand Drilldown */}
+          <div className="mt-6">
+            {/* Main Content - Brand Drilldown (Full Width) */}
             <div className="min-w-0">
               <BrandDrilldown
                 brandId={brandIdParam}
@@ -1321,7 +1335,7 @@ function CarPartsInner() {
                 return null
               })()}
               {vehFilter.brandName && vehFilter.modelName && (
-                <div ref={productsRef} className="mt-8">
+                <div id="compatible-parts-section" ref={productsRef} className="mt-8">
                   <div className="mb-4 flex items-center justify-between">
                     <div>
                       <h3 className="text-[18px] font-semibold text-gray-900">
