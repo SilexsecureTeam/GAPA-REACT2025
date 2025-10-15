@@ -136,7 +136,23 @@ export default function VehicleFilter({ onSearch, onChange, className = '' }: Ve
 
   const engineOptions = useMemo(() => (
     (subModels || [])
-      .map((e: any) => ({ value: String(e?.id ?? e?.sub_model_id ?? ''), label: String(e?.name || e?.engine || e?.trim || e?.submodel_name || e?.sub_model_name || '') }))
+      .map((e: any) => {
+        const name = String(e?.name || e?.engine || e?.trim || e?.submodel_name || e?.sub_model_name || '')
+        const year = e?.year
+        const year2 = e?.year_2
+        let yearLabel = ''
+        
+        if (year && year2) {
+          yearLabel = year === year2 ? ` (${year})` : ` (${year} - ${year2})`
+        } else if (year) {
+          yearLabel = ` (${year})`
+        }
+        
+        return { 
+          value: String(e?.id ?? e?.sub_model_id ?? ''), 
+          label: name + yearLabel
+        }
+      })
       .filter((o: any) => o.value && o.label)
       .sort((a: any, b: any) => a.label.localeCompare(b.label))
   ), [subModels])
