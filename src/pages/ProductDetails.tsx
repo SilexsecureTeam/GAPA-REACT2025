@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, useCallback } from 'react'
 import { Link, useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import WishlistButton from '../components/WishlistButton'
+import ProductActionCard from '../components/ProductActionCard'
 import useWishlist from '../hooks/useWishlist'
 import { getProductById, getProductOEM, getProductReviews, getRelatedProducts, getProductProperties, addToCartApi, type ApiReview } from '../services/api'
 import logoImg from '../assets/gapa-logo.png'
@@ -9,6 +10,7 @@ import { useAuth } from '../services/auth'
 import { addGuestCartItem } from '../services/cart'
 import { toast } from 'react-hot-toast'
 import useManufacturers from '../hooks/useManufacturers'
+import { mapProductToActionData } from '../utils/productMapping'
 
 type Attr = { label: string; value: string }
 
@@ -360,6 +362,8 @@ export default function ProductDetails() {
       } else {
         addGuestCartItem(prod.id, effectiveQty)
       }
+      // Dispatch custom event to update cart count in header
+      window.dispatchEvent(new Event('cart-updated'))
       toast.success('Added to cart')
       navigate({ hash: '#cart' })
     } catch {
@@ -396,8 +400,13 @@ export default function ProductDetails() {
 
   if (error || !prod) {
     return (
-      <div className="mx-auto min-h-screen w-full max-w-7xl px-4 py-8">
+      <div className="mx-auto min-h-screen w-full max-w-7xl px-4 py-8 pt-12">
         <div className="rounded-xl bg-white p-8 text-center ring-1 ring-black/10">
+          <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-gray-100">
+            <svg className="h-10 w-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
           <h2 className="text-2xl font-bold text-gray-900">Product Not Found</h2>
           <p className="mt-2 text-gray-600">{error || 'The product you\'re looking for doesn\'t exist or has been removed.'}</p>
           <div className="mt-6 flex justify-center gap-3">
@@ -409,6 +418,40 @@ export default function ProductDetails() {
             </Link>
           </div>
         </div>
+
+        {/* Show Related Products if available */}
+        {!relatedLoading && relatedProducts.length > 0 && (
+          <div className="mt-12">
+            <h2 className="mb-6 text-2xl font-bold text-gray-900">You Might Also Like</h2>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {relatedProducts.map((relatedProd, idx) => {
+                const cardProduct = mapProductToActionData(relatedProd, idx)
+                return (
+                  <ProductActionCard
+                    key={cardProduct.id}
+                    product={cardProduct}
+                    enableView={true}
+                    onView={() => navigate(`/product/${cardProduct.id}?from=${encodeURIComponent(window.location.pathname)}`)}
+                    onAddToCart={async () => {
+                      try {
+                        if (user && user.id) {
+                          await addToCartApi({ user_id: user.id, product_id: cardProduct.id, quantity: 1 })
+                        } else {
+                          addGuestCartItem(cardProduct.id, 1)
+                        }
+                        window.dispatchEvent(new Event('cart-updated'))
+                        toast.success('Added to cart')
+                        navigate({ hash: '#cart' })
+                      } catch {
+                        toast.error('Failed to add to cart')
+                      }
+                    }}
+                  />
+                )
+              })}
+            </div>
+          </div>
+        )}
       </div>
     )
   }
@@ -834,41 +877,28 @@ export default function ProductDetails() {
           <h2 className="mb-6 text-2xl font-bold text-gray-900">Related Products</h2>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {relatedProducts.map((relatedProd, idx) => {
-              const rId = String(relatedProd?.product_id ?? relatedProd?.id ?? idx)
-              const rName = String(relatedProd?.part_name || relatedProd?.name || relatedProd?.title || relatedProd?.product_name || 'Car Part')
-              const rPrice = Number(relatedProd?.price || relatedProd?.selling_price || relatedProd?.amount || 0)
-              const rImage = productImageFrom(relatedProd) || normalizeApiImage(pickImage(relatedProd) || '') || logoImg
-              const rInStock = Boolean(relatedProd?.in_stock ?? true)
-              
+              const cardProduct = mapProductToActionData(relatedProd, idx)
               return (
-                <Link
-                  key={rId}
-                  to={`/product/${rId}?from=${encodeURIComponent(window.location.pathname)}`}
-                  className="group overflow-hidden rounded-xl bg-white ring-1 ring-black/10 transition-all hover:shadow-lg"
-                >
-                  <div className="aspect-square overflow-hidden bg-gradient-to-br from-gray-50 to-gray-100 p-4">
-                    <ImageWithFallback
-                      src={rImage}
-                      alt={rName}
-                      className="h-full w-full object-contain transition-transform group-hover:scale-105"
-                    />
-                  </div>
-                  <div className="p-4">
-                    <h3 className="line-clamp-2 text-sm font-semibold text-gray-900 group-hover:text-[#F7CD3A]">
-                      {rName}
-                    </h3>
-                    <div className="mt-2 flex items-center justify-between">
-                      <span className="text-lg font-bold text-gray-900">
-                        ₦{rPrice.toLocaleString('en-NG')}
-                      </span>
-                      <span className={`text-xs font-semibold ${
-                        rInStock ? 'text-green-600' : 'text-red-600'
-                      }`}>
-                        {rInStock ? 'In Stock' : 'Out of Stock'}
-                      </span>
-                    </div>
-                  </div>
-                </Link>
+                <ProductActionCard
+                  key={cardProduct.id}
+                  product={cardProduct}
+                  enableView={true}
+                  onView={() => navigate(`/product/${cardProduct.id}?from=${encodeURIComponent(window.location.pathname)}`)}
+                  onAddToCart={async () => {
+                    try {
+                      if (user && user.id) {
+                        await addToCartApi({ user_id: user.id, product_id: cardProduct.id, quantity: 1 })
+                      } else {
+                        addGuestCartItem(cardProduct.id, 1)
+                      }
+                      window.dispatchEvent(new Event('cart-updated'))
+                      toast.success('Added to cart')
+                      navigate({ hash: '#cart' })
+                    } catch {
+                      toast.error('Failed to add to cart')
+                    }
+                  }}
+                />
               )
             })}
           </div>

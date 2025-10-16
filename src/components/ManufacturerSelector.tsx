@@ -14,7 +14,8 @@ export type ManufacturerSelectorProps = {
 }
 
 const toId = (m: ApiManufacturer, fallback: number) => {
-  return String(m?.id ?? (m as any)?.maker_id_ ?? (m as any)?.maker_id ?? (m as any)?.manufacturer_id ?? fallback)
+  // Prioritize saler_id as requested
+  return String((m as any)?.saler_id ?? m?.id ?? (m as any)?.maker_id_ ?? (m as any)?.maker_id ?? (m as any)?.manufacturer_id ?? fallback)
 }
 
 const manufacturerName = (m: ApiManufacturer) => {

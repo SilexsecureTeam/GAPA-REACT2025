@@ -257,6 +257,9 @@ function CarPartsInner() {
   
   // Category filter for vehicle search mode
   const [vehicleSearchCategoryFilter, setVehicleSearchCategoryFilter] = useState<string>('')
+  
+  // Category filter for brand drilldown mode
+  const [brandDrilldownCategoryFilter, setBrandDrilldownCategoryFilter] = useState<string>('')
 
   // Determine if vehicle filter should be shown for current category
   const shouldShowVehicleFilter = useMemo(() =>
@@ -1336,57 +1339,131 @@ function CarPartsInner() {
               })()}
               {vehFilter.brandName && vehFilter.modelName && (
                 <div id="compatible-parts-section" ref={productsRef} className="mt-8">
-                  <div className="mb-4 flex items-center justify-between">
-                    <div>
-                      <h3 className="text-[18px] font-semibold text-gray-900">
-                        Compatible Parts
-                      </h3>
-                      <p className="mt-1 text-[13px] text-gray-600">
-                        {vehFilter.brandName} {vehFilter.modelName}
-                        {vehFilter.engineName && ` - ${vehFilter.engineName}`}
-                      </p>
-                    </div>
-                    <div className="rounded-full bg-brand px-3 py-1 text-[13px] font-semibold text-white">
-                      {filtered.length} {filtered.length === 1 ? 'Part' : 'Parts'}
-                    </div>
-                  </div>
+                  {/* Category Filter Pills for Brand Drilldown */}
+                  {(() => {
+                    // Calculate available categories from filtered products
+                    const categoryMap = new Map<string, number>()
+                    filtered.forEach((p) => {
+                      const raw = (p as any)?.category
+                      const catName = resolveCategoryName(raw) || categoryOf(p)
+                      if (catName) {
+                        categoryMap.set(catName, (categoryMap.get(catName) || 0) + 1)
+                      }
+                    })
+                    const availableCategoriesForBrand = Array.from(categoryMap.entries())
+                      .map(([name, count]) => ({ name, count }))
+                      .sort((a, b) => a.name.localeCompare(b.name))
 
-                  {loading ? (
-                    <FallbackLoader label="Loading products…" />
-                  ) : filtered.length === 0 ? (
-                    <div className="rounded-xl bg-white p-8 text-center ring-1 ring-black/10">
-                      <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      <h4 className="mt-4 text-[15px] font-semibold text-gray-900">No Compatible Parts Found</h4>
-                      <div className="mt-2 text-[14px] text-gray-600">
-                        We couldn't find any parts compatible with your {vehFilter.brandName} {vehFilter.modelName}{vehFilter.engineName ? ` ${vehFilter.engineName}` : ''}. Try selecting a different model or sub-model.
-                      </div>
-                      {vehFilter.engineName && (
-                        <button
-                          onClick={() => setVehFilter({ ...vehFilter, engineId: undefined, engineName: undefined })}
-                          className="mt-4 text-[13px] font-medium text-brand hover:underline"
-                        >
-                          Try without sub-model filter
-                        </button>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                      {filtered.map((p, i) => {
-                        const cardProduct = mapProductToActionData(p, i)
-                        return (
-                          <ProductActionCard
-                            key={cardProduct.id}
-                            product={cardProduct}
-                            enableView={true}
-                            onView={() => onViewProduct(p)}
-                            onAddToCart={() => onAddToCart(p)}
-                          />
-                        )
-                      })}
-                    </div>
-                  )}
+                    // Apply category filter to products
+                    const categoryFiltered = brandDrilldownCategoryFilter
+                      ? filtered.filter((p) => {
+                          const raw = (p as any)?.category
+                          const catName = resolveCategoryName(raw) || categoryOf(p)
+                          return catName.toLowerCase() === brandDrilldownCategoryFilter.toLowerCase()
+                        })
+                      : filtered
+
+                    return (
+                      <>
+                        {availableCategoriesForBrand.length > 0 && (
+                          <div className="mb-6">
+                            <h4 className="mb-3 text-[13px] font-bold text-gray-900">Filter by Category</h4>
+                            <div className="flex flex-wrap gap-2">
+                              <button
+                                onClick={() => setBrandDrilldownCategoryFilter('')}
+                                className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-[13px] font-semibold transition-all ${
+                                  !brandDrilldownCategoryFilter
+                                    ? 'bg-[#F7CD3A] text-[#201A2B] ring-2 ring-[#F7CD3A]'
+                                    : 'bg-white text-gray-700 ring-1 ring-gray-300 hover:ring-gray-400'
+                                }`}
+                              >
+                                <span>All Categories</span>
+                                <span className="text-[11px] opacity-75">({filtered.length})</span>
+                              </button>
+                              {availableCategoriesForBrand.map(({ name, count }) => (
+                                <button
+                                  key={name}
+                                  onClick={() => setBrandDrilldownCategoryFilter(name)}
+                                  className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-[13px] font-semibold transition-all ${
+                                    brandDrilldownCategoryFilter === name
+                                      ? 'bg-[#F7CD3A] text-[#201A2B] ring-2 ring-[#F7CD3A]'
+                                      : 'bg-white text-gray-700 ring-1 ring-gray-300 hover:ring-gray-400'
+                                  }`}
+                                >
+                                  <span>{name}</span>
+                                  <span className="text-[11px] opacity-75">({count})</span>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="mb-4 flex items-center justify-between">
+                          <div>
+                            <h3 className="text-[18px] font-semibold text-gray-900">
+                              Compatible Parts
+                              {brandDrilldownCategoryFilter && ` - ${brandDrilldownCategoryFilter}`}
+                            </h3>
+                            <p className="mt-1 text-[13px] text-gray-600">
+                              {vehFilter.brandName} {vehFilter.modelName}
+                              {vehFilter.engineName && ` - ${vehFilter.engineName}`}
+                            </p>
+                          </div>
+                          <div className="rounded-full bg-brand px-3 py-1 text-[13px] font-semibold text-white">
+                            {categoryFiltered.length} {categoryFiltered.length === 1 ? 'Part' : 'Parts'}
+                          </div>
+                        </div>
+
+                        {loading ? (
+                          <FallbackLoader label="Loading products…" />
+                        ) : categoryFiltered.length === 0 ? (
+                          <div className="rounded-xl bg-white p-8 text-center ring-1 ring-black/10">
+                            <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <h4 className="mt-4 text-[15px] font-semibold text-gray-900">
+                              No Compatible Parts Found
+                              {brandDrilldownCategoryFilter && ` in ${brandDrilldownCategoryFilter}`}
+                            </h4>
+                            <div className="mt-2 text-[14px] text-gray-600">
+                              We couldn't find any parts compatible with your {vehFilter.brandName} {vehFilter.modelName}{vehFilter.engineName ? ` ${vehFilter.engineName}` : ''}{brandDrilldownCategoryFilter ? ` in the ${brandDrilldownCategoryFilter} category` : ''}. Try selecting a different {brandDrilldownCategoryFilter ? 'category or ' : ''}model{vehFilter.engineName ? ' or sub-model' : ''}.
+                            </div>
+                            {brandDrilldownCategoryFilter && (
+                              <button
+                                onClick={() => setBrandDrilldownCategoryFilter('')}
+                                className="mt-4 text-[13px] font-medium text-brand hover:underline"
+                              >
+                                Clear category filter
+                              </button>
+                            )}
+                            {vehFilter.engineName && (
+                              <button
+                                onClick={() => setVehFilter({ ...vehFilter, engineId: undefined, engineName: undefined })}
+                                className="mt-4 ml-4 text-[13px] font-medium text-brand hover:underline"
+                              >
+                                Try without sub-model filter
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+                            {categoryFiltered.map((product) => {
+                              const cardProduct = mapProductToActionData(product, categoryFiltered.indexOf(product))
+                              return (
+                                <ProductActionCard
+                                  key={product.item_id}
+                                  product={cardProduct}
+                                  enableView={true}
+                                  onView={() => onViewProduct(product)}
+                                  onAddToCart={() => onAddToCart(product)}
+                                />
+                              )
+                            })}
+                          </div>
+                        )}
+                      </>
+                    )
+                  })()}
                 </div>
               )}
             </div>

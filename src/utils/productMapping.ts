@@ -33,7 +33,12 @@ export const brandOf = (p: any) => {
 
 export const makerIdOf = (p: any) => {
   const src = unwrapProduct(p)
-  const raw = src?.maker_id_ ?? src?.maker_id ?? src?.manufacturer_id ?? (typeof src?.maker === 'object' ? (src?.maker?.id ?? src?.maker?.maker_id_ ?? src?.maker?.maker_id) : undefined)
+  // Prioritize saler_id as requested
+  const raw = src?.saler_id 
+    ?? src?.maker_id_ 
+    ?? src?.maker_id 
+    ?? src?.manufacturer_id 
+    ?? (typeof src?.maker === 'object' ? (src?.maker?.id ?? src?.maker?.saler_id ?? src?.maker?.maker_id_ ?? src?.maker?.maker_id) : undefined)
   return raw != null && raw !== '' ? String(raw) : ''
 }
 

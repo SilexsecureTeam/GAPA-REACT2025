@@ -197,7 +197,9 @@ export default function CarPartDetails() {
       setSelectedManufacturerName('')
       return
     }
-    const rawId = manufacturer.id
+    // Use saler_id instead of maker_id
+    const rawId = (manufacturer as any)?.saler_id
+      ?? manufacturer.id
       ?? (manufacturer as any)?.maker_id_
       ?? (manufacturer as any)?.maker_id
       ?? (manufacturer as any)?.manufacturer_id
@@ -207,14 +209,80 @@ export default function CarPartDetails() {
     setSelectedManufacturerName(name)
   }, [])
 
+  // Filter manufacturers to only show those with products in current view
+  const manufacturersWithProducts = useMemo(() => {
+    if (!manufacturers.length) return []
+    
+    // Use products array
+    const productsToCheck = products
+    
+    // If no products loaded yet, return empty array (don't show manufacturers yet)
+    if (!productsToCheck.length) return []
+    
+    // Build a Set of all manufacturer IDs present in the products
+    const productManufacturerIds = new Set<string>()
+    
+    productsToCheck.forEach(p => {
+      // Extract manufacturer ID using the makerIdOf utility
+      const makerId = makerIdOf(p)
+      if (makerId) {
+        productManufacturerIds.add(makerId)
+      }
+    })
+    
+    // Debug logging
+    if (import.meta.env.DEV) {
+      console.log('[ManufacturerFilter] Products to check:', productsToCheck.length)
+      console.log('[ManufacturerFilter] Unique manufacturer IDs in products:', Array.from(productManufacturerIds))
+      console.log('[ManufacturerFilter] Total manufacturers available:', manufacturers.length)
+      console.log('[ManufacturerFilter] Sample product:', productsToCheck[0])
+      console.log('[ManufacturerFilter] Sample product makerIdOf:', makerIdOf(productsToCheck[0]))
+      console.log('[ManufacturerFilter] Sample manufacturer:', manufacturers[0])
+    }
+    
+    // If no manufacturer IDs found, return empty (don't show any)
+    if (productManufacturerIds.size === 0) {
+      console.warn('[ManufacturerFilter] No manufacturer IDs found in products')
+      return []
+    }
+    
+    // Filter manufacturers to only those present in products
+    const filtered = manufacturers.filter(m => {
+      // Check all possible ID fields in manufacturer
+      const mSalerId = String((m as any)?.saler_id ?? '')
+      const mId = String(m.id ?? '')
+      const mMakerId = String((m as any)?.maker_id_ ?? '')
+      const mMakerId2 = String((m as any)?.maker_id ?? '')
+      const mManufacturerId = String((m as any)?.manufacturer_id ?? '')
+      
+      // Check if any of these IDs match
+      return (mSalerId && productManufacturerIds.has(mSalerId)) ||
+             (mId && productManufacturerIds.has(mId)) ||
+             (mMakerId && productManufacturerIds.has(mMakerId)) ||
+             (mMakerId2 && productManufacturerIds.has(mMakerId2)) ||
+             (mManufacturerId && productManufacturerIds.has(mManufacturerId))
+    })
+    
+    if (import.meta.env.DEV) {
+      console.log('[ManufacturerFilter] Filtered manufacturers:', filtered.length)
+      if (filtered.length > 0) {
+        console.log('[ManufacturerFilter] First filtered manufacturer:', filtered[0])
+      }
+    }
+    
+    return filtered
+  }, [manufacturers, products])
+
   // Helper to enhance product UI data with manufacturer info from loaded list
   const enhanceWithManufacturerData = useCallback((ui: ReturnType<typeof mapApiToUi>, _raw: any) => {
     if (!ui.makerId || !manufacturers.length) return ui
     
-    // Find manufacturer by maker_id_
+    // Find manufacturer by saler_id (prioritize) or fallback to maker_id_
     const manufacturer = manufacturers.find(m => {
+      const mSalerId = String((m as any)?.saler_id ?? '')
       const mId = String(m.id ?? (m as any)?.maker_id_ ?? (m as any)?.maker_id ?? (m as any)?.manufacturer_id ?? '')
-      return mId === ui.makerId
+      // Match by saler_id first, then fallback to other IDs
+      return (mSalerId && mSalerId === ui.makerId) || (mId && mId === ui.makerId)
     })
     
     if (manufacturer) {
@@ -239,7 +307,7 @@ export default function CarPartDetails() {
   const renderManufacturers = (className = 'mt-4') => (
     <div className={className}>
       <ManufacturerSelector
-        manufacturers={manufacturers}
+        manufacturers={manufacturersWithProducts}
         loading={manufacturersLoading}
         selectedId={selectedManufacturerId || null}
         onSelect={handleManufacturerSelect}
@@ -472,7 +540,30 @@ export default function CarPartDetails() {
   const finalRelated = (related && related.length) ? related : frontendRelated
   const manufacturerFilteredFinalRelated = useMemo(() => {
     if (!hasManufacturerFilter) return finalRelated
-    return finalRelated.filter((p) => makerIdOf(p) === selectedManufacturerId)
+    
+    if (import.meta.env.DEV) {
+      console.log('[ManufacturerFilter] Filtering related products')
+      console.log('[ManufacturerFilter] Selected manufacturer ID:', selectedManufacturerId)
+      console.log('[ManufacturerFilter] Total related products:', finalRelated.length)
+      console.log('[ManufacturerFilter] Sample related product:', finalRelated[0])
+    }
+    
+    const filtered = finalRelated.filter((p) => {
+      const productMakerId = makerIdOf(p)
+      const matches = productMakerId === selectedManufacturerId
+      
+      if (import.meta.env.DEV && finalRelated.indexOf(p) < 2) {
+        console.log('[ManufacturerFilter] Product maker ID:', productMakerId, 'Matches:', matches)
+      }
+      
+      return matches
+    })
+    
+    if (import.meta.env.DEV) {
+      console.log('[ManufacturerFilter] Filtered related products:', filtered.length)
+    }
+    
+    return filtered
   }, [finalRelated, hasManufacturerFilter, selectedManufacturerId])
   const compatibleRelated = useMemo(() => manufacturerFilteredFinalRelated.filter(productMatchesVehicle), [manufacturerFilteredFinalRelated, vehFilter])
   // NEW: ensure uniqueness of related products by id to avoid duplicate key warnings

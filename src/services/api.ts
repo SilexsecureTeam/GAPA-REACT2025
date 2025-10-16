@@ -594,28 +594,17 @@ async function fetchStaticGigToken(): Promise<string> {
   // De-dup parallel requests
   if (gigTokenFetchInFlight) return gigTokenFetchInFlight
   gigTokenFetchInFlight = (async () => {
-    // const primaryUrl = 'https://gapaautoparts.com/logistics/access-token'
-    const proxyUrl = '/api/gig-token' 
-    const tryFetch = async (url: string) => {
-      console.info('[GIG DEBUG] Fetching static token from', url)
-      const res = await fetch(url, { method: 'GET' })
-      if (!res.ok) {
-        const txt = await res.text().catch(()=> '')
-        throw new Error(`Static token fetch failed (${res.status}) ${txt.slice(0,120)}`)
-      }
-      const json: any = await res.json().catch(()=> ({}))
-      const token = json?.token || json?.access_token || ''
-      if (!token) throw new Error('Static token endpoint returned no token')
-      return token
+    const tokenUrl = 'https://stockmgt.gapaautoparts.com/api/gig/access-token'
+    console.info('[GIG DEBUG] Fetching static token from', tokenUrl)
+    const res = await fetch(tokenUrl, { method: 'GET' })
+    if (!res.ok) {
+      const txt = await res.text().catch(()=> '')
+      throw new Error(`Static token fetch failed (${res.status}) ${txt.slice(0,120)}`)
     }
-    let token: string
-    try {
-      token = await tryFetch(proxyUrl)
-    } catch (e: any) {
-      // Likely CORS in browser – attempt proxy fallback (same-origin serverless function)
-      console.warn('[GIG DEBUG] Primary token fetch failed, trying proxy fallback', e?.message)
-      token = await tryFetch(proxyUrl)
-    }
+    const json: any = await res.json().catch(()=> ({}))
+    const token = json?.token || json?.access_token || ''
+    if (!token) throw new Error('Static token endpoint returned no token')
+    console.info('[GIG DEBUG] Token fetched successfully')
     const exp = decodeJwtExp(token) || (Date.now() + 25 * 60 * 1000) // fallback 25m
     // subtract 60s for refresh buffer
     gigTokenCache = { token, exp: exp - 60_000 }
@@ -733,11 +722,28 @@ export async function getGigQuote(params: GigQuoteParams) {
   }
   const normalizePhone = (p?: string) => {
     if (!p) return ''
-    const digits = p.replace(/\D+/g,'')
-    if (digits.startsWith('234')) return '+'+digits
-    if (digits.startsWith('0')) return '+234'+digits.slice(1)
-    if (digits.startsWith('+234')) return digits.startsWith('+')?digits:'+'+digits
-    return '+234'+digits
+    // Remove all non-digit characters except leading +
+    let cleaned = p.trim()
+    
+    // Extract only digits
+    const digits = cleaned.replace(/\D+/g, '')
+    
+    // Handle different formats:
+    // Case 1: Already has country code (234...)
+    if (digits.startsWith('234')) {
+      // Remove any leading 0 after 234 (e.g., 234090... -> 23490...)
+      const afterCode = digits.slice(3)
+      const withoutLeadingZero = afterCode.replace(/^0+/, '')
+      return '+234' + withoutLeadingZero
+    }
+    
+    // Case 2: Starts with 0 (local format)
+    if (digits.startsWith('0')) {
+      return '+234' + digits.slice(1)
+    }
+    
+    // Case 3: No country code, no leading zero
+    return '+234' + digits
   }
 
   // Sender defaults -------------------------------------------------------

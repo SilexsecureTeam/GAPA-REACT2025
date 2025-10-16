@@ -39,6 +39,7 @@ export default function BrandDrilldown({ brandId, onComplete, className = '' }: 
   const [selectedModelName, setSelectedModelName] = useState<string>('')
   const [selectedSubModelId, setSelectedSubModelId] = useState<string>('')
   const [selectedSubModelName, setSelectedSubModelName] = useState<string>('')
+  const [showCategorySelection, setShowCategorySelection] = useState(false)
   
   const [loadingModels, setLoadingModels] = useState(true)
   const [loadingSubModels, setLoadingSubModels] = useState(false)
@@ -168,13 +169,14 @@ export default function BrandDrilldown({ brandId, onComplete, className = '' }: 
   const handleSubModelSelect = (subModel: SubModel) => {
     setSelectedSubModelId(String(subModel.id))
     setSelectedSubModelName(subModel.name)
+    setShowCategorySelection(true)
     
-    // Scroll to compatible parts section after selection
+    // Scroll to category selection section after selection
     setTimeout(() => {
-      const compatiblePartsElement = document.getElementById('compatible-parts-section')
-      if (compatiblePartsElement) {
+      const categorySelectionElement = document.getElementById('category-selection-section')
+      if (categorySelectionElement) {
         const yOffset = -100 // Offset for fixed header
-        const y = compatiblePartsElement.getBoundingClientRect().top + window.pageYOffset + yOffset
+        const y = categorySelectionElement.getBoundingClientRect().top + window.pageYOffset + yOffset
         window.scrollTo({ top: y, behavior: 'smooth' })
       }
     }, 100)
@@ -191,6 +193,7 @@ export default function BrandDrilldown({ brandId, onComplete, className = '' }: 
     setSelectedSubModelId('')
     setSelectedSubModelName('')
     setSubModels([])
+    setShowCategorySelection(false)
   }
 
   return (
@@ -246,7 +249,7 @@ export default function BrandDrilldown({ brandId, onComplete, className = '' }: 
                 <button
                   key={model.id}
                   onClick={() => handleModelSelect(model)}
-                  className={`group relative overflow-hidden rounded-2xl p-5 text-left transition-all ${
+                  className={`group relative overflow-hidden rounded-2xl p-2 text-left transition-all ${
                     isSelected
                       ? 'bg-gradient-to-br from-[#F7CD3A] to-[#e6bd2a] ring-2 ring-[#F7CD3A] shadow-xl scale-105'
                       : 'bg-white ring-1 ring-black/10 hover:ring-[#F7CD3A] hover:shadow-lg hover:scale-102'
@@ -260,7 +263,7 @@ export default function BrandDrilldown({ brandId, onComplete, className = '' }: 
                     </div>
                   )}
                   <div className="flex flex-col items-center text-center">
-                    <div className={`flex h-28 w-28 items-center justify-center overflow-hidden rounded-xl ${
+                    <div className={`flex h-40 w-40 items-center justify-center overflow-hidden rounded-xl ${
                       isSelected ? 'bg-white/20' : 'bg-gray-50'
                     } ring-1 ring-black/5 mb-3`}>
                       <img
@@ -356,7 +359,7 @@ export default function BrandDrilldown({ brandId, onComplete, className = '' }: 
       )}
 
       {/* Current Selection Summary */}
-      {selectedModelId && (
+      {selectedModelId && !showCategorySelection && (
         <div className="rounded-xl bg-gradient-to-br from-green-50 to-emerald-50 p-4 ring-1 ring-green-200 shadow-sm">
           <div className="flex items-start gap-3">
             <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-green-500">
@@ -379,9 +382,45 @@ export default function BrandDrilldown({ brandId, onComplete, className = '' }: 
                   <line x1="12" y1="16" x2="12" y2="12" />
                   <line x1="12" y1="8" x2="12.01" y2="8" />
                 </svg>
-                <span className="font-medium">Compatible parts are displayed below</span>
+                <span className="font-medium">Select a sub-model to proceed</span>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Category Selection (shown after sub-model selection) */}
+      {showCategorySelection && (
+        <div id="category-selection-section" className="rounded-xl bg-gradient-to-br from-purple-50 to-indigo-50 p-6 ring-1 ring-purple-200 shadow-sm">
+          <div className="flex items-start gap-3 mb-4">
+            <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-purple-500">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z" />
+              </svg>
+            </div>
+            <div className="flex-1">
+              <p className="text-[15px] font-bold text-purple-900">
+                Vehicle Selected Successfully!
+              </p>
+              <div className="mt-1 space-y-0.5 text-[12px] text-purple-800">
+                <p><span className="font-semibold">Brand:</span> {brandName}</p>
+                {selectedModelName && <p><span className="font-semibold">Model:</span> {selectedModelName}</p>}
+                {selectedSubModelName && <p><span className="font-semibold">Sub-Model:</span> {selectedSubModelName}</p>}
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-4 rounded-lg bg-white/60 p-4 border-2 border-dashed border-purple-300">
+            <div className="flex items-center gap-2 text-purple-900 mb-3">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 11l3 3L22 4" />
+                <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
+              </svg>
+              <span className="font-bold text-[14px]">Next Step: Select a Category</span>
+            </div>
+            <p className="text-[13px] text-purple-800">
+              Compatible parts are now ready! Please select a category from the options below to view the available products for your <strong>{brandName} {selectedModelName}</strong>.
+            </p>
           </div>
         </div>
       )}

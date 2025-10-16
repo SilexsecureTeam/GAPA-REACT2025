@@ -8,7 +8,7 @@ export default async function handler(req, res) {
     return
   }
   try {
-    const upstream = 'https://gapaautoparts.com/logistics/access-token'
+    const upstream = 'https://stockmgt.gapaautoparts.com/api/gig/access-token'
     const r = await fetch(upstream, { method: 'GET' })
     if (!r.ok) {
       const txt = await r.text().catch(()=> '')
