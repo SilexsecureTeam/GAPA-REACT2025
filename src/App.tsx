@@ -1,4 +1,5 @@
 import Header from './components/Header'
+import PageTitle from './components/PageTitle'
 import Footer from './components/Footer'
 import Home from './pages/Home'
 import CarParts from './pages/CarParts'
@@ -80,37 +81,37 @@ function App() {
       {onAuth ? <Header /> : <Header />}
       <main className={`bg-white ${onAuth ? 'pt-30 sm:pt-34' : 'pt-30 sm:pt-34'}`}>
         <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/parts" element={<CarParts />} />
-          <Route path="/tools" element={<Tools />} />
-          <Route path="/brakes" element={<Brakes />} />
-          <Route path="/tyres" element={<Tyres />} />
-          <Route path="/engine-oil" element={<EngineOil />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/signup" element={<SignUp />} />
-          <Route path="/profile" element={<Profile />} />
-          <Route path="/forgot-password" element={<ForgotPassword />} />
-          <Route path="/reset-password" element={<ResetPassword />} />
-          <Route path="/verify-otp" element={<VerifyOtp />} />
-          <Route path="/change-password" element={<ChangePassword />} />
-          <Route path="/parts/air-fresheners" element={<AirFresheners />} />
-          <Route path="/product/:id" element={<ProductDetails />} />
+          <Route path="/" element={<><PageTitle title="GAPA Naija - Genuine Auto Parts" /><Home /></>} />
+          <Route path="/parts" element={<><PageTitle title="Car Parts - GAPA Naija" /><CarParts /></>} />
+          <Route path="/tools" element={<><PageTitle title="Tools - GAPA Naija" /><Tools /></>} />
+          <Route path="/brakes" element={<><PageTitle title="Brakes - GAPA Naija" /><Brakes /></>} />
+          <Route path="/tyres" element={<><PageTitle title="Tyres - GAPA Naija" /><Tyres /></>} />
+          <Route path="/engine-oil" element={<><PageTitle title="Engine Oil - GAPA Naija" /><EngineOil /></>} />
+          <Route path="/login" element={<><PageTitle title="Login - GAPA Naija" /><Login /></>} />
+          <Route path="/signup" element={<><PageTitle title="Sign Up - GAPA Naija" /><SignUp /></>} />
+          <Route path="/profile" element={<><PageTitle title="Profile - GAPA Naija" /><Profile /></>} />
+          <Route path="/forgot-password" element={<><PageTitle title="Forgot Password - GAPA Naija" /><ForgotPassword /></>} />
+          <Route path="/reset-password" element={<><PageTitle title="Reset Password - GAPA Naija" /><ResetPassword /></>} />
+          <Route path="/verify-otp" element={<><PageTitle title="Verify OTP - GAPA Naija" /><VerifyOtp /></>} />
+          <Route path="/change-password" element={<><PageTitle title="Change Password - GAPA Naija" /><ChangePassword /></>} />
+          <Route path="/parts/air-fresheners" element={<><PageTitle title="Air Fresheners - GAPA Naija" /><AirFresheners /></>} />
+          <Route path="/product/:id" element={<><PageTitle title="Product Details - GAPA Naija" /><ProductDetails /></>} />
           {/* Legacy product route: redirect to search-error for now */}
           <Route path="/parts/product/:slug" element={<Navigate to="/search-error" replace />} />
-          <Route path="/search-error" element={<SearchError />} />
-          <Route path="/parts/:brand/:part" element={<CarPartDetails />} />
-          <Route path="/parts/:part" element={<CarPartDetails />} />
-          <Route path="/checkout" element={<Checkout />} />
-          <Route path="/order-success" element={<OrderSuccess />} />
-          <Route path="/order-history" element={<OrderHistory />} />
-          <Route path="/wishlist" element={<Wishlist />} />
+          <Route path="/search-error" element={<><PageTitle title="Not Found - GAPA Naija" /><SearchError /></>} />
+          <Route path="/parts/:brand/:part" element={<><PageTitle title="Car Part Details - GAPA Naija" /><CarPartDetails /></>} />
+          <Route path="/parts/:part" element={<><PageTitle title="Car Part Details - GAPA Naija" /><CarPartDetails /></>} />
+          <Route path="/checkout" element={<><PageTitle title="Checkout - GAPA Naija" /><Checkout /></>} />
+          <Route path="/order-success" element={<><PageTitle title="Order Success - GAPA Naija" /><OrderSuccess /></>} />
+          <Route path="/order-history" element={<><PageTitle title="Order History - GAPA Naija" /><OrderHistory /></>} />
+          <Route path="/wishlist" element={<><PageTitle title="Wishlist - GAPA Naija" /><Wishlist /></>} />
           {/* New static pages */}
-          <Route path="/privacy-policy" element={<PrivacyPolicy />} />
-          <Route path="/terms" element={<TermsAndConditions />} />
-          <Route path="/about" element={<About />} />
-          <Route path="/contact" element={<Contact />} />
+          <Route path="/privacy-policy" element={<><PageTitle title="Privacy Policy - GAPA Naija" /><PrivacyPolicy /></>} />
+          <Route path="/terms" element={<><PageTitle title="Terms & Conditions - GAPA Naija" /><TermsAndConditions /></>} />
+          <Route path="/about" element={<><PageTitle title="About Us - GAPA Naija" /><About /></>} />
+          <Route path="/contact" element={<><PageTitle title="Contact - GAPA Naija" /><Contact /></>} />
           {/* Account settings */}
-          <Route path="/account-settings" element={<AccountSettings />} />
+          <Route path="/account-settings" element={<><PageTitle title="Account Settings - GAPA Naija" /><AccountSettings /></>} />
         </Routes>
       </main>
       {onAuth ? <Footer /> : <Footer />}

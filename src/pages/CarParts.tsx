@@ -1010,7 +1010,75 @@ function CarPartsInner() {
     return ssc?.name || ''
   }, [subSubCats, activeSubSubCatId])
 
+  // Lifted pagination / derived filters to top-level so hooks are not called inside JSX
+  // Category filter for brand drilldown (extracted from inline block)
+  const categoryFiltered = useMemo(() => {
+    if (!brandDrilldownCategoryFilter) return filtered
+    return filtered.filter((p) => {
+      const raw = (p as any)?.category
+      const catName = resolveCategoryName(raw) || categoryOf(p)
+      return String(catName).toLowerCase() === String(brandDrilldownCategoryFilter).toLowerCase()
+    })
+  }, [filtered, brandDrilldownCategoryFilter, resolveCategoryName])
+
+
   // --- Brand filter mode (from header brand selection) ---
+  // Pagination constants
+  // Pagination helper component and helpers
+  function PaginationControls({ page, setPage, pageSize, setPageSize, total }: { page: number; setPage: (n:number)=>void; pageSize: number; setPageSize: (n:number)=>void; total: number }) {
+    const totalPages = Math.max(1, Math.ceil(total / pageSize))
+    const pages = Array.from({ length: totalPages }, (_, i) => i + 1)
+    return (
+      <div className="mt-6 flex items-center justify-center gap-3">
+        <div className="flex items-center gap-2">
+          <label className="text-sm text-gray-600">Show</label>
+          <select value={pageSize} onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1) }} className="rounded border px-2 py-1 text-sm">
+            <option value={8}>8</option>
+            <option value={12}>12</option>
+            <option value={16}>16</option>
+            <option value={24}>24</option>
+          </select>
+        </div>
+        <div className="flex items-center gap-1">
+          <button disabled={page === 1} onClick={() => setPage(Math.max(1, page - 1))} className="px-3 py-1 rounded bg-gray-100 text-gray-700">Prev</button>
+          {pages.map((p) => (
+            <button key={p} onClick={() => setPage(p)} className={`px-3 py-1 rounded ${p === page ? 'bg-brand text-white' : 'bg-gray-100 text-gray-700'}`}>{p}</button>
+          ))}
+          <button disabled={page === totalPages} onClick={() => setPage(Math.min(totalPages, page + 1))} className="px-3 py-1 rounded bg-gray-100 text-gray-700">Next</button>
+        </div>
+      </div>
+    )
+  }
+
+  const PAGE_SIZE_DEFAULT = 16;
+  const [brandPage, setBrandPage] = useState(1);
+  const [brandPageSize, setBrandPageSize] = useState(PAGE_SIZE_DEFAULT);
+  const paginatedBrandProducts = filtered.slice((brandPage - 1) * brandPageSize, brandPage * brandPageSize);
+
+  // Pagination for the general "filtered" grid (vehicle-engine filtered block)
+  const [filteredPage, setFilteredPage] = useState(1)
+  const [filteredPageSize, setFilteredPageSize] = useState(12)
+  useEffect(() => { setFilteredPage(1) }, [filtered, filteredPageSize])
+  const filteredPaged = filtered.slice((filteredPage - 1) * filteredPageSize, filteredPage * filteredPageSize)
+
+  // Pagination for brand-drilldown categoryFiltered
+  const [categoryPage, setCategoryPage] = useState(1)
+  const [categoryPageSize, setCategoryPageSize] = useState(12)
+  useEffect(() => { setCategoryPage(1) }, [categoryFiltered, categoryPageSize])
+  const categoryPaged = categoryFiltered.slice((categoryPage - 1) * categoryPageSize, categoryPage * categoryPageSize)
+
+  // Pagination for sub-sub-category products (filteredSubProducts)
+  const [subProductsPage, setSubProductsPage] = useState(1)
+  const [subProductsPageSize, setSubProductsPageSize] = useState(12)
+  useEffect(() => { setSubProductsPage(1) }, [filteredSubProducts, subProductsPageSize])
+  const subProductsPaged = filteredSubProducts.slice((subProductsPage - 1) * subProductsPageSize, subProductsPage * subProductsPageSize)
+
+  // Pagination for search results
+  const [searchPage, setSearchPage] = useState(1)
+  const [searchPageSize, setSearchPageSize] = useState(12)
+  useEffect(() => { setSearchPage(1) }, [filteredSearchResults, searchPageSize])
+  const searchPaged = filteredSearchResults.slice((searchPage - 1) * searchPageSize, searchPage * searchPageSize)
+
   if (activeBrandFilter && !qParam && !activeCatId) {
     return (
       <div className="bg-white !pt-10">
@@ -1150,20 +1218,24 @@ function CarPartsInner() {
                     </div>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                    {filtered.map((p, i) => {
-                      const cardProduct = mapProductToActionData(p, i)
-                      return (
-                        <ProductActionCard
-                          key={cardProduct.id}
-                          product={cardProduct}
-                          enableView={true}
-                          onView={() => onViewProduct(p)}
-                          onAddToCart={() => onAddToCart(p)}
-                        />
-                      )
-                    })}
-                  </div>
+                  <>
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                      {paginatedBrandProducts.map((p, i) => {
+                        const cardProduct = mapProductToActionData(p, i)
+                        return (
+                          <ProductActionCard
+                            key={cardProduct.id}
+                            product={cardProduct}
+                            enableView={true}
+                            onView={() => onViewProduct(p)}
+                            onAddToCart={() => onAddToCart(p)}
+                          />
+                        )
+                      })}
+                    </div>
+                    {/* Pagination Controls */}
+                    <PaginationControls page={brandPage} setPage={setBrandPage} pageSize={brandPageSize} setPageSize={setBrandPageSize} total={filtered.length} />
+                  </>
                 )}
               </div>
             </div>
@@ -1272,19 +1344,22 @@ function CarPartsInner() {
                   No compatible parts found for {activeVehicleBrand} {activeVehicleModel} {activeVehicleEngine}.
                 </div>
               ) : (
-                <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                  {filtered.map((p, i) => {
-                    const cardProduct = mapProductToActionData(p, i)
-                    return (
-                      <ProductActionCard
-                        key={cardProduct.id}
-                        product={cardProduct}
-                        enableView={true}
-                        onView={() => onViewProduct(p)}
-                        onAddToCart={() => onAddToCart(p)}
-                      />
-                    )
-                  })}
+                <div>
+                  <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                    {filteredPaged.map((p, i) => {
+                      const cardProduct = mapProductToActionData(p, i)
+                      return (
+                        <ProductActionCard
+                          key={cardProduct.id}
+                          product={cardProduct}
+                          enableView={true}
+                          onView={() => onViewProduct(p)}
+                          onAddToCart={() => onAddToCart(p)}
+                        />
+                      )
+                    })}
+                  </div>
+                  <PaginationControls page={filteredPage} setPage={setFilteredPage} pageSize={filteredPageSize} setPageSize={setFilteredPageSize} total={filtered.length} />
                 </div>
               )}
             </div>
@@ -1327,16 +1402,6 @@ function CarPartsInner() {
               />
 
               {/* Show filtered products once brand and model are selected */}
-              {(() => {
-                console.log('🎨 Render check:', {
-                  brandName: vehFilter.brandName,
-                  modelName: vehFilter.modelName,
-                  willShow: !!(vehFilter.brandName && vehFilter.modelName),
-                  filteredCount: filtered.length,
-                  loading
-                })
-                return null
-              })()}
               {vehFilter.brandName && vehFilter.modelName && (
                 <div id="compatible-parts-section" ref={productsRef} className="mt-8">
                   {/* Category Filter Pills for Brand Drilldown */}
@@ -1353,15 +1418,6 @@ function CarPartsInner() {
                     const availableCategoriesForBrand = Array.from(categoryMap.entries())
                       .map(([name, count]) => ({ name, count }))
                       .sort((a, b) => a.name.localeCompare(b.name))
-
-                    // Apply category filter to products
-                    const categoryFiltered = brandDrilldownCategoryFilter
-                      ? filtered.filter((p) => {
-                          const raw = (p as any)?.category
-                          const catName = resolveCategoryName(raw) || categoryOf(p)
-                          return catName.toLowerCase() === brandDrilldownCategoryFilter.toLowerCase()
-                        })
-                      : filtered
 
                     return (
                       <>
@@ -1446,19 +1502,22 @@ function CarPartsInner() {
                             )}
                           </div>
                         ) : (
-                          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-                            {categoryFiltered.map((product) => {
-                              const cardProduct = mapProductToActionData(product, categoryFiltered.indexOf(product))
-                              return (
-                                <ProductActionCard
-                                  key={product.item_id}
-                                  product={cardProduct}
-                                  enableView={true}
-                                  onView={() => onViewProduct(product)}
-                                  onAddToCart={() => onAddToCart(product)}
-                                />
-                              )
-                            })}
+                          <div>
+                            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+                              {categoryPaged.map((product) => {
+                                const cardProduct = mapProductToActionData(product, categoryFiltered.indexOf(product))
+                                return (
+                                  <ProductActionCard
+                                    key={String(product.item_id || product.id || product.product_id)}
+                                    product={cardProduct}
+                                    enableView={true}
+                                    onView={() => onViewProduct(product)}
+                                    onAddToCart={() => onAddToCart(product)}
+                                  />
+                                )
+                              })}
+                            </div>
+                            <PaginationControls page={categoryPage} setPage={setCategoryPage} pageSize={categoryPageSize} setPageSize={setCategoryPageSize} total={categoryFiltered.length} />
                           </div>
                         )}
                       </>
@@ -1998,28 +2057,35 @@ function CarPartsInner() {
               {activeSubSubCatId && (
                 <div className="mt-10" ref={productsSectionRef}>
                   <h3 className="text-[16px] font-semibold text-gray-900">{activeTypeName || 'Products'}</h3>
-                  {subProductsLoading ? (
+                  {subProductsLoading && (
                     <div className="mt-3"><FallbackLoader label="Loading products…" /></div>
-                  ) : filteredSubProducts.length === 0 ? (
+                  )}
+
+                  {!subProductsLoading && filteredSubProducts.length === 0 && (
                     <div className="mt-3 text-sm text-gray-700">
                       {(!NON_VEHICLE_CATEGORY_IDS.has(String(activeCatId)) && hasVehicleFilter)
                         ? 'No compatible products for your selected vehicle in this type. Adjust or reset the vehicle filter.'
                         : 'No products found under this type.'}
                     </div>
-                  ) : (
-                    <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                      {filteredSubProducts.map((p, i) => {
-                        const cardProduct = mapProductToActionData(p, i)
-                        return (
-                          <ProductActionCard
-                            key={cardProduct.id}
-                            product={cardProduct}
-                            enableView={true}
-                            onView={() => onViewProduct(p)}
-                            onAddToCart={() => onAddToCart(p)}
-                          />
-                        )
-                      })}
+                  )}
+
+                  {!subProductsLoading && filteredSubProducts.length > 0 && (
+                    <div>
+                      <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                        {subProductsPaged.map((p, i) => {
+                          const cardProduct = mapProductToActionData(p, i)
+                          return (
+                            <ProductActionCard
+                              key={cardProduct.id}
+                              product={cardProduct}
+                              enableView={true}
+                              onView={() => onViewProduct(p)}
+                              onAddToCart={() => onAddToCart(p)}
+                            />
+                          )
+                        })}
+                      </div>
+                      <PaginationControls page={subProductsPage} setPage={setSubProductsPage} pageSize={subProductsPageSize} setPageSize={setSubProductsPageSize} total={filteredSubProducts.length} />
                     </div>
                   )}
                 </div>
@@ -2228,7 +2294,7 @@ function CarPartsInner() {
                       </div>
                     </div>
                     <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                      {filteredSearchResults.map((p: ApiProduct, i: number) => {
+                      {searchPaged.map((p: ApiProduct, i: number) => {
                         const cardProduct = mapProductToActionData(p, i)
                         return (
                           <ProductActionCard
@@ -2241,6 +2307,7 @@ function CarPartsInner() {
                         )
                       })}
                     </ul>
+                    <PaginationControls page={searchPage} setPage={setSearchPage} pageSize={searchPageSize} setPageSize={setSearchPageSize} total={filteredSearchResults.length} />
                   </>
                 )}
               </div>

@@ -335,6 +335,7 @@ export default function ProductDetails() {
       if (!item) return
       if (typeof item === 'string') { 
         item.split(/\n+/).map((s: string) => s.trim()).filter(Boolean).forEach((s: string) => out.push(s))
+        item.split('YEAR OF CONSTRUCTION').map((s: string) => s.trim()).filter(Boolean).forEach((s: string) => out.push(s))
         return 
       }
       if (Array.isArray(item)) { item.forEach(push); return }
@@ -760,11 +761,23 @@ export default function ProductDetails() {
                 <div>
                   <h2 className="mb-4 text-xl font-bold text-gray-900">Suitable Vehicles</h2>
                   <div className="max-h-96 space-y-2 overflow-y-auto">
-                    {compatibility.map((vehicle, i) => (
-                      <div key={i} className="rounded-lg bg-gray-50 px-4 py-3 text-sm text-gray-700">
-                        {vehicle}
-                      </div>
-                    ))}
+                    {compatibility.map((vehicle, i) => {
+                      // Split at "YEAR OF CONSTRUCTION"
+                      const splitIdx = vehicle.toUpperCase().indexOf('YEAR OF CONSTRUCTION');
+                      let model = vehicle, details = '';
+                      if (splitIdx !== -1) {
+                        model = vehicle.slice(0, splitIdx).trim();
+                        details = vehicle.slice(splitIdx).trim();
+                      }
+                      return (
+                        <details key={i} className="rounded-lg bg-gray-50 px-4 py-3 text-sm text-gray-700">
+                          <summary className="cursor-pointer font-semibold">{model || vehicle}</summary>
+                          {details && (
+                            <div className="mt-2 pl-2 text-gray-600">{details}</div>
+                          )}
+                        </details>
+                      );
+                    })}
                   </div>
                 </div>
               )}

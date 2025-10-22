@@ -1,6 +1,13 @@
 import { useMemo, useRef } from 'react'
 import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import logo from '../assets/gapa-logo.png'
+// Helper to get absolute URL for images
+function toAbsoluteUrl(src: string) {
+  if (!src) return '';
+  if (/^https?:\/\//.test(src)) return src;
+  if (src.startsWith('/')) return window.location.origin + src;
+  return window.location.origin + '/' + src.replace(/^\//, '');
+}
 
 export default function OrderSuccess() {
   const navigate = useNavigate()
@@ -36,7 +43,46 @@ export default function OrderSuccess() {
   }
 
   const handlePrint = () => {
-    window.print()
+    if (!receiptRef.current) return;
+    // Clone the receipt node so we can adjust image URLs
+    const clone = receiptRef.current.cloneNode(true) as HTMLElement;
+    // Fix all img src to absolute URLs
+    clone.querySelectorAll('img').forEach(img => {
+      if (img.src) img.src = toAbsoluteUrl(img.getAttribute('src') || img.src);
+    });
+    // Collect all stylesheets and style tags from the main document
+    let styles = '';
+    document.querySelectorAll('link[rel="stylesheet"], style').forEach((el) => {
+      if (el.tagName === 'LINK') {
+        const href = (el as HTMLLinkElement).href;
+        if (href) styles += `<link rel="stylesheet" href="${href}">`;
+      } else if (el.tagName === 'STYLE') {
+        styles += `<style>${el.innerHTML}</style>`;
+      }
+    });
+    const printWindow = window.open('', '', 'width=800,height=600');
+    if (!printWindow) return;
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Order Receipt</title>
+          ${styles}
+          <style>
+            body { background: white; margin: 0; padding: 0; }
+            @media print { .print\\:hidden { display: none !important; } }
+          </style>
+        </head>
+        <body>
+          <div>${clone.innerHTML}</div>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => {
+      printWindow.print();
+      printWindow.close();
+    }, 400);
   }
 
   return (
@@ -81,7 +127,7 @@ export default function OrderSuccess() {
           <div className="border-b border-gray-200 bg-gradient-to-r from-[#201A2B] to-[#350e49] p-8 text-white print:bg-[#201A2B]">
             <div className="flex items-start justify-between">
               <div>
-                <img src={logo} alt="GAPA Auto Parts" className="h-12 w-auto" />
+                <img src={toAbsoluteUrl(logo)} alt="GAPA Auto Parts" className="h-12 w-auto" />
                 <h2 className="mt-4 text-2xl font-bold">Order Receipt</h2>
                 <p className="mt-1 text-sm text-gray-300">Thank you for your purchase</p>
               </div>
@@ -197,8 +243,8 @@ export default function OrderSuccess() {
             <div className="grid gap-6 text-center md:grid-cols-3 md:text-left">
               <div>
                 <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Customer Support</h4>
-                <p className="text-sm text-gray-700">Email: support@gapaautoparts.com</p>
-                <p className="text-sm text-gray-700">Phone: +234 XXX XXX XXXX</p>
+                <p className="text-sm text-gray-700">Email: sales@gapaautoparts.com</p>
+                <p className="text-sm text-gray-700">Phone: +234 708 888 5268</p>
               </div>
               <div>
                 <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Business Hours</h4>

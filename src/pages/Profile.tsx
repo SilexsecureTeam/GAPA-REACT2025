@@ -154,7 +154,7 @@ export default function Profile() {
                 <p className="mt-1 text-sm text-gray-600">Manage your account information & security settings.</p>
               </div>
               <button
-                onClick={() => { logout(); toast.success('Signed out') }}
+                onClick={async () => { await logout(); toast.success('Signed out') }}
                 className="rounded-md bg-brand px-4 py-2 text-sm font-semibold text-white hover:brightness-110"
               >Sign out</button>
             </div>

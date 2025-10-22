@@ -7,7 +7,7 @@ import cartImg from '../assets/cart.svg'
 
 // Removed unused icons h2-h7
 import { useAuth } from '../services/auth'
-import { getAllCategories, type ApiCategory, getAllBrands, type ApiBrand, getSubCategories, getSubSubCategories, getCartForUser } from '../services/api'
+import { getAllCategories, type ApiCategory, getAllBrands, type ApiBrand, getSubCategories, getSubSubCategories, getCartForUser, logout as apiLogout } from '../services/api'
 // added getCartForUser import
 import { categoryImageFrom, normalizeApiImage, pickImage, brandImageFrom, subCategoryImageFrom, subSubCategoryImageFrom } from '../services/images'
 import { getGuestCart } from '../services/cart'
@@ -58,7 +58,7 @@ export default function Header() {
   const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(-1)
   const searchRef = useRef<HTMLDivElement>(null)
   const mobileSearchRef = useRef<HTMLDivElement>(null)
-  const { user } = useAuth()
+  const { user, logout: authLogout } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -80,7 +80,7 @@ export default function Header() {
 
   // Cart count state (now uses API for authenticated users)
   const [cartCount, setCartCount] = useState<number>(0)
-  
+
   // NEW: Mobile responsive UI state
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false)
@@ -106,7 +106,7 @@ export default function Header() {
   // Close mobile panels on route change
   useEffect(() => { closeAllMobile() }, [location.pathname, location.hash])
 
-  // Hover-delay timer for category dropdown (2 seconds)
+  // Hover-delay timer for category dropdown (1 seconds)
   const hoverTimerRef = useRef<number | null>(null)
   const clearHoverTimer = () => { if (hoverTimerRef.current) { window.clearTimeout(hoverTimerRef.current); hoverTimerRef.current = null } }
   const openCategoryWithDelay = (idx: number, catId: string | number) => {
@@ -116,7 +116,7 @@ export default function Header() {
       setCarPartsOpen(true)
       setActiveCatIdx(idx)
       await fetchSubCats(catId)
-    }, 2000)
+    }, 1000)
   }
 
   useEffect(() => {
@@ -154,17 +154,17 @@ export default function Header() {
       const bLower = b.toLowerCase()
       const aStarts = aLower.startsWith(term)
       const bStarts = bLower.startsWith(term)
-      
+
       // Prioritize starts-with matches
       if (aStarts && !bStarts) return -1
       if (!aStarts && bStarts) return 1
-      
+
       // Then by word boundary matches
       const aWordMatch = new RegExp(`\\b${term}`, 'i').test(a)
       const bWordMatch = new RegExp(`\\b${term}`, 'i').test(b)
       if (aWordMatch && !bWordMatch) return -1
       if (!aWordMatch && bWordMatch) return 1
-      
+
       // Finally alphabetically
       return a.localeCompare(b)
     }).slice(0, 8) // Limit to 8 suggestions
@@ -216,7 +216,7 @@ export default function Header() {
     switch (e.key) {
       case 'ArrowDown':
         e.preventDefault()
-        setActiveSuggestionIndex(prev => 
+        setActiveSuggestionIndex(prev =>
           prev < filteredSuggestions.length - 1 ? prev + 1 : prev
         )
         break
@@ -335,8 +335,8 @@ export default function Header() {
           if (!cancelled) setCartCount(count)
         } else {
           const guest = getGuestCart()
-            const total = guest.items.reduce((sum, it) => sum + (Number(it.quantity) || 0), 0)
-            if (!cancelled) setCartCount(total)
+          const total = guest.items.reduce((sum, it) => sum + (Number(it.quantity) || 0), 0)
+          if (!cancelled) setCartCount(total)
         }
       } catch {
         if (!cancelled) setCartCount(0)
@@ -380,6 +380,15 @@ export default function Header() {
     return lower ? lower.charAt(0).toUpperCase() + lower.slice(1) : s
   }
 
+  const handleSignOut = async () => {
+    setProfileDropdownOpen(false)
+    // Clear client session first so other components stop using the token/user immediately
+    try { await authLogout() } catch (e) { /* ignore */ }
+    // Notify server of logout (best-effort)
+    try { await apiLogout() } catch (e) { /* ignore */ }
+    navigate('/login')
+  }
+
   return (
     <header className="fixed w-full top-0 z-50 shadow-sm" onKeyDown={(e) => { if (e.key === 'Escape') { closeMenus(); closeAllMobile() } }}>
       {/* Mobile backdrop */}
@@ -389,7 +398,7 @@ export default function Header() {
       {/* Top promo strip */}
       <div className="bg-brand text-white py-1">
         <div className="mx-auto flex h-10 max-w-7xl items-center justify-between px-4 sm:px-6">
-            <div />
+          <div />
           <p className="text-[14px] font-normal tracking-wide hidden sm:block">
             Free Delivery on Orders Over ₦50,000 – Limited Time!
           </p>
@@ -424,9 +433,9 @@ export default function Header() {
               className="inline-flex h-10 w-10 items-center justify-center rounded-md bg-white/70 ring-1 ring-black/10 text-gray-800 hover:bg-white"
             >
               {mobileMenuOpen ? (
-                <svg width="20" height="20" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+                <svg width="20" height="20" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6L6 18" /><path d="M6 6l12 12" /></svg>
               ) : (
-                <svg width="20" height="20" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+                <svg width="20" height="20" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" /></svg>
               )}
             </button>
           </div>
@@ -436,32 +445,32 @@ export default function Header() {
               src={logo}
               onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/gapa-logo.png' }}
               alt="Gapa Naija"
-              className="h-8 w-auto md:h-9"
+              className="h-8 w-auto md:h-10"
             />
           </Link>
 
           {/* Desktop Search */}
-          <div ref={searchRef} className="hidden md:block w-full relative">
+          <div ref={searchRef} className="hidden md:block w-[90%] mx-auto relative">
             <form onSubmit={onSearch} className="relative">
               <div className="relative flex h-10 sm:h-11 w-full overflow-hidden rounded-md bg-white ring-1 ring-black/10 focus-within:ring-black/20">
                 <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
                 </div>
-                <input 
-                  value={query} 
-                  onChange={(e) => setQuery(e.target.value)} 
+                <input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
                   onKeyDown={handleKeyDown}
                   onFocus={() => query.trim().length >= 2 && filteredSuggestions.length > 0 && setShowSuggestions(true)}
-                  type="text" 
-                  placeholder="Enter the part number or name" 
-                  className="h-full w-full pl-10 pr-28 text-[14px] outline-none placeholder:text-gray-400" 
+                  type="text"
+                  placeholder="Enter the part number or name"
+                  className="h-full w-full pl-10 pr-28 text-[14px] outline-none placeholder:text-gray-400"
                   aria-label="Search parts"
                   autoComplete="off"
                 />
                 <button type="submit" className="absolute right-0 top-0 rounded-md h-full px-5 text-[13px] font-semibold text-white transition-colors bg-brand hover:brightness-110">Search</button>
               </div>
             </form>
-            
+
             {/* Search Suggestions Dropdown */}
             {showSuggestions && filteredSuggestions.length > 0 && (
               <div className="absolute top-full left-0 right-0 mt-1 bg-white rounded-lg shadow-lg ring-1 ring-black/10 max-h-[400px] overflow-y-auto z-50">
@@ -471,13 +480,12 @@ export default function Header() {
                     type="button"
                     onClick={() => handleSuggestionClick(suggestion)}
                     onMouseEnter={() => setActiveSuggestionIndex(index)}
-                    className={`w-full text-left px-4 py-2.5 text-[14px] hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-b-0 ${
-                      index === activeSuggestionIndex ? 'bg-gray-50' : ''
-                    }`}
+                    className={`w-full text-left px-4 py-2.5 text-[14px] hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-b-0 ${index === activeSuggestionIndex ? 'bg-gray-50' : ''
+                      }`}
                   >
                     <div className="flex items-center gap-2">
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-400 flex-shrink-0">
-                        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                        <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
                       </svg>
                       <span className="text-gray-700">{suggestion}</span>
                     </div>
@@ -497,7 +505,7 @@ export default function Header() {
             </a>
             {/* Cart */}
             <Link to={{ pathname: location.pathname, search: location.search, hash: '#cart' }} replace className="hidden md:inline-flex items-center gap-2 text-[14px] text-gray-900 relative">
-              <img src={cartImg} alt="" className='w-[22px]'/>
+              <img src={cartImg} alt="" className='w-[22px]' />
               <span className="font-medium">My Cart</span>
               {cartCount > 0 && (
                 <span aria-label={`Cart item count: ${cartCount}`} className="absolute -right-3 -top-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-purple-600 px-1.5 text-[11px] font-bold text-white ring-2 ring-white">
@@ -517,14 +525,14 @@ export default function Header() {
                     {(user.name || user.email || 'U').charAt(0).toUpperCase()}
                   </div>
                   <span className="truncate max-w-[100px]">{user.name || user.email}</span>
-                  <svg 
-                    width="16" 
-                    height="16" 
-                    viewBox="0 0 24 24" 
-                    fill="none" 
-                    stroke="currentColor" 
-                    strokeWidth="2" 
-                    strokeLinecap="round" 
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
                     strokeLinejoin="round"
                     className={`transition-transform ${profileDropdownOpen ? 'rotate-180' : ''}`}
                   >
@@ -614,11 +622,7 @@ export default function Header() {
                       <div className="my-2 border-t border-gray-100" />
 
                       <button
-                        onClick={() => {
-                          setProfileDropdownOpen(false)
-                          // Add your logout logic here
-                          navigate('/login')
-                        }}
+                        onClick={handleSignOut}
                         className="flex w-full items-center gap-3 px-4 py-2.5 text-[14px] text-red-600 hover:bg-red-50 transition-colors"
                       >
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -659,9 +663,9 @@ export default function Header() {
               {cartCount > 0 && (<span className="absolute -right-1 -top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-purple-600 px-1 text-[10px] font-bold text-white ring-2 ring-white">{cartCount}</span>)}
             </Link>
             {user ? (
-              <button 
-                onClick={() => setMobileMenuOpen(true)} 
-                aria-label="Profile menu" 
+              <button
+                onClick={() => setMobileMenuOpen(true)}
+                aria-label="Profile menu"
                 className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-brand to-yellow-500 text-white font-bold text-[14px] ring-2 ring-white shadow-md hover:shadow-lg transition-all"
               >
                 {(user.name || user.email || 'U').charAt(0).toUpperCase()}
@@ -680,27 +684,27 @@ export default function Header() {
             <form onSubmit={(e) => { onSearch(e); setMobileSearchOpen(false) }} className="relative">
               <div className="relative flex h-11 w-full overflow-hidden rounded-lg bg-white ring-1 ring-black/10 focus-within:ring-black/20 shadow">
                 <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
                 </div>
-                <input 
-                  id="mobile-search-input" 
-                  value={query} 
-                  onChange={(e) => setQuery(e.target.value)} 
+                <input
+                  id="mobile-search-input"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
                   onKeyDown={handleKeyDown}
                   onFocus={() => query.trim().length >= 2 && filteredSuggestions.length > 0 && setShowSuggestions(true)}
-                  placeholder="Search parts" 
+                  placeholder="Search parts"
                   className="h-full w-full pl-10 pr-24 text-[14px] outline-none"
                   autoComplete="off"
                 />
                 <div className="absolute right-0 top-0 flex h-full items-center gap-1 pr-1">
                   <button type="button" onClick={() => setMobileSearchOpen(false)} className="inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-600 hover:bg-gray-100" aria-label="Close search">
-                    <svg width="16" height="16" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+                    <svg width="16" height="16" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6L6 18" /><path d="M6 6l12 12" /></svg>
                   </button>
                   <button type="submit" className="h-8 px-3 rounded-md bg-brand text-[12px] font-semibold text-white hover:brightness-110">Go</button>
                 </div>
               </div>
             </form>
-            
+
             {/* Mobile Search Suggestions */}
             {showSuggestions && filteredSuggestions.length > 0 && (
               <div className="mt-2 bg-white rounded-lg shadow-lg ring-1 ring-black/10 max-h-[300px] overflow-y-auto">
@@ -710,13 +714,12 @@ export default function Header() {
                     type="button"
                     onClick={() => { handleSuggestionClick(suggestion); setMobileSearchOpen(false) }}
                     onMouseEnter={() => setActiveSuggestionIndex(index)}
-                    className={`w-full text-left px-4 py-2.5 text-[14px] hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-b-0 ${
-                      index === activeSuggestionIndex ? 'bg-gray-50' : ''
-                    }`}
+                    className={`w-full text-left px-4 py-2.5 text-[14px] hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-b-0 ${index === activeSuggestionIndex ? 'bg-gray-50' : ''
+                      }`}
                   >
                     <div className="flex items-center gap-2">
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-400 flex-shrink-0">
-                        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                        <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
                       </svg>
                       <span className="text-gray-700">{suggestion}</span>
                     </div>
@@ -739,9 +742,8 @@ export default function Header() {
               onMouseEnter={async () => { clearHoverTimer(); setBrandsOpen(true); setCarPartsOpen(false); await ensureBrandsMenuLoaded() }}
               onFocus={async () => { clearHoverTimer(); setBrandsOpen(true); setCarPartsOpen(false); await ensureBrandsMenuLoaded() }}
               onClick={async (e) => { e.preventDefault(); clearHoverTimer(); const willOpen = !brandsOpen; setBrandsOpen(willOpen); setCarPartsOpen(false); if (willOpen) await ensureBrandsMenuLoaded() }}
-              className={`group inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-md px-2.5 py-1.5 text-[13px] sm:text-[14px] font-medium ${
-                brandsOpen ? 'bg-white/10 text-white' : 'text-white/90 hover:text-white hover:bg-white/10'
-              }`}
+              className={`group inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-md px-2.5 py-1.5 text-[13px] sm:text-[14px] font-medium ${brandsOpen ? 'bg-white/10 text-white' : 'text-white/90 hover:text-white hover:bg-white/10'
+                }`}
               aria-haspopup
               aria-expanded={brandsOpen}
             >
@@ -774,9 +776,8 @@ export default function Header() {
                     else navigate(`/parts?catId=${encodeURIComponent(c.id)}`)
                     setCarPartsOpen(false)
                   }}
-                  className={`group capitalized inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-md px-2.5 py-1.5 text-[13px] sm:text-[14px] font-medium ${
-                    isActive ? 'bg-white/10 text-white' : 'text-white/90 hover:text-white hover:bg-white/10'
-                  }`}
+                  className={`group capitalized inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-md px-2.5 py-1.5 text-[13px] sm:text-[14px] font-medium ${isActive ? 'bg-white/10 text-white' : 'text-white/90 hover:text-white hover:bg-white/10'
+                    }`}
                   aria-haspopup
                   aria-expanded={isActive}
                 >
@@ -806,11 +807,11 @@ export default function Header() {
                             onMouseEnter={() => { setActiveCatIdx(idx); fetchSubCats(c.id) }}
                             onFocus={() => { setActiveCatIdx(idx); fetchSubCats(c.id) }}
                             onClick={() => { setActiveCatIdx(idx); fetchSubCats(c.id); navigate(`/parts?catId=${encodeURIComponent(c.id)}`); setCarPartsOpen(false) }}
-                            className={`flex w-full items-center gap-3 rounded-md px-2.5 py-2 text-left text-[14px] hover:bg-gray-50 ${activeCatIdx===idx ? 'bg-gray-50 text-brand' : 'text-gray-800'}`}
-                            aria-current={activeCatIdx===idx}
+                            className={`flex w-full items-center gap-3 rounded-md px-2.5 py-2 text-left text-[14px] hover:bg-gray-50 ${activeCatIdx === idx ? 'bg-gray-50 text-brand' : 'text-gray-800'}`}
+                            aria-current={activeCatIdx === idx}
                           >
                             <span className="flex h-8 w-8 items-center justify-center overflow-hidden rounded bg-[#F6F5FA] ring-1 ring-black/10">
-                              <img src={c.image} alt="" className="h-full w-full object-contain" onError={(e)=>{(e.currentTarget as HTMLImageElement).src='/gapa-logo.png'}} />
+                              <img src={c.image} alt="" className="h-full w-full object-contain" onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/gapa-logo.png' }} />
                             </span>
                             <span className="truncate">{c.name}</span>
                           </button>
@@ -840,7 +841,7 @@ export default function Header() {
                                   className="group flex items-center gap-3 rounded-md p-2 ring-1 ring-black/5 hover:bg-gray-50 w-full text-left"
                                 >
                                   <span className="flex h-10 w-10 items-center justify-center overflow-hidden rounded bg-[#F6F5FA] ring-1 ring-black/10">
-                                    <img src={sc.image} alt="" className="h-full w-full object-contain" onError={(e)=>{(e.currentTarget as HTMLImageElement).src='/gapa-logo.png'}} />
+                                    <img src={sc.image} alt="" className="h-full w-full object-contain" onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/gapa-logo.png' }} />
                                   </span>
                                   <span className="text-[14px] text-brand group-hover:underline truncate">{sc.name}</span>
                                 </button>
@@ -876,7 +877,7 @@ export default function Header() {
                                       onClick={() => setCarPartsOpen(false)}
                                     >
                                       <span className="flex h-10 w-10 items-center justify-center overflow-hidden rounded bg-[#F6F5FA] ring-1 ring-black/10">
-                                        <img src={ssc.image} alt="" className="h-full w-full object-contain" onError={(e)=>{(e.currentTarget as HTMLImageElement).src='/gapa-logo.png'}} />
+                                        <img src={ssc.image} alt="" className="h-full w-full object-contain" onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/gapa-logo.png' }} />
                                       </span>
                                       <span className="text-[14px] text-brand group-hover:underline truncate">{ssc.name}</span>
                                     </Link>
@@ -917,7 +918,7 @@ export default function Header() {
                               onClick={() => setBrandsOpen(false)}
                             >
                               <span className="flex h-10 w-10 items-center justify-center overflow-hidden rounded bg-[#F6F5FA] ring-1 ring-black/10">
-                                <img src={b.image} alt={b.name} className="h-full w-full object-contain" onError={(e)=>{(e.currentTarget as HTMLImageElement).src='/gapa-logo.png'}} />
+                                <img src={b.image} alt={b.name} className="h-full w-full object-contain" onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/gapa-logo.png' }} />
                               </span>
                               <span className="truncate text-[14px] text-gray-800">{b.name}</span>
                             </Link>
@@ -940,16 +941,16 @@ export default function Header() {
           <div className="flex items-center justify-between">
             <h3 className="text-[14px] font-semibold">Browse</h3>
             <button onClick={closeAllMobile} className="inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-600 hover:bg-gray-100" aria-label="Close menu">
-              <svg width="16" height="16" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+              <svg width="16" height="16" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6L6 18" /><path d="M6 6l12 12" /></svg>
             </button>
           </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <Link to="/" onClick={closeAllMobile} className="rounded-lg bg-[#F6F5FA] p-3 text-center text-[12px] font-medium ring-1 ring-black/5 hover:bg-gray-100">Home</Link>
-              <Link to="/parts" onClick={closeAllMobile} className="rounded-lg bg-[#F6F5FA] p-3 text-center text-[12px] font-medium ring-1 ring-black/5 hover:bg-gray-100">All Parts</Link>
-              <a href="https://gapafix.com.ng/" target="_blank" rel="noreferrer" className="rounded-lg bg-[#F6F5FA] p-3 text-center text-[12px] font-medium ring-1 ring-black/5 hover:bg-gray-100">Gapa Fix</a>
-              <Link to={{ pathname: location.pathname, search: location.search, hash: '#cart' }} replace onClick={closeAllMobile} className="rounded-lg bg-[#F6F5FA] p-3 text-center text-[12px] font-medium ring-1 ring-black/5 hover:bg-gray-100">Cart ({cartCount})</Link>
-            </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Link to="/" onClick={closeAllMobile} className="rounded-lg bg-[#F6F5FA] p-3 text-center text-[12px] font-medium ring-1 ring-black/5 hover:bg-gray-100">Home</Link>
+            <Link to="/parts" onClick={closeAllMobile} className="rounded-lg bg-[#F6F5FA] p-3 text-center text-[12px] font-medium ring-1 ring-black/5 hover:bg-gray-100">All Parts</Link>
+            <a href="https://gapafix.com.ng/" target="_blank" rel="noreferrer" className="rounded-lg bg-[#F6F5FA] p-3 text-center text-[12px] font-medium ring-1 ring-black/5 hover:bg-gray-100">Gapa Fix</a>
+            <Link to={{ pathname: location.pathname, search: location.search, hash: '#cart' }} replace onClick={closeAllMobile} className="rounded-lg bg-[#F6F5FA] p-3 text-center text-[12px] font-medium ring-1 ring-black/5 hover:bg-gray-100">Cart ({cartCount})</Link>
+          </div>
 
           {/* Categories toggle */}
           <div>
@@ -1093,9 +1094,9 @@ export default function Header() {
                 </div>
               </div>
             ) : (
-              <Link 
-                to="/login" 
-                onClick={closeAllMobile} 
+              <Link
+                to="/login"
+                onClick={closeAllMobile}
                 className="flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-brand to-yellow-500 px-4 py-3.5 text-[14px] font-bold text-white shadow-lg hover:shadow-xl hover:brightness-110 transition-all"
               >
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
