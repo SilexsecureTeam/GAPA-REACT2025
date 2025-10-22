@@ -64,7 +64,7 @@ export default function Footer() {
     }
     setStatus('loading')
     try {
-      const res = await fetch('/feedback/newsletter', {
+      const res = await fetch('https://stockmgt.gapaautoparts.com/api/feedback/newsletter', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: String(email).trim() })

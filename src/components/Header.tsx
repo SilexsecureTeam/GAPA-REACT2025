@@ -606,7 +606,7 @@ export default function Header() {
                         <span className="font-medium">Settings</span>
                       </Link>
 
-                      <Link
+                      {/* <Link
                         to="/help"
                         onClick={() => setProfileDropdownOpen(false)}
                         className="flex items-center gap-3 px-4 py-2.5 text-[14px] text-gray-700 hover:bg-gray-50 transition-colors"
@@ -617,7 +617,7 @@ export default function Header() {
                           <line x1="12" y1="17" x2="12.01" y2="17" />
                         </svg>
                         <span className="font-medium">Help & Support</span>
-                      </Link>
+                      </Link> */}
 
                       <div className="my-2 border-t border-gray-100" />
 
@@ -1064,7 +1064,7 @@ export default function Header() {
 
                 {/* Help & Sign Out */}
                 <div className="space-y-2">
-                  <Link
+                  {/* <Link
                     to="/help"
                     onClick={closeAllMobile}
                     className="flex items-center justify-center gap-2 rounded-lg bg-white px-4 py-2.5 text-[13px] font-semibold text-gray-900 ring-1 ring-black/5 hover:bg-gray-50 transition-colors"
@@ -1075,7 +1075,7 @@ export default function Header() {
                       <line x1="12" y1="17" x2="12.01" y2="17" />
                     </svg>
                     <span>Help & Support</span>
-                  </Link>
+                  </Link> */}
 
                   <button
                     onClick={() => {
