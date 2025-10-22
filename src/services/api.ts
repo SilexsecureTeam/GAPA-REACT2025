@@ -314,7 +314,8 @@ export async function getAllCategories() {
   return []
 }
 export async function getManufacturers() {
-  const res = await apiRequest<any>(ENDPOINTS.manufacturers)
+  // Use the partners endpoint as the manufacturers source (absolute URL)
+  const res = await apiRequest<any>('https://stockmgt.gapaautoparts.com/api/getPartners')
   if (Array.isArray(res)) return res
   if (res?.data && Array.isArray(res.data)) return res.data
   if (res && typeof res === 'object') { for (const k of Object.keys(res)) { const v = (res as any)[k]; if (Array.isArray(v)) return v } }

@@ -87,8 +87,8 @@ function mapApiToUi(p: any) {
   const inStock = Boolean((src as any)?.in_stock ?? (src as any)?.live_status ?? true)
   const attributes = attrsFrom(src)
   const description = String(src?.description || src?.details || '')
-  // Extract maker information
-  const makerId = String(src?.maker_id_ ?? src?.maker_id ?? src?.manufacturer_id ?? '').trim()
+  // Extract maker information (prefer saler_id as primary identifier)
+  const makerId = String(src?.saler_id ?? src?.maker_id_ ?? src?.maker_id ?? src?.manufacturer_id ?? '').trim()
   const makerName = String(src?.maker?.name || src?.manufacturer?.name || src?.manufacturer || src?.maker || '').trim()
   const makerImage = manufacturerImageFrom(src?.maker || src?.manufacturer || src) || ''
   return { id, brand: brandName, brandLogo: brandLogo || logoImg, name, articleNo, price, image, gallery: gallery.length ? gallery : [image], rating, reviews, inStock, attributes, description, makerId, makerName, makerImage }
@@ -902,7 +902,7 @@ export default function CarPartDetails() {
             {Object.keys(compatTree).length > 0 && (
               <div className="rounded-lg bg-white ring-1 ring-black/10">
                 <div className="px-4 py-3 text-[13px] font-semibold text-gray-900">Suitable vehicles</div>
-                <div className="max-h-96 overflow-auto p-3 pt-0">
+                <div className="max-h-60 overflow-auto p-3 pt-0">
                   {/* If compatList is a flat list with no structured tree, just show it */}
                   {Object.values(compatTree).every(models => Object.keys(models).length === 0) ? (
                     <ul className="list-disc pl-5 text-[12px] text-gray-800">
@@ -972,7 +972,7 @@ export default function CarPartDetails() {
               <div className="rounded-[10px] bg-white p-2">
                 <div className="rounded-lg bg-gradient-to-br from-white to-[#FFFBF0]">
                   {/* Constrain height so the filter stays visible and scrolls internally on long pages */}
-                  <div className="max-h-[70vh] overflow-auto pr-2">
+                  <div className="overflow-auto pr-2">
                   <div className="mb-3 flex items-center gap-2">
                     <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-[#F7CD3A] to-[#e6bd2a] shadow-md">
                       <svg className="h-5 w-5 text-[#201A2B]" fill="none" stroke="currentColor" viewBox="0 0 24 24">

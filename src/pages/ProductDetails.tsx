@@ -61,7 +61,7 @@ function mapApiToUi(p: any, manufacturers: any[]): UiProduct {
   const description = String(src?.description || src?.details || '')
   
   // Manufacturer
-  const makerId = String(src?.maker_id_ ?? src?.maker_id ?? src?.manufacturer_id ?? '').trim()
+  const makerId = String(src?.saler_id ?? src?.maker_id_ ?? src?.maker_id ?? src?.manufacturer_id ?? '').trim()
   let makerName = String(src?.maker?.name || src?.manufacturer?.name || src?.manufacturer || src?.maker || '').trim()
   let makerImage = manufacturerImageFrom(src?.maker || src?.manufacturer || src) || ''
   
