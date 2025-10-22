@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
+import { toast } from 'react-hot-toast'
 import { Link } from 'react-router-dom'
 import logo from '../assets/gapa-logo.png'
 import gigImg from '../assets/deliveryGig.png'
@@ -58,17 +59,37 @@ export default function Footer() {
     e.preventDefault()
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       setStatus('error')
+      toast.error('Please enter a valid email address')
       return
     }
     setStatus('loading')
     try {
-      // TODO: Integrate with real API. Simulate success for now.
-      await new Promise((r) => setTimeout(r, 800))
+      const res = await fetch('/feedback/newsletter', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: String(email).trim() })
+      })
+
+      if (!res.ok) {
+        let msg = 'Subscription failed. Please try again.'
+        try {
+          const j = await res.json()
+          if (j && j.message) msg = String(j.message)
+        } catch (_) {}
+        setStatus('error')
+        toast.error(msg)
+        return
+      }
+
+      // success
       setStatus('success')
       setEmail('')
+      toast.success('Thanks — you are subscribed to our newsletter')
       setTimeout(() => setStatus('idle'), 1500)
-    } catch {
+    } catch (err) {
+      console.error('Newsletter subscribe error', err)
       setStatus('error')
+      toast.error('Network error — please try again')
     }
   }
 
@@ -79,7 +100,7 @@ export default function Footer() {
         <div className="mx-auto grid md:max-w-2xl grid-cols-1 items-center gap-6 px-4 py-10 sm:grid-cols-1 sm:px-6">
           <div className='text-center'>
             <h3 className="text-2xl font-semibold tracking-tight">Subscribe to our newsletter</h3>
-            <p className="mt-2 text-xs max-w-[80%] mx-auto text-white/70">Praesent fringilla erat a lacinia egestas. Donec vehicula tempor libero et cursus. Donec non quam urna. Quisque vitae porta ipsum.</p>
+            <p className="mt-2 text-sm max-w-[80%] mx-auto text-white/80">Get the latest deals, parts tips, and service updates — straight to your inbox. Subscribe to our newsletter and never miss offers on genuine car parts and timely maintenance advice.</p>
           </div>
           <form onSubmit={onSubmit} className="flex w-[80%] mx-auto justify-center flex-col gap-3 sm:flex-row">
             <div className="relative w-full">

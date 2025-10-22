@@ -1027,25 +1027,92 @@ function CarPartsInner() {
   // Pagination helper component and helpers
   function PaginationControls({ page, setPage, pageSize, setPageSize, total }: { page: number; setPage: (n:number)=>void; pageSize: number; setPageSize: (n:number)=>void; total: number }) {
     const totalPages = Math.max(1, Math.ceil(total / pageSize))
-    const pages = Array.from({ length: totalPages }, (_, i) => i + 1)
+
+    const toDisplay = (current: number, total: number) => {
+      // Build a compact page range with ellipses: show first, last, current +-1, and neighbors
+      const set = new Set<number>()
+      set.add(1)
+      set.add(total)
+      set.add(current)
+      if (current - 1 >= 1) set.add(current - 1)
+      if (current + 1 <= total) set.add(current + 1)
+      if (current - 2 >= 1) set.add(current - 2)
+      if (current + 2 <= total) set.add(current + 2)
+      const arr = Array.from(set).sort((a, b) => a - b)
+      const out: (number | '...')[] = []
+      let last = 0
+      for (const n of arr) {
+        if (last && n - last > 1) out.push('...')
+        out.push(n)
+        last = n
+      }
+      return out
+    }
+
+    const pages = toDisplay(page, totalPages)
+
     return (
-      <div className="mt-6 flex items-center justify-center gap-3">
-        <div className="flex items-center gap-2">
-          <label className="text-sm text-gray-600">Show</label>
-          <select value={pageSize} onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1) }} className="rounded border px-2 py-1 text-sm">
-            <option value={8}>8</option>
-            <option value={12}>12</option>
-            <option value={16}>16</option>
-            <option value={24}>24</option>
-          </select>
+      <div className="mt-8 flex flex-col items-center gap-4">
+        <div className="w-full max-w-3xl flex flex-col items-center justify-between gap-3 sm:flex-row">
+          <div className="flex items-center gap-3">
+            <div className="text-sm text-gray-600">Showing</div>
+            <div className="rounded-md border bg-white px-3 py-1 text-sm font-medium text-gray-900">{pageSize}</div>
+            <div className="text-sm text-gray-600">per page</div>
+            <div className="ml-4 hidden items-center gap-2 sm:flex">
+              <span className="text-sm text-gray-500">Results</span>
+              <span className="rounded-md bg-[#F7CD3A] px-3 py-1 text-sm font-semibold text-[#201A2B]">{total.toLocaleString()}</span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <label htmlFor="pageSizeSelect" className="sr-only">Items per page</label>
+            <select id="pageSizeSelect" value={pageSize} onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1) }} className="inline-flex h-9 items-center justify-center rounded-md border px-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-brand">
+              <option value={8}>8</option>
+              <option value={12}>12</option>
+              <option value={16}>16</option>
+              <option value={24}>24</option>
+              <option value={48}>48</option>
+            </select>
+          </div>
         </div>
-        <div className="flex items-center gap-1">
-          <button disabled={page === 1} onClick={() => setPage(Math.max(1, page - 1))} className="px-3 py-1 rounded bg-gray-100 text-gray-700">Prev</button>
-          {pages.map((p) => (
-            <button key={p} onClick={() => setPage(p)} className={`px-3 py-1 rounded ${p === page ? 'bg-brand text-white' : 'bg-gray-100 text-gray-700'}`}>{p}</button>
-          ))}
-          <button disabled={page === totalPages} onClick={() => setPage(Math.min(totalPages, page + 1))} className="px-3 py-1 rounded bg-gray-100 text-gray-700">Next</button>
-        </div>
+
+        <nav className="w-full max-w-3xl" aria-label="Pagination">
+          <ul className="mx-auto flex items-center justify-center gap-2">
+            <li>
+              <button onClick={() => setPage(1)} disabled={page === 1} aria-label="Go to first page" className={`inline-flex h-9 min-w-[44px] items-center justify-center rounded-md px-3 text-sm ${page === 1 ? 'bg-gray-100 text-gray-400' : 'bg-white text-gray-700 ring-1 ring-black/5 hover:bg-gray-50'}`}>
+                «
+              </button>
+            </li>
+            <li>
+              <button onClick={() => setPage(Math.max(1, page - 1))} disabled={page === 1} aria-label="Previous page" className={`inline-flex h-9 min-w-[44px] items-center justify-center rounded-md px-3 text-sm ${page === 1 ? 'bg-gray-100 text-gray-400' : 'bg-white text-gray-700 ring-1 ring-black/5 hover:bg-gray-50'}`}>
+                ‹
+              </button>
+            </li>
+
+            {pages.map((p, idx) => (
+              <li key={`p-${idx}`}>
+                {p === '...' ? (
+                  <div className="inline-flex h-9 min-w-[44px] items-center justify-center text-sm text-gray-500">…</div>
+                ) : (
+                  <button onClick={() => setPage(Number(p))} aria-current={p === page ? 'page' : undefined} className={`inline-flex h-9 min-w-[44px] items-center justify-center rounded-md px-3 text-sm ${p === page ? 'bg-brand text-white shadow' : 'bg-white text-gray-700 ring-1 ring-black/5 hover:bg-gray-50'}`}>
+                    {p}
+                  </button>
+                )}
+              </li>
+            ))}
+
+            <li>
+              <button onClick={() => setPage(Math.min(totalPages, page + 1))} disabled={page === totalPages} aria-label="Next page" className={`inline-flex h-9 min-w-[44px] items-center justify-center rounded-md px-3 text-sm ${page === totalPages ? 'bg-gray-100 text-gray-400' : 'bg-white text-gray-700 ring-1 ring-black/5 hover:bg-gray-50'}`}>
+                ›
+              </button>
+            </li>
+            <li>
+              <button onClick={() => setPage(totalPages)} disabled={page === totalPages} aria-label="Go to last page" className={`inline-flex h-9 min-w-[44px] items-center justify-center rounded-md px-3 text-sm ${page === totalPages ? 'bg-gray-100 text-gray-400' : 'bg-white text-gray-700 ring-1 ring-black/5 hover:bg-gray-50'}`}>
+                »
+              </button>
+            </li>
+          </ul>
+        </nav>
       </div>
     )
   }

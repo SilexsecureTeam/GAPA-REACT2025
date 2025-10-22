@@ -161,12 +161,25 @@ export default function Wishlist() {
                 const viewEnabled = isViewEnabledCategory(categoryOf(product))
                 return (
                   <li key={cardProduct.id} className="relative">
-                    <ProductActionCard
-                      product={cardProduct}
-                      enableView={viewEnabled}
-                      onView={viewEnabled ? () => handleViewProduct(product) : undefined}
-                      onAddToCart={() => handleAddToCart(product)}
-                    />
+                    <div className="flex flex-col">
+                      <ProductActionCard
+                        product={cardProduct}
+                        enableView={viewEnabled}
+                        onView={viewEnabled ? () => handleViewProduct(product) : undefined}
+                        onAddToCart={() => handleAddToCart(product)}
+                      />
+
+                      {/* Always show View button for wishlist items */}
+                      <div className="mt-2">
+                        <button
+                          type="button"
+                          onClick={() => handleViewProduct(product)}
+                          className="inline-flex h-8 items-center justify-center rounded-md border border-black/10 px-3 text-[12px] font-semibold text-gray-800 hover:bg-black/5"
+                        >
+                          View
+                        </button>
+                      </div>
+                    </div>
                   </li>
                 )
               })}
