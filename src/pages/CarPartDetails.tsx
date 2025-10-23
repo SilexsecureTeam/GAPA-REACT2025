@@ -73,7 +73,6 @@ function mapApiToUi(p: any) {
   const articleNo = String(src?.article_no || src?.article_number || src?.article || src?.sku || src?.code || 'N/A')
   const price = Number(src?.price || src?.selling_price || src?.amount || 0)
   const image = productImageFrom(src) || normalizeApiImage(pickImage(src) || '') || logoImg
-  // Build gallery from known image fields and arrays (respect product image base URL)
   const galleryFields = [src?.img_url, src?.img_url_1, src?.img_url_2].filter(Boolean) as string[]
   const galleryFromFields = galleryFields.map((s) => productImageFrom({ img_url: s }) || normalizeApiImage(s) || '').filter(Boolean)
   const rawImages: any[] = Array.isArray(src?.images) ? src.images : Array.isArray(src?.gallery) ? src.gallery : []
@@ -87,7 +86,6 @@ function mapApiToUi(p: any) {
   const inStock = Boolean((src as any)?.in_stock ?? (src as any)?.live_status ?? true)
   const attributes = attrsFrom(src)
   const description = String(src?.description || src?.details || '')
-  // Extract maker information (prefer saler_id as primary identifier)
   const makerId = String(src?.saler_id ?? src?.maker_id_ ?? src?.maker_id ?? src?.manufacturer_id ?? '').trim()
   const makerName = String(src?.maker?.name || src?.manufacturer?.name || src?.manufacturer || src?.maker || '').trim()
   const makerImage = manufacturerImageFrom(src?.maker || src?.manufacturer || src) || ''

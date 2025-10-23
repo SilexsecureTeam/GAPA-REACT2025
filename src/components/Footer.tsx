@@ -100,7 +100,10 @@ export default function Footer() {
         <div className="mx-auto grid md:max-w-2xl grid-cols-1 items-center gap-6 px-4 py-10 sm:grid-cols-1 sm:px-6">
           <div className='text-center'>
             <h3 className="text-2xl font-semibold tracking-tight">Subscribe to our newsletter</h3>
-            <p className="mt-2 text-sm max-w-[80%] mx-auto text-white/80">Get the latest deals, parts tips, and service updates — straight to your inbox. Subscribe to our newsletter and never miss offers on genuine car parts and timely maintenance advice.</p>
+            <p className="mt-2 text-sm max-w-[80%] mx-auto text-white/80"> Don’t Miss Out on Exclusive Deals!
+Be the first to know when new auto parts arrive, enjoy special discounts, and get expert maintenance tips straight from GAPA NAIJA.
+Subscribe now and stay ahead of the road!
+</p>
           </div>
           <form onSubmit={onSubmit} className="flex w-[80%] mx-auto justify-center flex-col gap-3 sm:flex-row">
             <div className="relative w-full">

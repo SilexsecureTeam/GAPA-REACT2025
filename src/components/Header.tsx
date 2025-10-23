@@ -35,7 +35,7 @@ const SEARCH_SUGGESTIONS = [
   'Glow Plug',
   'Fuel Pump',
   'Piston Ring',
-  'STARK Brake pad set',
+  // 'STARK Brake pad set',
   'V-Ribbed Belt',
   'Oil Filter',
   'Panasonic CR2025EL/2B Lithium Power Lithium 3V/165mAh Blister',
@@ -400,7 +400,7 @@ export default function Header() {
         <div className="mx-auto flex h-10 max-w-7xl items-center justify-between px-4 sm:px-6">
           <div />
           <p className="text-[14px] font-normal tracking-wide hidden sm:block">
-            Free Delivery on Orders Over ₦50,000 – Limited Time!
+            Free Delivery on Orders Over ₦500,000 – Limited Time!
           </p>
           <div className="flex items-center gap-3 sm:flex" aria-live="polite">
             <span className="hidden sm:inline text-[12px] font-semibold tracking-wider text-white/90">OFFER ENDS IN:</span>
