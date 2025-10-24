@@ -802,7 +802,15 @@ export default function Checkout() {
                 </label>
                 <span />
                 <label className="text-[13px] text-gray-700 md:col-span-2">Address line 1
-                  <AddressAutocomplete value={address.address1} onChange={(v)=>setAddress((a: Address)=>({ ...a, address1: v }))} placeholder="Street, area" />
+                  <AddressAutocomplete
+                    value={address.address1}
+                    onChange={(v)=>setAddress((a: Address)=>({ ...a, address1: v }))}
+                    onAddressSelect={(s)=>{
+                      setAddress((a: Address)=>({ ...a, address1: s.address1 || a.address1, city: s.city || a.city, region: s.region || a.region, postcode: s.postcode || a.postcode }))
+                    }}
+                    placeholder="Street, area"
+                    country={address.country?.toLowerCase?.() || 'ng'}
+                  />
                 </label>
                 <label className="text-[13px] text-gray-700 md:col-span-2">Address line 2 (optional)
                   <input value={address.address2} onChange={(e)=>setAddress((a: Address)=>({ ...a, address2: e.target.value }))} className="mt-1 w-full rounded-md border border-black/10 px-3 py-2 text-[14px] outline-none focus:ring-2 focus:ring-brand" placeholder="Apartment, suite, etc." />

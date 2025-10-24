@@ -226,7 +226,7 @@ Subscribe now and stay ahead of the road!
           <div>
             <h4 className="text-sm font-bold tracking-wide ">Support</h4>
             <ul className="mt-3 space-y-2 text-sm">
-              <li><a className="hover:text-[#FA8232]" href="#">Walk in Store: Gapa Naija (1st Floor,Sunset plaza, Ademola Adetokunbo Crescent, Wuse II, FCT-Abuja, Nigeria.)</a></li>
+              <li><a className="hover:text-[#FA8232]" href="#">Walk In Store: GAPA Naija. 2402 Shehu Shagari Way, Beside Barlance Garden, Maitama, F.C.T - Abuja</a></li>
               <li><a className="hover:text-[#FA8232]" href="#">Phone: +234 708 888 5268</a></li>
               <li><a className="hover:text-[#FA8232]" href="#">Email: sales@gapaautoparts.com</a></li>
             </ul>
