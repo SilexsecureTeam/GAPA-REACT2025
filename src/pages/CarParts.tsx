@@ -809,20 +809,41 @@ function CarPartsInner() {
     return list
   }, [products, hasVehicleFilter, vehFilter, inVehicleDrillMode, activeVehicleBrand, activeVehicleModel, activeVehicleEngine, activeBrandFilter, isCompatibleWithBrand, inBrandDrillMode])
 
-  // Apply category filter for vehicle search mode
+  // Page-level client-side search (filters displayed results by title/name/manufacturer/brand)
+  const [pageSearch, setPageSearch] = useState<string>(() => {
+    try {
+      return searchParams.get('q') || ''
+    } catch { return '' }
+  })
+  const matchesPageSearch = useCallback((p: any) => {
+    if (!pageSearch || !pageSearch.trim()) return true
+    const q = pageSearch.trim().toLowerCase()
+    const title = String((p as any)?.part_name || (p as any)?.name || (p as any)?.title || '').toLowerCase()
+    const brand = String(brandOf(p) || '').toLowerCase()
+    const maker = String((p as any)?.manufacturer || (p as any)?.maker || '').toLowerCase()
+    return title.includes(q) || brand.includes(q) || maker.includes(q)
+  }, [pageSearch])
+
+  // Displayed filtered set after applying the pageSearch text filter
+  const displayFiltered = useMemo(() => {
+    if (!pageSearch || !pageSearch.trim()) return filtered
+    return filtered.filter(p => matchesPageSearch(p))
+  }, [filtered, pageSearch, matchesPageSearch])
+
+  // Apply category filter for vehicle search mode (operates on the displayed set)
   const filteredWithCategory = useMemo(() => {
-    if (!vehicleSearchCategoryFilter) return filtered
-    return filtered.filter(p => {
+    if (!vehicleSearchCategoryFilter) return displayFiltered
+    return displayFiltered.filter(p => {
       const raw = (p as any)?.category
       const catName = resolveCategoryName(raw) || categoryOf(p)
       return catName.toLowerCase() === vehicleSearchCategoryFilter.toLowerCase()
     })
-  }, [filtered, vehicleSearchCategoryFilter, resolveCategoryName])
+  }, [displayFiltered, vehicleSearchCategoryFilter, resolveCategoryName])
 
-  // Extract unique categories from filtered products for vehicle search
+  // Extract unique categories from displayed filtered products for vehicle search
   const availableCategories = useMemo(() => {
     const catSet = new Map<string, number>()
-    for (const p of filtered) {
+    for (const p of displayFiltered) {
       const raw = (p as any)?.category
       const catName = resolveCategoryName(raw) || categoryOf(p)
       if (catName) {
@@ -832,29 +853,29 @@ function CarPartsInner() {
     return Array.from(catSet.entries())
       .map(([name, count]) => ({ name, count }))
       .sort((a, b) => b.count - a.count)
-  }, [filtered, resolveCategoryName])
+  }, [displayFiltered, resolveCategoryName])
 
   // Auto-scroll effect for brand drilldown (conditional logic inside, but hook declared at top)
   useEffect(() => {
-    if (inBrandDrillMode && vehFilter.brandName && vehFilter.modelName && filtered.length > 0 && productsRef.current) {
+    if (inBrandDrillMode && vehFilter.brandName && vehFilter.modelName && displayFiltered.length > 0 && productsRef.current) {
       setTimeout(() => {
         const y = (productsRef.current?.getBoundingClientRect().top || 0) + window.scrollY - SCROLL_OFFSET
         window.scrollTo({ top: y, behavior: 'smooth' })
       }, 300)
     }
-  }, [inBrandDrillMode, vehFilter.brandName, vehFilter.modelName, filtered.length])
+  }, [inBrandDrillMode, vehFilter.brandName, vehFilter.modelName, displayFiltered.length])
 
   // Group by category (all filtered items)
   const grouped = useMemo(() => {
     const map = new Map<string, ApiProduct[]>()
-    for (const p of filtered) {
+    for (const p of displayFiltered) {
       const key = categoryOf(p)
       const list = map.get(key) || []
       list.push(p)
       map.set(key, list)
     }
     return Array.from(map.entries())
-  }, [filtered])
+  }, [displayFiltered])
 
   // Resolve category image using API categories when available (by id or name)
   const catInfoFor = (sample: any) => {
@@ -1120,13 +1141,13 @@ function CarPartsInner() {
   const PAGE_SIZE_DEFAULT = 16;
   const [brandPage, setBrandPage] = useState(1);
   const [brandPageSize, setBrandPageSize] = useState(PAGE_SIZE_DEFAULT);
-  const paginatedBrandProducts = filtered.slice((brandPage - 1) * brandPageSize, brandPage * brandPageSize);
+  const paginatedBrandProducts = displayFiltered.slice((brandPage - 1) * brandPageSize, brandPage * brandPageSize);
 
   // Pagination for the general "filtered" grid (vehicle-engine filtered block)
   const [filteredPage, setFilteredPage] = useState(1)
   const [filteredPageSize, setFilteredPageSize] = useState(12)
-  useEffect(() => { setFilteredPage(1) }, [filtered, filteredPageSize])
-  const filteredPaged = filtered.slice((filteredPage - 1) * filteredPageSize, filteredPage * filteredPageSize)
+  useEffect(() => { setFilteredPage(1) }, [displayFiltered, filteredPageSize])
+  const filteredPaged = displayFiltered.slice((filteredPage - 1) * filteredPageSize, filteredPage * filteredPageSize)
 
   // Pagination for brand-drilldown categoryFiltered
   const [categoryPage, setCategoryPage] = useState(1)
@@ -1203,9 +1224,9 @@ function CarPartsInner() {
                         )}
 
                         {/* Results Count */}
-                        {hasVehicleFilter && filtered.length > 0 && (
+                        {hasVehicleFilter && displayFiltered.length > 0 && (
                           <div className="mx-4 mb-4 text-center">
-                            <div className="text-lg font-black text-[#F7CD3A]">{filtered.length.toLocaleString()}</div>
+                            <div className="text-lg font-black text-[#F7CD3A]">{displayFiltered.length.toLocaleString()}</div>
                             <div className="text-[10px] font-semibold text-gray-600">compatible parts</div>
                           </div>
                         )}
@@ -1270,13 +1291,13 @@ function CarPartsInner() {
               <div>
                 <div className="mb-4 flex items-center justify-between">
                   <h3 className="text-[16px] font-semibold text-gray-900">
-                    {filtered.length} Compatible Part{filtered.length === 1 ? '' : 's'}
+                    {displayFiltered.length} Compatible Part{displayFiltered.length === 1 ? '' : 's'}
                   </h3>
                 </div>
 
                 {loading ? (
                   <FallbackLoader label="Loading products…" />
-                ) : filtered.length === 0 ? (
+                ) : displayFiltered.length === 0 ? (
                   <div className="rounded-xl bg-white p-6 text-center ring-1 ring-black/10">
                     <div className="text-[14px] text-gray-700">
                       {hasVehicleFilter
@@ -1301,7 +1322,7 @@ function CarPartsInner() {
                       })}
                     </div>
                     {/* Pagination Controls */}
-                    <PaginationControls page={brandPage} setPage={setBrandPage} pageSize={brandPageSize} setPageSize={setBrandPageSize} total={filtered.length} />
+                    <PaginationControls page={brandPage} setPage={setBrandPage} pageSize={brandPageSize} setPageSize={setBrandPageSize} total={displayFiltered.length} />
                   </>
                 )}
               </div>
@@ -1406,7 +1427,7 @@ function CarPartsInner() {
               <h3 className="text-[16px] font-semibold text-gray-900">Compatible Parts</h3>
               {loading ? (
                 <div className="mt-3"><FallbackLoader label="Loading products…" /></div>
-              ) : filtered.length === 0 ? (
+              ) : displayFiltered.length === 0 ? (
                 <div className="mt-3 text-sm text-gray-700">
                   No compatible parts found for {activeVehicleBrand} {activeVehicleModel} {activeVehicleEngine}.
                 </div>
@@ -1426,7 +1447,7 @@ function CarPartsInner() {
                       )
                     })}
                   </div>
-                  <PaginationControls page={filteredPage} setPage={setFilteredPage} pageSize={filteredPageSize} setPageSize={setFilteredPageSize} total={filtered.length} />
+                  <PaginationControls page={filteredPage} setPage={setFilteredPage} pageSize={filteredPageSize} setPageSize={setFilteredPageSize} total={displayFiltered.length} />
                 </div>
               )}
             </div>
@@ -1491,6 +1512,18 @@ function CarPartsInner() {
                         {availableCategoriesForBrand.length > 0 && (
                           <div className="mb-6">
                             <h4 className="mb-3 text-[13px] font-bold text-gray-900">Filter by Category</h4>
+                            <div className="mb-3">
+                              <label htmlFor="pageSearch" className="sr-only">Search parts on page</label>
+                              <div className="relative">
+                                <input
+                                  id="pageSearch"
+                                  value={pageSearch}
+                                  onChange={(e) => setPageSearch(e.target.value)}
+                                  placeholder="Search parts by name, brand or manufacturer"
+                                  className="ml-2 w-full md:w-1/3 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-0.5 focus:ring-brand"
+                                />
+                              </div>
+                            </div>
                             <div className="flex flex-wrap gap-2">
                               <button
                                 onClick={() => setBrandDrilldownCategoryFilter('')}
@@ -1501,7 +1534,7 @@ function CarPartsInner() {
                                 }`}
                               >
                                 <span>All Categories</span>
-                                <span className="text-[11px] opacity-75">({filtered.length})</span>
+                                <span className="text-[11px] opacity-75">({displayFiltered.length})</span>
                               </button>
                               {availableCategoriesForBrand.map(({ name, count }) => (
                                 <button
@@ -1665,9 +1698,9 @@ function CarPartsInner() {
                       )}
 
                       {/* Results Count */}
-                      {hasVehicleFilter && filtered.length > 0 && (
+                      {hasVehicleFilter && displayFiltered.length > 0 && (
                         <div className="mx-4 mb-4 text-center">
-                          <div className="text-lg font-black text-[#F7CD3A]">{filtered.length}</div>
+                          <div className="text-lg font-black text-[#F7CD3A]">{displayFiltered.length}</div>
                           <div className="text-[10px] font-semibold text-gray-600">compatible parts</div>
                         </div>
                       )}
@@ -1697,6 +1730,18 @@ function CarPartsInner() {
               {availableCategories.length > 0 && (
                 <div className="mb-6">
                   <h4 className="mb-3 text-[13px] font-bold text-gray-900">Filter by Category</h4>
+                  <div className="mb-3">
+                    <label htmlFor="pageSearch" className="sr-only">Search parts on page</label>
+                    <div className="relative">
+                      <input
+                        id="pageSearch"
+                        value={pageSearch}
+                        onChange={(e) => setPageSearch(e.target.value)}
+                        placeholder="Search parts by name, brand or manufacturer"
+                       className="ml-2 w-full md:w-1/3 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-0.5 focus:ring-brand"
+                      />
+                    </div>
+                  </div>
                   <div className="flex flex-wrap gap-2">
                     <button
                       onClick={() => setVehicleSearchCategoryFilter('')}
@@ -1707,7 +1752,7 @@ function CarPartsInner() {
                       }`}
                     >
                       <span>All Categories</span>
-                      <span className="text-[11px] opacity-75">({filtered.length})</span>
+                      <span className="text-[11px] opacity-75">({displayFiltered.length})</span>
                     </button>
                     {availableCategories.map(({ name, count }) => (
                       <button
@@ -2431,9 +2476,9 @@ function CarPartsInner() {
                     )}
 
                     {/* Results Count */}
-                    {hasVehicleFilter && filtered.length > 0 && (
+                    {hasVehicleFilter && displayFiltered.length > 0 && (
                       <div className="mx-4 mb-4 text-center">
-                        <div className="text-lg font-black text-[#F7CD3A]">{filtered.length.toLocaleString()}</div>
+                        <div className="text-lg font-black text-[#F7CD3A]">{displayFiltered.length.toLocaleString()}</div>
                         <div className="text-[10px] font-semibold text-gray-600">compatible parts</div>
                       </div>
                     )}
@@ -2487,9 +2532,9 @@ function CarPartsInner() {
                     </div>
                   )}
 
-                  {hasVehicleFilter && filtered.length > 0 && (
+                  {hasVehicleFilter && displayFiltered.length > 0 && (
                     <div className="mt-3 text-center">
-                      <div className="text-lg font-black text-[#F7CD3A]">{filtered.length.toLocaleString()}</div>
+                      <div className="text-lg font-black text-[#F7CD3A]">{displayFiltered.length.toLocaleString()}</div>
                       <div className="text-[10px] font-semibold text-gray-600">compatible parts</div>
                     </div>
                   )}

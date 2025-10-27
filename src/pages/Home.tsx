@@ -5,7 +5,7 @@ import WishlistButton from '../components/WishlistButton'
 import useWishlist from '../hooks/useWishlist'
 import carShop from '../assets/car-shop.png'
 import FallbackLoader from '../components/FallbackLoader'
-import { getAllBrands, getAllCategories, getFeaturedProducts, getManufacturers, getPartners, type ApiBrand, type ApiCategory, type ApiManufacturer, type ApiPartner, type ApiProduct } from '../services/api'
+import { getAllBrands, getAllCategories, getFeaturedProducts, getManufacturers, getPartners, getTopProducts, type ApiBrand, type ApiCategory, type ApiManufacturer, type ApiPartner, type ApiProduct } from '../services/api'
 import { pickImage, normalizeApiImage, productImageFrom, categoryImageFrom, partnerImageFrom } from '../services/images'
 import { useNavigate } from 'react-router-dom'
 import TopBrands from '../components/TopBrands'
@@ -111,6 +111,7 @@ export default function Home() {
   // API state
   const [loading, setLoading] = useState(true)
   const [featured, setFeatured] = useState<ApiProduct[]>([])
+  const [topProducts, setTopProducts] = useState<ApiProduct[]>([])
   const [brands, setBrands] = useState<ApiBrand[]>([])
   const [categories, setCategories] = useState<ApiCategory[]>([])
   const [manufacturers, setManufacturers] = useState<ApiManufacturer[]>([])
@@ -125,8 +126,9 @@ export default function Home() {
     let alive = true
     ;(async () => {
       try {
-        const [f, b, c, m, p] = await Promise.allSettled([
+        const [f, t, b, c, m, p] = await Promise.allSettled([
           getFeaturedProducts(),
+          getTopProducts(),
           getAllBrands(),
           getAllCategories(),
           getManufacturers(),
@@ -134,6 +136,7 @@ export default function Home() {
         ])
         if (!alive) return
         setFeatured(unwrap<ApiProduct>(f.status === 'fulfilled' ? f.value : []))
+        setTopProducts(unwrap<ApiProduct>(t.status === 'fulfilled' ? t.value : []))
         setBrands(unwrap<ApiBrand>(b.status === 'fulfilled' ? b.value : []))
         setCategories(unwrap<ApiCategory>(c.status === 'fulfilled' ? c.value : []))
         setManufacturers(unwrap<ApiManufacturer>(m.status === 'fulfilled' ? m.value : []))
@@ -207,12 +210,22 @@ export default function Home() {
     if (tab === 0) {
       return (
         <>
-          {categories.slice(0, 4).map((c, idx) => {
-            const name = (c as any)?.name || (c as any)?.title || 'Category'
-            const icon = categoryImageFrom(c) || normalizeApiImage(pickImage(c) || '') || logoImg
-            const links = [name, 'Popular', 'New', 'Top Rated', 'Budget']
+          {topProducts.slice(0, 4).map((p, idx) => {
+            const name = (p as any)?.name || (p as any)?.title || (p as any)?.product_name || 'Part'
+            const icon = productImageFrom(p) || normalizeApiImage(pickImage(p) || '') || logoImg
+            const raw = p as any
+            const handleClick = () => {
+              const brandId = String(raw?.brand_id ?? raw?.brand?.id ?? raw?.brand?.brand_id ?? '')
+              const catId = String(raw?.category_id ?? raw?.category?.id ?? raw?.category_id ?? '')
+              const params = new URLSearchParams()
+              if (catId) params.set('catId', String(catId))
+              if (brandId) params.set('brandId', String(brandId))
+              // fallback to a free-text query so CarParts can match by name if IDs are missing
+              if (!brandId && !catId && name) params.set('q', name)
+              navigate(`/parts?${params.toString()}`)
+            }
             return (
-              <div key={`cat-${idx}`} className="rounded-xl bg-white p-4 ">
+              <button key={`top-${idx}`} onClick={handleClick} className="text-left rounded-xl bg-white p-4" type="button">
                 <div className="flex justify-center gap-4">
                   <div className="flex h-auto sm:w-40 ring-1 ring-black/10 p-4 items-center justify-center rounded-lg">
                     <img src={icon} alt={name} className="h-full w-full object-contain" onError={(e)=>{(e.currentTarget as HTMLImageElement).src=logoImg}} />
@@ -220,13 +233,11 @@ export default function Home() {
                   <div>
                     <h5 className="text-[14px] font-semibold text-gray-900">{name}</h5>
                     <ul className="mt-2 space-y-1.5 text-[13px] text-[#333333]">
-                      {links.map((l) => (
-                        <li key={l}><a href="#" className="text-brand !underline !hover:underline">{l}</a></li>
-                      ))}
+                      <li><span className="text-brand !underline">View parts</span></li>
                     </ul>
                   </div>
                 </div>
-              </div>
+              </button>
             )
           })}
         </>
@@ -239,11 +250,18 @@ export default function Home() {
         <>
           {manufacturers.slice(0, 6).map((m, idx) => {
             const name = (m as any)?.name || (m as any)?.title || 'Manufacturer'
+            const id = String((m as any)?.id ?? (m as any)?.manufacturer_id ?? '')
+            const handleClick = () => {
+              const params = new URLSearchParams()
+              if (name) params.set('q', name)
+              if (id) params.set('manufacturerId', id)
+              navigate(`/parts?${params.toString()}`)
+            }
             return (
-              <div key={`manu-${idx}`} className="rounded-xl bg-white p-4 ring-1 ring-black/10">
+              <button key={`manu-${idx}`} onClick={handleClick} className="rounded-xl bg-white p-4 ring-1 ring-black/10 text-left" type="button">
                 <div className="text-[14px] font-semibold text-gray-900">{name}</div>
                 <div className="mt-2 text-[12px] text-gray-600">Trusted OEM quality</div>
-              </div>
+              </button>
             )
           })}
         </>
@@ -256,11 +274,18 @@ export default function Home() {
         <>
           {brands.slice(0, 6).map((b, idx) => {
             const name = brandNameOf(b)
+            const id = String((b as any)?.id ?? (b as any)?.brand_id ?? '')
+            const handleClick = () => {
+              const params = new URLSearchParams()
+              if (id) params.set('brandId', id)
+              if (name) params.set('title', name)
+              navigate(`/parts?${params.toString()}`)
+            }
             return (
-              <div key={`brand-${String((b as any)?.id ?? idx)}-${idx}`} className="rounded-xl bg-white p-4 ring-1 ring-black/10">
+              <button key={`brand-${String((b as any)?.id ?? idx)}-${idx}`} onClick={handleClick} className="rounded-xl bg-white p-4 ring-1 ring-black/10 text-left" type="button">
                 <div className="text-[14px] font-semibold text-gray-900">{name}</div>
                 <div className="mt-2 text-[12px] text-gray-600">Popular seller</div>
-              </div>
+              </button>
             )
           })}
         </>

@@ -1,0 +1,49 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>OAuth Callback</title>
+</head>
+<body>
+  <script>
+    // This page is opened as the redirect_uri for the OAuth popup.
+    // It extracts the query string or fragment parameters and posts them
+    // back to the opener window, then closes itself.
+
+    function parseParams(str) {
+      const obj = {};
+      if (!str) return obj;
+      // remove leading ? or #
+      if (str[0] === '?' || str[0] === '#') str = str.slice(1);
+      const parts = str.split('&');
+      for (const p of parts) {
+        const [k, v] = p.split('=');
+        try { obj[decodeURIComponent(k)] = decodeURIComponent(v || '') } catch(e) { obj[k] = v }
+      }
+      return obj;
+    }
+
+    (function() {
+      try {
+        const hash = window.location.hash || '';
+        const search = window.location.search || '';
+        const params = { ...parseParams(search), ...parseParams(hash) };
+        // Post the parsed params to the opener window
+        if (window.opener && !window.opener.closed) {
+          window.opener.postMessage({ type: 'oauth:callback', params }, window.location.origin);
+        }
+      } catch (e) {
+        try {
+          if (window.opener && !window.opener.closed) {
+            window.opener.postMessage({ type: 'oauth:callback', error: String(e) }, window.location.origin);
+          }
+        } catch (_) {}
+      } finally {
+        // Close the popup after a short delay to allow message propagation
+        setTimeout(() => window.close(), 250);
+      }
+    })();
+  </script>
+  <div style="font-family: sans-serif; padding: 2rem;">Processing authentication... You may close this window.</div>
+</body>
+</html>
