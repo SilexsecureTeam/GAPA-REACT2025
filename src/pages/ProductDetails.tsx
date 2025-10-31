@@ -184,7 +184,7 @@ export default function ProductDetails() {
   const [propertiesLoading, setPropertiesLoading] = useState(false)
   // Suitability (from backend endpoints)
   const [suitabilityLoading, setSuitabilityLoading] = useState(false)
-  const [suitabilityError, setSuitabilityError] = useState<string | null>(null)
+  // const [suitabilityError, setSuitabilityError] = useState<string | null>(null)
   const [suitabilityData, setSuitabilityData] = useState<any[]>([])
   // When the backend returns an explicit empty envelope (e.g. { result: [] })
   // we treat that as "compatible with all vehicles" or an intentional no-list.
@@ -359,7 +359,7 @@ export default function ProductDetails() {
     let alive = true
     if (!id) return
     setSuitabilityLoading(true)
-    setSuitabilityError(null)
+    // setSuitabilityError(null)
     setSuitabilityData([])
     setSuitabilityExplicitEmpty(false)
     ;(async () => {
@@ -391,7 +391,7 @@ export default function ProductDetails() {
         setSuitabilityData(prepared)
       } catch (e: any) {
         if (!alive) return
-        setSuitabilityError(e?.message || 'Failed to load suitability information')
+        // setSuitabilityError(e?.message || 'Failed to load suitability information')
         setSuitabilityData([])
       } finally {
         if (alive) setSuitabilityLoading(false)

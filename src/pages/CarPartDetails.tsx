@@ -706,7 +706,7 @@ export default function CarPartDetails() {
     const [copiedOEM, setCopiedOEM] = useState<number | null>(null)
   // Suitability state (uses backend endpoints)
   const [suitabilityLoading, setSuitabilityLoading] = useState(false)
-  const [suitabilityError, setSuitabilityError] = useState<string | null>(null)
+  // const [suitabilityError, setSuitabilityError] = useState<string | null>(null)
   const [suitabilityData, setSuitabilityData] = useState<any[]>([])
   // When the backend explicitly returns { result: [] } we treat that as an
   // intentional empty list (compatible with all vehicles) and surface a
@@ -718,7 +718,7 @@ export default function CarPartDetails() {
       let alive = true
       if (!isSelected || !ui?.id) return
       setSuitabilityLoading(true)
-      setSuitabilityError(null)
+      // setSuitabilityError(null)
       setSuitabilityData([])
       setSuitabilityExplicitEmpty(false)
       ;(async () => {
@@ -745,7 +745,7 @@ export default function CarPartDetails() {
           setSuitabilityData(prepared)
         } catch (e: any) {
           if (!alive) return
-          setSuitabilityError(e?.message || 'Failed to load suitability information')
+          // setSuitabilityError(e?.message || 'Failed to load suitability information')
           setSuitabilityData([])
         } finally {
           if (alive) setSuitabilityLoading(false)
