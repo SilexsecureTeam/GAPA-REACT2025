@@ -81,7 +81,8 @@ function mapApiToUi(p: any) {
     if (typeof x === 'string') return productImageFrom({ img_url: x }) || normalizeApiImage(x) || ''
     return productImageFrom(x) || normalizeApiImage(pickImage(x) || '') || ''
   })
-  const gallery = Array.from(new Set([image, ...galleryFromFields, ...builtGallery].filter(Boolean)))
+  // Prefer explicit gallery fields and raw images first, then fallback to the single `image` value
+  const gallery = Array.from(new Set([...galleryFromFields, ...builtGallery, image].filter(Boolean)))
   const rating = Number(src?.rating || src?.stars || 4)
   const reviews = Number(src?.reviews_count || src?.reviews || 0)
   const inStock = Boolean((src as any)?.in_stock ?? (src as any)?.live_status ?? true)
@@ -821,6 +822,8 @@ export default function CarPartDetails() {
     }
 
     // Render compatibility as nested <details> (Maker -> Model -> Details)
+    // Updated to match the backend suitability UI: lightweight details/summary
+    // with native arrow affordance and minimal borders/backgrounds.
     function CompatDetails({ compatTree }: { compatTree: Record<string, Record<string, string[]>> }) {
       const makers = useMemo(() => Object.keys(compatTree).sort(), [compatTree])
       const [expandedMaker, setExpandedMaker] = useState<string | null>(null)
@@ -835,21 +838,21 @@ export default function CarPartDetails() {
           {makers.map((maker) => {
             const isOpen = expandedMaker === maker
             return (
-              <details key={`maker-${maker}`} className="rounded-md border bg-white" open={isOpen}>
+              <details key={`maker-${maker}`} className="rounded-md bg-gray-50" open={isOpen}>
                 <summary
-                  className="cursor-pointer list-none px-4 py-3 text-sm font-medium"
+                  className="cursor-pointer px-3 py-2 font-semibold text-sm text-gray-800"
                   onClick={(e) => { e.preventDefault(); setExpandedMaker(prev => prev === maker ? null : maker) }}
                 >
                   {maker}
                 </summary>
-                <div className="px-4 pb-3 pt-0">
+                <div className="px-3 pb-3 pt-0">
                   {Object.keys(compatTree[maker] || {}).length === 0 ? (
                     <div className="text-sm text-gray-700">No specific models listed.</div>
                   ) : (
                     Object.entries(compatTree[maker]).map(([model, details]) => (
-                      <details key={`model-${maker}-${model}`} className="mt-2 rounded-md border bg-gray-50">
-                        <summary className="cursor-pointer list-none px-3 py-2 text-sm font-medium">{model}</summary>
-                        <div className="px-3 pb-2 pt-0 text-[13px] text-gray-800">
+                      <details key={`model-${maker}-${model}`} className="mt-2 rounded-md bg-white px-3 py-2 text-sm text-gray-700 ring-1 ring-black/5">
+                        <summary className="cursor-pointer font-medium">{model}</summary>
+                        <div className="mt-2 pl-2 text-gray-600">
                           {details && details.length > 0 ? (
                             <ul className="list-disc pl-5">
                               {details.map((d, i) => <li key={`detail-${maker}-${model}-${i}`}>{d}</li>)}
@@ -879,14 +882,15 @@ export default function CarPartDetails() {
         )}
         <div className="grid gap-6 lg:grid-cols-7">
           <aside className="rounded-lg p-6 row-span-2 lg:col-span-3">
-            <div className={`flex items-center justify-center rounded-lg bg-[#F6F5FA] p-6 ${onSelect && !isSelected ? 'cursor-pointer hover:opacity-90' : ''}`}
+              <div className={`flex items-center justify-center rounded-lg bg-[#F6F5FA] p-6 ${onSelect && !isSelected ? 'cursor-pointer hover:opacity-90' : ''}`}
               onClick={() => { if (onSelect && !isSelected) onSelect(ui.id, raw) }}>
-              <ImageWithFallback src={mainImage} alt={ui.name} className="h-[320px] w-auto object-contain" />
+              {/* Show site logo as fallback for the main image so the large frame isn't empty when product image fails */}
+              <ImageWithFallback src={mainImage} alt={ui.name} className="h-[320px] w-auto object-contain" showFallback={true} />
             </div>
             <div className="mt-3 grid grid-cols-4 gap-2">
               {ui.gallery.map((g, i) => (
                 <button key={`g-${ui.id}-${i}`} onClick={() => setActiveIdx(i)} className={`flex items-center justify-center rounded-lg bg-[#F6F5FA] p-2 ring-1 ring-black/10 ${i === activeIdx ? 'outline-2 outline-accent' : ''}`} aria-label={`Preview ${i + 1}`}>
-                  <ImageWithFallback src={g} alt={`Preview ${i + 1}`} className="h-14 w-auto object-contain" />
+                  <ImageWithFallback src={g} alt={`Preview ${i + 1}`} className="h-14 w-auto object-contain" showFallback={true} />
                 </button>
               ))}
             </div>
@@ -984,7 +988,7 @@ export default function CarPartDetails() {
             )}
             {/* Suitable vehicles — prefer backend suitability endpoints, fall back to parsed compatibility */}
             {suitabilityLoading ? (
-              <div className="rounded-lg bg-white ring-1 ring-black/10 p-4 text-center text-gray-500">Loading suitability information...</div>
+              <div className="rounded-lg bg-white p-4 text-center text-gray-500"></div>
             ) : suitabilityExplicitEmpty ? (
               <div className="rounded-lg bg-white ring-1 ring-black/10">
                 <div className="px-4 py-3 text-[13px] font-semibold text-gray-900">Suitable vehicles</div>
@@ -1034,9 +1038,24 @@ export default function CarPartDetails() {
                 <div className="max-h-60 overflow-auto p-3 pt-0">
                   {/* If compatList is a flat list with no structured tree, just show it */}
                   {Object.values(compatTree).every(models => Object.keys(models).length === 0) ? (
-                    <ul className="list-disc pl-5 text-[12px] text-gray-800">
-                      {compatList.map((c, i) => (<li key={`compat-${i}`}>{c}</li>))}
-                    </ul>
+                    <div className="space-y-2">
+                      {compatList.map((vehicle, i) => {
+                        const splitIdx = vehicle.toUpperCase().indexOf('YEAR OF CONSTRUCTION')
+                        let model = vehicle, details = ''
+                        if (splitIdx !== -1) {
+                          model = vehicle.slice(0, splitIdx).trim()
+                          details = vehicle.slice(splitIdx).trim()
+                        }
+                        return (
+                          <details key={`compat-${i}`} className="rounded-md bg-gray-50">
+                            <summary className="cursor-pointer px-3 py-2 font-semibold text-sm text-gray-800">{model || vehicle}</summary>
+                            {details && (
+                              <div className="mt-2 pl-2 text-gray-600">{details}</div>
+                            )}
+                          </details>
+                        )
+                      })}
+                    </div>
                   ) : (
                     <CompatDetails compatTree={compatTree} />
                   )}
