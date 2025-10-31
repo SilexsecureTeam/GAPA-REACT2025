@@ -226,9 +226,9 @@ Subscribe now and stay ahead of the road!
           <div>
             <h4 className="text-sm font-bold tracking-wide ">Support</h4>
             <ul className="mt-3 space-y-2 text-sm">
-              <li><a className="hover:text-[#FA8232]" href="#">Walk In Store: GAPA Naija. 2402 Shehu Shagari Way, Beside Barlance Garden, Maitama, F.C.T - Abuja</a></li>
-              <li><a className="hover:text-[#FA8232]" href="#">Phone: +234 708 888 5268</a></li>
-              <li><a className="hover:text-[#FA8232]" href="#">Email: sales@gapaautoparts.com</a></li>
+              <li><a className="">Walk In Store: GAPA Naija. 2402 Shehu Shagari Way, Beside Barlance Garden, Maitama, F.C.T - Abuja</a></li>
+              <li><a className="hover:text-[#FA8232]" target='_blank' rel='noreferrer' href="tel:+2347088885268">Phone: +234 708 888 5268</a></li>
+              <li><a className="hover:text-[#FA8232]" href="mailto:shepherdhilllp@gmail.com"  target='_blank' rel='noreferrer'>Email: sales@gapaautoparts.com</a></li>
             </ul>
           </div>
           <img src={gigImg} alt="GIG Logistics" className='p-1' />

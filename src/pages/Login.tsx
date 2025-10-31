@@ -33,7 +33,6 @@ export default function Login() {
     }
   }
 
-  // OAuth popup helpers (mirrors SignUp behavior)
   useEffect(() => {
     function onMessage(e: MessageEvent) {
       try {
@@ -42,7 +41,8 @@ export default function Login() {
         if (payload && payload.type === 'oauth:callback') {
           sessionStorage.setItem('oauth:latest', JSON.stringify(payload.params || { error: payload.error }))
         }
-      } catch (err) { /* ignore */ }
+      } catch (err) {
+      }
     }
     window.addEventListener('message', onMessage)
     return () => window.removeEventListener('message', onMessage)

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, useCallback } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { getAllProducts, liveSearch, getRelatedProducts, type ApiProduct, getProductById, getAllCategories, type ApiCategory, addToCartApi, type ApiManufacturer, getProductReviews, type ApiReview } from '../services/api'
+import { getAllProducts, liveSearch, getRelatedProducts, type ApiProduct, getProductById, getAllCategories, type ApiCategory, addToCartApi, type ApiManufacturer, getProductReviews, type ApiReview,
+  checkSuitability, getSuitabilityModel, getSubSuitabilityModel } from '../services/api'
 import { normalizeApiImage, pickImage, productImageFrom, categoryImageFrom, manufacturerImageFrom } from '../services/images'
 import logoImg from '../assets/gapa-logo.png'
 import { useAuth } from '../services/auth'
@@ -703,6 +704,91 @@ export default function CarPartDetails() {
     }, [rawSrc, isSelected])
 
     const [copiedOEM, setCopiedOEM] = useState<number | null>(null)
+  // Suitability state (uses backend endpoints)
+  const [suitabilityLoading, setSuitabilityLoading] = useState(false)
+  const [suitabilityError, setSuitabilityError] = useState<string | null>(null)
+  const [suitabilityData, setSuitabilityData] = useState<any[]>([])
+  // When the backend explicitly returns { result: [] } we treat that as an
+  // intentional empty list (compatible with all vehicles) and surface a
+  // friendly message instead of falling back to parsed compatibility.
+  const [suitabilityExplicitEmpty, setSuitabilityExplicitEmpty] = useState(false)
+
+    // Fetch suitability hierarchy for the selected product (top-level models and their sub-models)
+    useEffect(() => {
+      let alive = true
+      if (!isSelected || !ui?.id) return
+      setSuitabilityLoading(true)
+      setSuitabilityError(null)
+      setSuitabilityData([])
+      setSuitabilityExplicitEmpty(false)
+      ;(async () => {
+        try {
+          const models = await checkSuitability(ui.id)
+          if (!alive) return
+          if (models && (models as any).__emptySuitability) {
+            setSuitabilityData([])
+            setSuitabilityExplicitEmpty(true)
+            return
+          }
+          const modelArr: any[] = Array.isArray(models) ? models : []
+          if (modelArr.length === 0) {
+            setSuitabilityData([])
+            return
+          }
+          const prepared = await Promise.all(modelArr.map(async (m: any) => {
+            const modelId = m?.id ?? m?.model_id
+            const sub = await getSuitabilityModel(modelId)
+            const subModels = Array.isArray(sub) ? sub.map((s: any) => ({ ...s, subSubHtml: undefined, loading: false, error: null })) : []
+            return { modelId, modelName: m?.model || m?.name || '', raw: m, subModels }
+          }))
+          if (!alive) return
+          setSuitabilityData(prepared)
+        } catch (e: any) {
+          if (!alive) return
+          setSuitabilityError(e?.message || 'Failed to load suitability information')
+          setSuitabilityData([])
+        } finally {
+          if (alive) setSuitabilityLoading(false)
+        }
+      })()
+      return () => { alive = false }
+    }, [isSelected, ui?.id])
+
+    // Lazy-load sub-sub HTML for a sub-model when expanded
+    const loadSubSub = async (modelIndex: number, subIndex: number) => {
+      setSuitabilityData((prev) => {
+        const copy = JSON.parse(JSON.stringify(prev || []))
+        const target = copy[modelIndex]?.subModels?.[subIndex]
+        if (!target) return prev
+        if (target.subSubHtml || target.loading) return prev
+        target.loading = true
+        return copy
+      })
+
+      try {
+        const prev = suitabilityData[modelIndex]
+        const sub = prev?.subModels?.[subIndex]
+        const subModelId = sub?.id ?? sub?.sub_model_id
+        const res = await getSubSuitabilityModel(subModelId)
+        const html = Array.isArray(res) && res.length ? (res[0]?.sub_sub_model || '') : ''
+        setSuitabilityData((prev) => {
+          const copy = JSON.parse(JSON.stringify(prev || []))
+          if (!copy[modelIndex] || !copy[modelIndex].subModels) return prev
+          copy[modelIndex].subModels[subIndex].subSubHtml = html
+          copy[modelIndex].subModels[subIndex].loading = false
+          copy[modelIndex].subModels[subIndex].error = null
+          return copy
+        })
+      } catch (e: any) {
+        setSuitabilityData((prev) => {
+          const copy = JSON.parse(JSON.stringify(prev || []))
+          if (!copy[modelIndex] || !copy[modelIndex].subModels) return prev
+          copy[modelIndex].subModels[subIndex].loading = false
+          copy[modelIndex].subModels[subIndex].error = e?.message || 'Failed to load details'
+          return copy
+        })
+      }
+    }
     // Removed unused infoTab state that previously controlled tab UI
     // const [infoTab, setInfoTab] = useState<'vehicles' | 'oem'>('vehicles')
 
@@ -896,8 +982,53 @@ export default function CarPartDetails() {
                 <p className="mt-2 text-[13px] leading-relaxed text-gray-700">{ui.description}</p>
               </section>
             )}
-            {/* Collapsible Suitable Vehicles - improved hierarchical flow (Brand -> Model -> Details) */}
-            {Object.keys(compatTree).length > 0 && (
+            {/* Suitable vehicles — prefer backend suitability endpoints, fall back to parsed compatibility */}
+            {suitabilityLoading ? (
+              <div className="rounded-lg bg-white ring-1 ring-black/10 p-4 text-center text-gray-500">Loading suitability information...</div>
+            ) : suitabilityExplicitEmpty ? (
+              <div className="rounded-lg bg-white ring-1 ring-black/10">
+                <div className="px-4 py-3 text-[13px] font-semibold text-gray-900">Suitable vehicles</div>
+                <div className="p-3 text-sm text-gray-700">Compatible with all vehicles</div>
+              </div>
+            ) : suitabilityData && suitabilityData.length > 0 ? (
+              <div className="rounded-lg bg-white ring-1 ring-black/10">
+                <div className="px-4 py-3 text-[13px] font-semibold text-gray-900">Suitable vehicles</div>
+                <div className="max-h-60 overflow-auto p-3 pt-0 space-y-2 no-scrollbar">
+                  {suitabilityData.map((modelItem: any, mi: number) => (
+                    <details key={`suit-model-${mi}`} className="rounded-md bg-gray-50" >
+                      <summary className="cursor-pointer px-3 py-2 font-medium text-sm text-gray-800">{modelItem.modelName || modelItem.raw?.model || `Model ${modelItem.modelId}`}</summary>
+                      <div className="mt-2 space-y-2 pl-3">
+                        {Array.isArray(modelItem.subModels) && modelItem.subModels.length > 0 ? (
+                          modelItem.subModels.map((sub: any, si: number) => (
+                            <details key={`suit-sub-${mi}-${si}`} className="rounded-md bg-white px-3 py-2 text-sm text-gray-700 ring-1 ring-black/5" onToggle={(e) => {
+                              try {
+                                const opened = (e.target as HTMLDetailsElement).open
+                                if (opened && !sub.subSubHtml && !sub.loading) loadSubSub(mi, si)
+                              } catch (err) { }
+                            }}>
+                              <summary className="cursor-pointer font-medium">{sub?.sub_model || sub?.name || `Variant ${sub?.id || si}`}</summary>
+                              <div className="mt-2 pl-2 text-gray-600">
+                                {sub.loading ? (
+                                  <div className="text-sm text-gray-500">Loading details...</div>
+                                ) : sub.error ? (
+                                  <div className="text-sm text-red-500">{sub.error}</div>
+                                ) : sub.subSubHtml ? (
+                                  <div dangerouslySetInnerHTML={{ __html: sub.subSubHtml }} />
+                                ) : (
+                                  <div className="text-sm text-gray-500">No further details available.</div>
+                                )}
+                              </div>
+                            </details>
+                          ))
+                        ) : (
+                          <div className="text-sm text-gray-500">No sub-models available for this model.</div>
+                        )}
+                      </div>
+                    </details>
+                  ))}
+                </div>
+              </div>
+            ) : Object.keys(compatTree).length > 0 ? (
               <div className="rounded-lg bg-white ring-1 ring-black/10">
                 <div className="px-4 py-3 text-[13px] font-semibold text-gray-900">Suitable vehicles</div>
                 <div className="max-h-60 overflow-auto p-3 pt-0">
@@ -911,8 +1042,7 @@ export default function CarPartDetails() {
                   )}
                 </div>
               </div>
-            )}
-            {/* Collapsible OEM Numbers */}
+            ) : null}
             {oemList.length > 0 && (
               <details className="rounded-lg bg-white ring-1 ring-black/10">
                 <summary className="cursor-pointer list-none px-4 py-3 text-[13px] font-semibold text-gray-900">OEM Part Numbers</summary>

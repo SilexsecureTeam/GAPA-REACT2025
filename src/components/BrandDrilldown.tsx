@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
-import { getModelsByBrandId, getSubModelsByModelId, getAllBrands } from '../services/api'
+import { useEffect, useState, useMemo, useRef } from 'react'
+import { getModelsByBrandId, getSubModelsByModelId, getAllBrands, getAllCategories } from '../services/api'
+import { useNavigate } from 'react-router-dom'
 import { setPersistedVehicleFilter, type VehicleFilterState } from '../services/vehicle'
 import { carImageFrom } from '../services/images'
 import logoImg from '../assets/gapa-logo.png'
@@ -27,13 +28,21 @@ type SubModel = {
 type BrandDrilldownProps = {
   brandId: string
   onComplete?: (state: VehicleFilterState) => void
+  onFilterChange?: (filter: { categoryId?: string; q?: string }) => void
   className?: string
 }
 
-export default function BrandDrilldown({ brandId, onComplete, className = '' }: BrandDrilldownProps) {
+export default function BrandDrilldown({ brandId, onComplete, onFilterChange, className = '' }: BrandDrilldownProps) {
   const [brandName, setBrandName] = useState('')
   const [models, setModels] = useState<Model[]>([])
   const [subModels, setSubModels] = useState<SubModel[]>([])
+  const [searchTerm, setSearchTerm] = useState<string>('')
+  const [page, setPage] = useState<number>(1)
+  const pageSize = 12
+  const lastEmittedRef = useRef<string | null>(null)
+  const [categories, setCategories] = useState<any[]>([])
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>('')
+  const navigate = useNavigate()
   
   const [selectedModelId, setSelectedModelId] = useState<string>('')
   const [selectedModelName, setSelectedModelName] = useState<string>('')
@@ -142,7 +151,7 @@ export default function BrandDrilldown({ brandId, onComplete, className = '' }: 
     if (!brandId) return
     // Wait for brandName to be fetched before updating filter
     if (!brandName) return
-    
+
     const state: VehicleFilterState = {
       brandId,
       brandName,
@@ -151,19 +160,30 @@ export default function BrandDrilldown({ brandId, onComplete, className = '' }: 
       engineId: selectedSubModelId || undefined,
       engineName: selectedSubModelName || undefined,
     }
-    
-    console.log('🚗 BrandDrilldown updating filter:', state)
-    
-    // Persist to localStorage
-    setPersistedVehicleFilter(state)
-    
-    // Notify parent
-    if (onComplete) onComplete(state)
+
+    // Avoid emitting identical state repeatedly (prevents update loops)
+    try {
+      const json = JSON.stringify(state)
+      if (lastEmittedRef.current !== json) {
+        lastEmittedRef.current = json
+        console.log('🚗 BrandDrilldown updating filter:', state)
+        setPersistedVehicleFilter(state)
+        if (onComplete) onComplete(state)
+      }
+    } catch (e) {
+      // fallback: always emit once
+      console.log('🚗 BrandDrilldown updating filter (fallback):', state)
+      setPersistedVehicleFilter(state)
+      if (onComplete) onComplete(state)
+    }
   }, [brandId, brandName, selectedModelId, selectedModelName, selectedSubModelId, selectedSubModelName, onComplete])
 
   const handleModelSelect = (model: Model) => {
     setSelectedModelId(String(model.id))
     setSelectedModelName(model.name)
+    // reset pagination and search when selecting a model
+    setPage(1)
+    setSearchTerm('')
   }
 
   const handleSubModelSelect = (subModel: SubModel) => {
@@ -182,6 +202,29 @@ export default function BrandDrilldown({ brandId, onComplete, className = '' }: 
     }, 100)
   }
 
+  // Notify parent when quick search or category selection changes
+  // Notify parent when quick search or category selection changes.
+  // Debounce and dedupe emissions and avoid emitting empty filters to prevent parent resets.
+  const lastFilterEmittedRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!onFilterChange) return
+    const payload = { categoryId: selectedCategoryId || undefined, q: (searchTerm || undefined) }
+    // Don't emit if both are empty
+    if (!payload.categoryId && !payload.q) return
+    try {
+      const json = JSON.stringify(payload)
+      if (lastFilterEmittedRef.current === json) return
+      lastFilterEmittedRef.current = json
+      const t = setTimeout(() => {
+        onFilterChange(payload)
+      }, 200)
+      return () => clearTimeout(t)
+    } catch (e) {
+      // best-effort emit
+      onFilterChange(payload)
+    }
+  }, [selectedCategoryId, searchTerm, onFilterChange])
+
   const getImageUrl = (model: Model | SubModel) => {
     const url = carImageFrom(model)
     return url || logoImg
@@ -194,7 +237,39 @@ export default function BrandDrilldown({ brandId, onComplete, className = '' }: 
     setSelectedSubModelName('')
     setSubModels([])
     setShowCategorySelection(false)
+    setSearchTerm('')
+    setPage(1)
   }
+
+  // Derived filtered models for search + pagination
+  const filteredModels = useMemo(() => {
+    const q = (searchTerm || '').trim().toLowerCase()
+    if (!q) return models
+    return models.filter(m => String(m.name || '').toLowerCase().includes(q))
+  }, [models, searchTerm])
+
+  const pagedModels = useMemo(() => {
+    const start = (page - 1) * pageSize
+    return filteredModels.slice(start, start + pageSize)
+  }, [filteredModels, page])
+
+  // Fetch categories when category selection is shown
+  useEffect(() => {
+    let alive = true
+    if (!showCategorySelection) return
+    ;(async () => {
+      try {
+        const res = await getAllCategories()
+        if (!alive) return
+        const arr = Array.isArray(res) ? res : []
+        setCategories(arr)
+      } catch (e) {
+        if (!alive) return
+        setCategories([])
+      }
+    })()
+    return () => { alive = false }
+  }, [showCategorySelection])
 
   return (
     <div className={`space-y-6 ${className}`}>
@@ -242,8 +317,19 @@ export default function BrandDrilldown({ brandId, onComplete, className = '' }: 
           <h4 className="mb-4 text-[16px] font-black text-gray-900 uppercase tracking-wide">
             {selectedModelId ? 'Selected Model' : 'Select a Model'}
           </h4>
+
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <label htmlFor="modelSearch" className="sr-only">Search models</label>
+              <input id="modelSearch" value={searchTerm} onChange={(e) => { setSearchTerm(e.target.value); setPage(1) }} placeholder="Search models by name" className="h-10 w-64 rounded-md bg-gray-50 px-3 text-sm ring-1 ring-black/5" />
+            </div>
+            <div className="flex items-center gap-2 text-sm text-gray-600">
+              <span>{filteredModels.length} model{filteredModels.length === 1 ? '' : 's'}</span>
+            </div>
+          </div>
+
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {models.map((model) => {
+            {pagedModels.map((model) => {
               const isSelected = selectedModelId === String(model.id)
               return (
                 <button
@@ -358,8 +444,8 @@ export default function BrandDrilldown({ brandId, onComplete, className = '' }: 
         </div>
       )}
 
-      {/* Current Selection Summary */}
-      {selectedModelId && !showCategorySelection && (
+  {/* Current Selection Summary (hidden when parent handles vehicle summary via onComplete) */}
+  {selectedModelId && !showCategorySelection && !onComplete && (
         <div className="rounded-xl bg-gradient-to-br from-green-50 to-emerald-50 p-4 ring-1 ring-green-200 shadow-sm">
           <div className="flex items-start gap-3">
             <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-green-500">
@@ -389,8 +475,8 @@ export default function BrandDrilldown({ brandId, onComplete, className = '' }: 
         </div>
       )}
 
-      {/* Category Selection (shown after sub-model selection) */}
-      {showCategorySelection && (
+  {/* Category Selection (shown after sub-model selection). If parent is handling drilldown filters, hide this block to avoid duplicate UI */}
+  {showCategorySelection && !onFilterChange && (
         <div id="category-selection-section" className="rounded-xl bg-gradient-to-br from-purple-50 to-indigo-50 p-6 ring-1 ring-purple-200 shadow-sm">
           <div className="flex items-start gap-3 mb-4">
             <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-purple-500">
@@ -416,11 +502,46 @@ export default function BrandDrilldown({ brandId, onComplete, className = '' }: 
                 <path d="M9 11l3 3L22 4" />
                 <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
               </svg>
-              <span className="font-bold text-[14px]">Next Step: Select a Category</span>
+              <span className="font-bold text-[14px]">Vehicle Selected — Filters</span>
             </div>
-            <p className="text-[13px] text-purple-800">
-              Compatible parts are now ready! Please select a category from the options below to view the available products for your <strong>{brandName} {selectedModelName}</strong>.
+            <p className="text-[13px] text-purple-800 mb-3">
+              Compatible parts are now ready for <strong>{brandName} {selectedModelName}</strong>. Use the quick filters below to narrow results before viewing the parts.
             </p>
+
+            <div className="mb-3 flex items-center gap-2">
+              <label htmlFor="partsQuickSearch" className="sr-only">Search parts</label>
+              <input id="partsQuickSearch" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Search parts by name, brand or manufacturer" className="h-10 w-full rounded-md bg-gray-50 px-3 text-sm ring-1 ring-black/5" />
+            </div>
+
+            <div className="mb-3">
+              <div className="flex flex-wrap gap-2">
+                {categories.slice(0, 12).map((c) => {
+                  const cid = String((c as any)?.id ?? (c as any)?.category_id ?? '')
+                  const name = String((c as any)?.name || (c as any)?.title || '')
+                  const active = selectedCategoryId === cid
+                  return (
+                    <button key={cid} type="button" onClick={() => setSelectedCategoryId(active ? '' : cid)} className={`px-3 py-1 rounded-full text-sm ${active ? 'bg-purple-600 text-white' : 'bg-white ring-1 ring-black/5 text-purple-800'}`}>
+                      {name}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            <div className="mt-3 flex items-center gap-2">
+              <button onClick={() => {
+                // Build parts link with selected vehicle + category/search
+                const params = new URLSearchParams()
+                if (selectedCategoryId) params.set('catId', selectedCategoryId)
+                if (brandId) params.set('brandId', String(brandId))
+                if (selectedModelId) params.set('modelId', String(selectedModelId))
+                if (selectedSubModelId) params.set('engineId', String(selectedSubModelId))
+                if (searchTerm) params.set('q', searchTerm)
+                navigate(`/parts?${params.toString()}`)
+              }} className="inline-flex h-10 items-center justify-center rounded-md bg-purple-600 px-4 text-sm font-semibold text-white hover:brightness-105">View parts</button>
+
+              <button onClick={() => { setSelectedCategoryId(''); setSearchTerm('') }} className="inline-flex h-10 items-center justify-center rounded-md bg-white border px-4 text-sm">Clear</button>
+            </div>
           </div>
         </div>
       )}

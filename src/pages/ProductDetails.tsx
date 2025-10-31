@@ -3,7 +3,8 @@ import { Link, useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import WishlistButton from '../components/WishlistButton'
 import ProductActionCard from '../components/ProductActionCard'
 import useWishlist from '../hooks/useWishlist'
-import { getProductById, getProductOEM, getProductReviews, getRelatedProducts, getProductProperties, addToCartApi, type ApiReview } from '../services/api'
+import { getProductById, getProductOEM, getProductReviews, getRelatedProducts, getProductProperties, addToCartApi, type ApiReview,
+  checkSuitability, getSuitabilityModel, getSubSuitabilityModel } from '../services/api'
 import logoImg from '../assets/gapa-logo.png'
 import { normalizeApiImage, pickImage, productImageFrom, manufacturerImageFrom } from '../services/images'
 import { useAuth } from '../services/auth'
@@ -181,6 +182,13 @@ export default function ProductDetails() {
   const [relatedLoading, setRelatedLoading] = useState(false)
   const [properties, setProperties] = useState<any[]>([])
   const [propertiesLoading, setPropertiesLoading] = useState(false)
+  // Suitability (from backend endpoints)
+  const [suitabilityLoading, setSuitabilityLoading] = useState(false)
+  const [suitabilityError, setSuitabilityError] = useState<string | null>(null)
+  const [suitabilityData, setSuitabilityData] = useState<any[]>([])
+  // When the backend returns an explicit empty envelope (e.g. { result: [] })
+  // we treat that as "compatible with all vehicles" or an intentional no-list.
+  const [suitabilityExplicitEmpty, setSuitabilityExplicitEmpty] = useState(false)
 
   const inc = () => {
     if (!prod?.soldInPairs) {
@@ -345,6 +353,88 @@ export default function ProductDetails() {
     push(comp)
     return Array.from(new Set(out))
   }, [productRaw])
+
+  // Fetch suitability tree from backend endpoints:
+  useEffect(() => {
+    let alive = true
+    if (!id) return
+    setSuitabilityLoading(true)
+    setSuitabilityError(null)
+    setSuitabilityData([])
+    setSuitabilityExplicitEmpty(false)
+    ;(async () => {
+      try {
+        const models = await checkSuitability(id)
+        if (!alive) return
+        // API helper may return a sentinel object when the backend explicitly
+        // returned { result: [] } — detect and persist that state so the UI
+        // can render "Compatible with all vehicles" instead of listing models.
+        if (models && (models as any).__emptySuitability) {
+          setSuitabilityData([])
+          setSuitabilityExplicitEmpty(true)
+          return
+        }
+        const modelArr: any[] = Array.isArray(models) ? models : []
+        if (modelArr.length === 0) {
+          setSuitabilityData([])
+          return
+        }
+
+        // For each top-level model, fetch its sub-models (but don't fetch sub-sub HTML yet)
+        const prepared = await Promise.all(modelArr.map(async (m: any) => {
+          const modelId = m?.id ?? m?.model_id
+          const sub = await getSuitabilityModel(modelId)
+          const subModels = Array.isArray(sub) ? sub.map((s: any) => ({ ...s, subSubHtml: undefined, loading: false, error: null })) : []
+          return { modelId, modelName: m?.model || m?.name || '', raw: m, subModels }
+        }))
+        if (!alive) return
+        setSuitabilityData(prepared)
+      } catch (e: any) {
+        if (!alive) return
+        setSuitabilityError(e?.message || 'Failed to load suitability information')
+        setSuitabilityData([])
+      } finally {
+        if (alive) setSuitabilityLoading(false)
+      }
+    })()
+    return () => { alive = false }
+  }, [id])
+
+  // Lazy-load sub-sub model HTML when a sub-model is expanded
+  const loadSubSub = async (modelIndex: number, subIndex: number) => {
+    setSuitabilityData((prev) => {
+      const copy = JSON.parse(JSON.stringify(prev || []))
+      const target = copy[modelIndex]?.subModels?.[subIndex]
+      if (!target) return prev
+      if (target.subSubHtml || target.loading) return prev
+      target.loading = true
+      return copy
+    })
+
+    try {
+      const prev = suitabilityData[modelIndex]
+      const sub = prev?.subModels?.[subIndex]
+      const subModelId = sub?.id ?? sub?.sub_model_id
+      const res = await getSubSuitabilityModel(subModelId)
+      const html = Array.isArray(res) && res.length ? (res[0]?.sub_sub_model || '') : ''
+      setSuitabilityData((prev) => {
+        const copy = JSON.parse(JSON.stringify(prev || []))
+        if (!copy[modelIndex] || !copy[modelIndex].subModels) return prev
+        copy[modelIndex].subModels[subIndex].subSubHtml = html
+        copy[modelIndex].subModels[subIndex].loading = false
+        copy[modelIndex].subModels[subIndex].error = null
+        return copy
+      })
+    } catch (e: any) {
+      setSuitabilityData((prev) => {
+        const copy = JSON.parse(JSON.stringify(prev || []))
+        if (!copy[modelIndex] || !copy[modelIndex].subModels) return prev
+        copy[modelIndex].subModels[subIndex].loading = false
+        copy[modelIndex].subModels[subIndex].error = e?.message || 'Failed to load details'
+        return copy
+      })
+    }
+  }
   
   // Average rating from reviews
   const avgRating = useMemo(() => {
@@ -757,7 +847,59 @@ export default function ProductDetails() {
                 </div>
               )}
 
-              {compatibility.length > 0 && (
+              {/* Use suitability endpoints: checkSuitability -> suitabilityModel -> sub-suitabilityModel (lazy-loaded) */}
+              {suitabilityLoading ? (
+                <div className="text-center text-gray-500">Loading suitability information...</div>
+              ) : suitabilityExplicitEmpty ? (
+                <div>
+                  <h2 className="mb-4 text-xl font-bold text-gray-900">Suitable Vehicles</h2>
+                  <div className="p-3 text-sm text-gray-700">Compatible with all vehicles</div>
+                </div>
+              ) : suitabilityData && suitabilityData.length > 0 ? (
+                <div>
+                  <h2 className="mb-4 text-xl font-bold text-gray-900">Suitable Vehicles</h2>
+                  <div className="max-h-96 space-y-2 overflow-y-auto no-scrollbar">
+                    {suitabilityData.map((modelItem: any, mi: number) => (
+                      <details key={mi} className="rounded-lg bg-gray-50">
+                        <summary className="cursor-pointer px-3 py-2 font-semibold text-sm text-gray-800">{modelItem.modelName || modelItem.raw?.model || `Model ${modelItem.modelId}`}</summary>
+                        <div className="mt-2 space-y-2 pl-3">
+                          {Array.isArray(modelItem.subModels) && modelItem.subModels.length > 0 ? (
+                            modelItem.subModels.map((sub: any, si: number) => (
+                              <details
+                                key={si}
+                                className="rounded-lg bg-white px-3 py-2 text-sm text-gray-700 ring-1 ring-black/5"
+                                onToggle={(e) => {
+                                  try {
+                                    const opened = (e.target as HTMLDetailsElement).open
+                                    if (opened && !sub.subSubHtml && !sub.loading) {
+                                      loadSubSub(mi, si)
+                                    }
+                                  } catch (err) { }
+                                }}
+                              >
+                                <summary className="cursor-pointer font-medium">{sub?.sub_model || sub?.name || `Variant ${sub?.id || si}`}</summary>
+                                <div className="mt-2 pl-2 text-gray-600">
+                                  {sub.loading ? (
+                                    <div className="text-sm text-gray-500">Loading details...</div>
+                                  ) : sub.error ? (
+                                    <div className="text-sm text-red-500">{sub.error}</div>
+                                  ) : sub.subSubHtml ? (
+                                    <div dangerouslySetInnerHTML={{ __html: sub.subSubHtml }} />
+                                  ) : (
+                                    <div className="text-sm text-gray-500">No further details available.</div>
+                                  )}
+                                </div>
+                              </details>
+                            ))
+                          ) : (
+                            <div className="text-sm text-gray-500">No sub-models available for this model.</div>
+                          )}
+                        </div>
+                      </details>
+                    ))}
+                  </div>
+                </div>
+              ) : compatibility.length > 0 ? (
                 <div>
                   <h2 className="mb-4 text-xl font-bold text-gray-900">Suitable Vehicles</h2>
                   <div className="max-h-96 space-y-2 overflow-y-auto">
@@ -780,6 +922,8 @@ export default function ProductDetails() {
                     })}
                   </div>
                 </div>
+              ) : (
+                <p className="text-gray-500">No compatibility information available for this product.</p>
               )}
 
               {oemNumbers.length === 0 && compatibility.length === 0 && (

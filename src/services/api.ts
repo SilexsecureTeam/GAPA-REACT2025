@@ -384,6 +384,51 @@ export async function getSubModelsByModelId(modelId: string) {
   return unwrapArray<any>(res)
 }
 
+// ----- Suitability APIs ----------------------------------------------------
+/**
+ * POST /checkSuitability
+ * body: { product_id }
+ * returns { result: [...] }
+ */
+export async function checkSuitability(productId: string) {
+  const body = { product_id: String(productId) }
+  const res = await apiRequest<any>('/checkSuitability', { method: 'POST', body })
+  // If the API returns a wrapped { result: [...] } we want to preserve the
+  // distinction between "no result found" (explicit empty array) and an
+  // absent envelope. Return a sentinel object for an explicit empty array so
+  // callers can decide how to render (e.g. "compatible with all vehicles").
+  if (res && Array.isArray(res.result)) {
+    if (res.result.length === 0) return { __emptySuitability: true }
+    return res.result
+  }
+  return unwrapArray<any>(res)
+}
+
+/**
+ * POST /suitabilityModel
+ * body: { model_id }
+ * returns { result: [...] }
+ */
+export async function getSuitabilityModel(modelId: string | number) {
+  const body = { model_id: String(modelId) }
+  const res = await apiRequest<any>('/suitabilityModel', { method: 'POST', body })
+  if (res && Array.isArray(res.result)) return res.result
+  return unwrapArray<any>(res)
+}
+
+/**
+ * POST /sub-suitabilityModel
+ * body: FormData { sub_model_id }
+ * returns { result: [...] }
+ */
+export async function getSubSuitabilityModel(subModelId: string | number) {
+  const form = new FormData()
+  form.set('sub_model_id', String(subModelId))
+  const res = await apiRequest<any>('/sub-suitabilityModel', { method: 'POST', body: form })
+  if (res && Array.isArray(res.result)) return res.result
+  return unwrapArray<any>(res)
+}
+
 // Category drill-down helpers
 export async function getSubCategories(catId: string | number) {
   const res = await apiRequest<any>(ENDPOINTS.subCategoriesByCategoryId(catId))

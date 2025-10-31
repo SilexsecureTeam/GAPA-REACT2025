@@ -169,16 +169,7 @@ export default function Wishlist() {
                         onAddToCart={() => handleAddToCart(product)}
                       />
 
-                      {/* Always show View button for wishlist items */}
-                      <div className="mt-2">
-                        <button
-                          type="button"
-                          onClick={() => handleViewProduct(product)}
-                          className="inline-flex h-8 items-center justify-center rounded-md border border-black/10 px-3 text-[12px] font-semibold text-gray-800 hover:bg-black/5"
-                        >
-                          View
-                        </button>
-                      </div>
+                      {/* View is available by clicking the image in ProductActionCard; no extra button needed */}
                     </div>
                   </li>
                 )

@@ -14,6 +14,7 @@ import { getGuestCart } from '../services/cart'
 
 // Search suggestions data
 const SEARCH_SUGGESTIONS = [
+  'Air Freshener',
   'Brake Pad',
   'Brake Disc',
   'Brake Caliper',

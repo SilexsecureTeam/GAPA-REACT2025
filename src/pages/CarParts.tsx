@@ -1034,13 +1034,16 @@ function CarPartsInner() {
   // Lifted pagination / derived filters to top-level so hooks are not called inside JSX
   // Category filter for brand drilldown (extracted from inline block)
   const categoryFiltered = useMemo(() => {
-    if (!brandDrilldownCategoryFilter) return filtered
-    return filtered.filter((p) => {
+    // Use displayFiltered (which already applies the page-level quick-search)
+    // so brand drilldown respects the page search input.
+    const base = displayFiltered
+    if (!brandDrilldownCategoryFilter) return base
+    return base.filter((p) => {
       const raw = (p as any)?.category
       const catName = resolveCategoryName(raw) || categoryOf(p)
       return String(catName).toLowerCase() === String(brandDrilldownCategoryFilter).toLowerCase()
     })
-  }, [filtered, brandDrilldownCategoryFilter, resolveCategoryName])
+  }, [displayFiltered, brandDrilldownCategoryFilter, resolveCategoryName])
 
 
   // --- Brand filter mode (from header brand selection) ---
@@ -1299,11 +1302,56 @@ function CarPartsInner() {
                   <FallbackLoader label="Loading products…" />
                 ) : displayFiltered.length === 0 ? (
                   <div className="rounded-xl bg-white p-6 text-center ring-1 ring-black/10">
-                    <div className="text-[14px] text-gray-700">
+                    <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <h4 className="mt-4 text-lg font-semibold text-gray-900">No parts match your selection</h4>
+                    <p className="mt-2 text-sm text-gray-600 max-w-2xl mx-auto">
                       {hasVehicleFilter
-                        ? `No ${activeBrandFilter} compatible parts for your selected vehicle. Adjust or reset the vehicle filter.`
-                        : `No products found compatible with ${activeBrandFilter}.`}
+                        ? `We couldn't find any ${activeBrandFilter} parts that match your selected vehicle (${[vehFilter.brandName, vehFilter.modelName, vehFilter.engineName].filter(Boolean).join(' ')}).` 
+                        : `We couldn't find any parts for ${activeBrandFilter}.`}
+                    </p>
+
+                    <ul className="mt-4 mx-auto max-w-xs space-y-2 text-left text-sm text-gray-600">
+                      <li>• Check for typos in the search.</li>
+                      <li>• Try a more general search term (e.g., remove model or engine details).</li>
+                      <li>• Clear or loosen filters to broaden results.</li>
+                    </ul>
+
+                    <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
+                      {hasVehicleFilter && (
+                        <button
+                          onClick={() => { setPersistedVehicleFilter({}); setVehFilter({}); }}
+                          className="rounded-md bg-brand px-4 py-2 text-sm font-semibold text-white hover:brightness-95"
+                        >
+                          Clear vehicle filter
+                        </button>
+                      )}
+
+                      <button
+                        onClick={() => {
+                          setPageSearch('')
+                          try {
+                            const current: Record<string, string> = {}
+                            for (const [k, val] of Array.from(searchParams.entries())) current[k] = val
+                            delete current.q
+                            setSearchParams(current, { replace: false })
+                          } catch {}
+                        }}
+                        className="rounded-md bg-gray-100 px-4 py-2 text-sm font-medium text-gray-800 hover:bg-gray-200"
+                      >
+                        Clear search
+                      </button>
+
+                      <button
+                        onClick={() => { setBrandDrilldownCategoryFilter(''); navigate('/parts') }}
+                        className="rounded-md bg-white border px-4 py-2 text-sm font-medium text-gray-800 hover:bg-gray-50"
+                      >
+                        Browse all parts
+                      </button>
                     </div>
+
+                    <div className="mt-3 text-xs text-gray-500">Still need help? <Link to="/contact" className="text-brand hover:underline">Contact support</Link></div>
                   </div>
                 ) : (
                   <>
@@ -1428,8 +1476,29 @@ function CarPartsInner() {
               {loading ? (
                 <div className="mt-3"><FallbackLoader label="Loading products…" /></div>
               ) : displayFiltered.length === 0 ? (
-                <div className="mt-3 text-sm text-gray-700">
-                  No compatible parts found for {activeVehicleBrand} {activeVehicleModel} {activeVehicleEngine}.
+                <div className="rounded-xl bg-white p-6 text-center ring-1 ring-black/10">
+                  <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <h4 className="mt-4 text-lg font-semibold text-gray-900">No compatible parts found</h4>
+                  <p className="mt-2 text-sm text-gray-600 max-w-xl mx-auto">We couldn't find parts that match <strong>{activeVehicleBrand} {activeVehicleModel} {activeVehicleEngine}</strong>. This may be because the exact part isn't in our catalog yet, or the filters are too specific.</p>
+
+                  <div className="mt-4 flex items-center justify-center gap-3">
+                    <button
+                      onClick={() => { setVehFilter({}); setPersistedVehicleFilter({}); }}
+                      className="rounded-md bg-brand px-4 py-2 text-sm font-semibold text-white hover:brightness-95"
+                    >
+                      Clear vehicle filter
+                    </button>
+                    <button
+                      onClick={() => { setPageSearch(''); navigate('/parts') }}
+                      className="rounded-md bg-gray-100 px-4 py-2 text-sm font-medium text-gray-800 hover:bg-gray-200"
+                    >
+                      Browse related parts
+                    </button>
+                  </div>
+
+                  <div className="mt-3 text-xs text-gray-500">Can't find what you need? <Link to="/contact" className="text-brand hover:underline">Contact us</Link> — we'll help you source it.</div>
                 </div>
               ) : (
                 <div>
@@ -1487,16 +1556,72 @@ function CarPartsInner() {
                   setVehFilter(state)
                   console.log('📝 CarParts setVehFilter called')
                 }}
+                onFilterChange={({ categoryId, q }) => {
+                  // Apply quick filter and category selection from the drilldown immediately
+                  setBrandDrilldownCategoryFilter(categoryId || '')
+                  setPageSearch(q || '')
+                  // reset pagination so user sees first page of filtered results
+                  setCategoryPage(1)
+                  setBrandPage(1)
+                }}
               />
+
+              {/* Persist page search input in brand drilldown so it doesn't disappear when there are no results */}
+              {/* <div className="mt-4 mb-4">
+                <label htmlFor="brand-drill-search" className="sr-only">Search parts</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    id="brand-drill-search"
+                    type="search"
+                    value={pageSearch}
+                    placeholder="Search parts by name, brand or manufacturer"
+                    onChange={(e) => {
+                      const v = e.target.value
+                      setPageSearch(v)
+                      // keep q in URL in sync so other code that reads qParam behaves the same
+                      try {
+                        const current: Record<string, string> = {}
+                        for (const [k, val] of Array.from(searchParams.entries())) current[k] = val
+                        if (v && v.trim()) current.q = v.trim()
+                        else delete current.q
+                        setSearchParams(current, { replace: false })
+                      } catch {
+                        // ignore
+                      }
+                    }}
+                    className="w-full rounded-md border px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-brand"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPageSearch('')
+                      setBrandDrilldownCategoryFilter('')
+                      try {
+                        const current: Record<string, string> = {}
+                        for (const [k, val] of Array.from(searchParams.entries())) current[k] = val
+                        delete current.q
+                        setSearchParams(current, { replace: false })
+                      } catch {
+                        // ignore
+                      }
+                    }}
+                    className="inline-flex items-center gap-2 rounded-md bg-gray-100 px-3 py-2 text-sm font-medium text-gray-800 hover:bg-gray-200"
+                  >
+                    Clear
+                  </button>
+                </div>
+              </div> */}
+
 
               {/* Show filtered products once brand and model are selected */}
               {vehFilter.brandName && vehFilter.modelName && (
                 <div id="compatible-parts-section" ref={productsRef} className="mt-8">
                   {/* Category Filter Pills for Brand Drilldown */}
                   {(() => {
-                    // Calculate available categories from filtered products
+                    // Calculate available categories from the currently visible products
+                    // (displayFiltered already includes the page-level quick-search)
                     const categoryMap = new Map<string, number>()
-                    filtered.forEach((p) => {
+                    displayFiltered.forEach((p) => {
                       const raw = (p as any)?.category
                       const catName = resolveCategoryName(raw) || categoryOf(p)
                       if (catName) {
@@ -1556,11 +1681,11 @@ function CarPartsInner() {
 
                         <div className="mb-4 flex items-center justify-between">
                           <div>
-                            <h3 className="text-[18px] font-semibold text-gray-900">
+                            <h3 className="text-[20px] font-semibold text-gray-900">
                               Compatible Parts
                               {brandDrilldownCategoryFilter && ` - ${brandDrilldownCategoryFilter}`}
                             </h3>
-                            <p className="mt-1 text-[13px] text-gray-600">
+                            <p className="mt-1 text-[17px] text-gray-600">
                               {vehFilter.brandName} {vehFilter.modelName}
                               {vehFilter.engineName && ` - ${vehFilter.engineName}`}
                             </p>
@@ -1592,6 +1717,23 @@ function CarPartsInner() {
                                 Clear category filter
                               </button>
                             )}
+                            <button
+                              onClick={() => {
+                                // Clear page search and URL q param
+                                setPageSearch('')
+                                try {
+                                  const current: Record<string, string> = {}
+                                  for (const [k, val] of Array.from(searchParams.entries())) current[k] = val
+                                  delete current.q
+                                  setSearchParams(current, { replace: false })
+                                } catch {
+                                  // ignore
+                                }
+                              }}
+                              className="mt-4 ml-4 text-[13px] font-medium text-brand hover:underline"
+                            >
+                              Clear search
+                            </button>
                             {vehFilter.engineName && (
                               <button
                                 onClick={() => setVehFilter({ ...vehFilter, engineId: undefined, engineName: undefined })}
@@ -1783,21 +1925,30 @@ function CarPartsInner() {
                 <FallbackLoader label="Loading products…" />
               ) : filteredWithCategory.length === 0 ? (
                 <div className="rounded-xl bg-white p-6 text-center ring-1 ring-black/10">
-                  <div className="text-[14px] text-gray-700">
+                  <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <h4 className="mt-4 text-lg font-semibold text-gray-900">No matching parts</h4>
+                  <p className="mt-2 text-sm text-gray-600 max-w-2xl mx-auto">
                     {vehicleSearchCategoryFilter
-                      ? `No compatible parts found in ${vehicleSearchCategoryFilter} category. Try selecting a different category.`
+                      ? `We couldn't find compatible parts in the “${vehicleSearchCategoryFilter}” category.`
                       : hasVehicleFilter
-                      ? 'No compatible parts found for your selected vehicle. Try adjusting your vehicle selection.'
-                      : 'No products found.'}
+                        ? 'We couldn’t find parts compatible with your selected vehicle. Try adjusting or clearing the vehicle filter.'
+                        : 'No products found.'}
+                  </p>
+
+                  <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
+                    {vehicleSearchCategoryFilter && (
+                      <button onClick={() => setVehicleSearchCategoryFilter('')} className="rounded-md bg-white border px-4 py-2 text-sm font-medium text-gray-800 hover:bg-gray-50">Clear category filter</button>
+                    )}
+                    {hasVehicleFilter && (
+                      <button onClick={() => { setVehFilter({}); setPersistedVehicleFilter({}); }} className="rounded-md bg-brand px-4 py-2 text-sm font-semibold text-white">Clear vehicle filter</button>
+                    )}
+                    <button onClick={() => { setPageSearch(''); try { const current: Record<string,string> = {}; for (const [k,v] of Array.from(searchParams.entries())) current[k]=v; delete current.q; setSearchParams(current, { replace:false }) } catch {} }} className="rounded-md bg-gray-100 px-4 py-2 text-sm text-gray-800">Clear search</button>
+                    <button onClick={() => navigate('/parts')} className="rounded-md bg-white border px-4 py-2 text-sm text-gray-800">Browse all parts</button>
                   </div>
-                  {vehicleSearchCategoryFilter && (
-                    <button
-                      onClick={() => setVehicleSearchCategoryFilter('')}
-                      className="mt-3 text-[13px] font-semibold text-brand hover:underline"
-                    >
-                      Clear category filter
-                    </button>
-                  )}
+
+                  <div className="mt-3 text-xs text-gray-500">If you need help sourcing a part, <Link to="/contact" className="text-brand hover:underline">contact us</Link>.</div>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -2561,7 +2712,7 @@ function CarPartsInner() {
             {loading ? (
               <div className="mt-8"><FallbackLoader label="Loading parts…" /></div>
             ) : (
-              <div className="mt-8 space-y-8">
+              <div className="-mt-4 space-y-8">
                 {/* Category sections (no global pagination) */}
                 {grouped.length === 0 ? (
                   <div className="text-center text-sm text-gray-700">
@@ -2599,7 +2750,7 @@ function CarPartsInner() {
                         </div>
 
                         {/* Product names list with per-category expand */}
-                        <div>
+                        <div className="">
                           <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                             {visible.map((p, i) => {
                               // Ensure product_id is used for view details
@@ -2609,9 +2760,9 @@ function CarPartsInner() {
                               const partSlug = toSlug(categoryOf(p)) || 'parts'
                               const wished = wishlist.has(id)
                               return (
-                                <li key={`${catName}-${id}-${i}`} className="truncate relative group pr-6">
+                                <li key={`${catName}-${id}-${i}`} className="truncate relative group pr-3 text-[13px]">
                                   <Link to={`/parts/${encodeURIComponent(brandSlug)}/${encodeURIComponent(partSlug)}?pid=${encodeURIComponent(id)}`} className="text-[14px] text-brand hover:underline line-clamp-2">{title}</Link>
-                                  <span className="absolute right-0 top-0">
+                                  <span className="hidden right-0 top-0">
                                     <WishlistButton size={16} active={wished} onToggle={(active) => { wishlist.toggle(id); if (active) toast.success('Added to wishlist') }} />
                                   </span>
                                 </li>
