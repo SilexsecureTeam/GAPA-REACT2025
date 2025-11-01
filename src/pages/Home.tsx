@@ -205,6 +205,14 @@ export default function Home() {
     }
   }
 
+  // Horizontal scroller refs & helpers for mobile carousels
+  const browseMobileRef = useRef<HTMLDivElement | null>(null)
+  const categoriesMobileRef = useRef<HTMLDivElement | null>(null)
+  const scrollByAmount = (el: HTMLDivElement | null, amt: number) => {
+    if (!el) return
+    try { el.scrollBy({ left: amt, behavior: 'smooth' }) } catch (e) { el.scrollLeft += amt }
+  }
+
   // Simplified renderer for tab panel content to avoid nested JSX/paren issues
   const renderTabContent = () => {
     if (tab === 0) {
@@ -466,15 +474,53 @@ export default function Home() {
         {loading ? (
           <FallbackLoader label="Loading products…" />
         ) : (
-          <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
-            {featuredAsProducts.length === 0 ? (
-              <div className="col-span-full text-center text-sm text-gray-600">No products found.</div>
-            ) : (
-              featuredAsProducts.map((p) => (
-                <ProductCard key={p.id} product={p} hideAddToCartButton />
-              ))
-            )}
-          </div>
+          <>
+            {/* Mobile: horizontal scroller */}
+            <div className="mt-6 md:hidden relative">
+              <button
+                type="button"
+                aria-label="Scroll left"
+                onClick={() => scrollByAmount(browseMobileRef.current, -320)}
+                className="absolute left-2 top-1/2 z-10 -translate-y-1/2 flex h-10 w-10 items-center justify-center rounded-full bg-white/80 shadow-sm"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+              </button>
+
+              <div ref={browseMobileRef} className="py-2 pl-4 overflow-x-auto scroll-smooth no-scrollbar">
+                <div className="inline-flex items-start gap-4">
+                  {featuredAsProducts.length === 0 ? (
+                    <div className="text-sm text-gray-600">No products found.</div>
+                  ) : (
+                    featuredAsProducts.map((p) => (
+                      <div key={p.id} className="shrink-0 w-[16rem]">
+                        <ProductCard product={p} hideAddToCartButton />
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              <button
+                type="button"
+                aria-label="Scroll right"
+                onClick={() => scrollByAmount(browseMobileRef.current, 320)}
+                className="absolute right-2 top-1/2 z-10 -translate-y-1/2 flex h-10 w-10 items-center justify-center rounded-full bg-white/80 shadow-sm"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+              </button>
+            </div>
+
+            {/* Desktop / tablet: original grid */}
+            <div className="hidden md:grid md:mt-6 md:grid-cols-3 lg:grid-cols-5 md:gap-4">
+              {featuredAsProducts.length === 0 ? (
+                <div className="col-span-full text-center text-sm text-gray-600">No products found.</div>
+              ) : (
+                featuredAsProducts.map((p) => (
+                  <ProductCard key={p.id} product={p} hideAddToCartButton />
+                ))
+              )}
+            </div>
+          </>
         )}
       </section>
 
@@ -485,7 +531,51 @@ export default function Home() {
           <FallbackLoader label="Loading categories…" />
         ) : (
           <>
-            <div className="mt-4 grid grid-cols-2 gap-10 md:grid-cols-4">
+            {/* Mobile: horizontal categories scroller */}
+            <div className="mt-4 md:hidden relative">
+              <button
+                type="button"
+                aria-label="Scroll categories left"
+                onClick={() => scrollByAmount(categoriesMobileRef.current, -240)}
+                className="absolute left-2 top-1/2 z-10 -translate-y-1/2 flex h-10 w-10 items-center justify-center rounded-full bg-white/80 shadow-sm"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+              </button>
+
+              <div ref={categoriesMobileRef} className="py-2 pl-4 overflow-x-auto scroll-smooth no-scrollbar">
+                <div className="inline-flex items-start gap-4">
+                  {categories.slice(0, 8).map((c) => {
+                    const name = (c as any)?.name || (c as any)?.title || 'Category'
+                    const img = categoryImageFrom(c) || normalizeApiImage(pickImage(c) || '') || logoImg
+                    return (
+                      <button
+                        type="button"
+                        key={String((c as any)?.id || name)}
+                        onClick={() => onPickCategory(c)}
+                        className="shrink-0 w-36 rounded-xl p-3 transition text-left"
+                      >
+                        <div className="flex h-36 w-full ring-1 ring-black/10 py-2 items-center justify-center overflow-hidden rounded-lg">
+                          <img src={img} alt={name} className="h-full w-full object-contain" onError={(e)=>{(e.currentTarget as HTMLImageElement).src=logoImg}} />
+                        </div>
+                        <p className="mt-3 text-center text-[12px] font-semibold uppercase tracking-wide text-gray-800">{name}</p>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              <button
+                type="button"
+                aria-label="Scroll categories right"
+                onClick={() => scrollByAmount(categoriesMobileRef.current, 240)}
+                className="absolute right-2 top-1/2 z-10 -translate-y-1/2 flex h-10 w-10 items-center justify-center rounded-full bg-white/80 shadow-sm"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+              </button>
+            </div>
+
+            {/* Desktop grid (original) */}
+            <div className="hidden md:grid md:mt-4 md:grid-cols-4 md:gap-10">
               {categories.slice(0, 8).map((c) => {
                 const name = (c as any)?.name || (c as any)?.title || 'Category'
                 const img = categoryImageFrom(c) || normalizeApiImage(pickImage(c) || '') || logoImg

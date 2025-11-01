@@ -1032,18 +1032,7 @@ function CarPartsInner() {
   }, [subSubCats, activeSubSubCatId])
 
   // Lifted pagination / derived filters to top-level so hooks are not called inside JSX
-  // Category filter for brand drilldown (extracted from inline block)
-  const categoryFiltered = useMemo(() => {
-    // Use displayFiltered (which already applies the page-level quick-search)
-    // so brand drilldown respects the page search input.
-    const base = displayFiltered
-    if (!brandDrilldownCategoryFilter) return base
-    return base.filter((p) => {
-      const raw = (p as any)?.category
-      const catName = resolveCategoryName(raw) || categoryOf(p)
-      return String(catName).toLowerCase() === String(brandDrilldownCategoryFilter).toLowerCase()
-    })
-  }, [displayFiltered, brandDrilldownCategoryFilter, resolveCategoryName])
+  // Lifted pagination / derived filters to top-level so hooks are not called inside JSX
 
 
   // --- Brand filter mode (from header brand selection) ---
@@ -1144,7 +1133,20 @@ function CarPartsInner() {
   const PAGE_SIZE_DEFAULT = 16;
   const [brandPage, setBrandPage] = useState(1);
   const [brandPageSize, setBrandPageSize] = useState(PAGE_SIZE_DEFAULT);
-  const paginatedBrandProducts = displayFiltered.slice((brandPage - 1) * brandPageSize, brandPage * brandPageSize);
+  // Category filter for brand drilldown (used when BrandDrilldown emits a category)
+  const categoryFiltered = useMemo(() => {
+    const base = displayFiltered
+    if (!brandDrilldownCategoryFilter) return base
+    return base.filter((p) => {
+      const raw = (p as any)?.category
+      const catName = resolveCategoryName(raw) || categoryOf(p)
+      return String(catName).toLowerCase() === String(brandDrilldownCategoryFilter).toLowerCase()
+    })
+  }, [displayFiltered, brandDrilldownCategoryFilter, resolveCategoryName])
+
+  // Use categoryFiltered as the source when brand-drilldown category filter is active
+  const brandProductsSource = (inBrandDrillMode && brandDrilldownCategoryFilter) ? categoryFiltered : displayFiltered
+  const paginatedBrandProducts = brandProductsSource.slice((brandPage - 1) * brandPageSize, brandPage * brandPageSize);
 
   // Pagination for the general "filtered" grid (vehicle-engine filtered block)
   const [filteredPage, setFilteredPage] = useState(1)
@@ -1153,10 +1155,7 @@ function CarPartsInner() {
   const filteredPaged = displayFiltered.slice((filteredPage - 1) * filteredPageSize, filteredPage * filteredPageSize)
 
   // Pagination for brand-drilldown categoryFiltered
-  const [categoryPage, setCategoryPage] = useState(1)
-  const [categoryPageSize, setCategoryPageSize] = useState(12)
-  useEffect(() => { setCategoryPage(1) }, [categoryFiltered, categoryPageSize])
-  const categoryPaged = categoryFiltered.slice((categoryPage - 1) * categoryPageSize, categoryPage * categoryPageSize)
+  // (category page size removed — not used)
 
   // Pagination for sub-sub-category products (filteredSubProducts)
   const [subProductsPage, setSubProductsPage] = useState(1)
@@ -1527,7 +1526,7 @@ function CarPartsInner() {
   }
 
   // --- NEW: Brand drill-down mode (brand -> model -> submodel) ---
-  if (inBrandDrillMode && !qParam) {
+  if (inBrandDrillMode && !qParam && !activeCatId) {
     return (
       <div className="bg-white !pt-10">
         <section className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
@@ -1561,7 +1560,6 @@ function CarPartsInner() {
                   setBrandDrilldownCategoryFilter(categoryId || '')
                   setPageSearch(q || '')
                   // reset pagination so user sees first page of filtered results
-                  setCategoryPage(1)
                   setBrandPage(1)
                 }}
               />
@@ -1613,158 +1611,61 @@ function CarPartsInner() {
               </div> */}
 
 
-              {/* Show filtered products once brand and model are selected */}
+              {/* When a vehicle is selected from the drilldown, show a compact echo and
+                  present categories for the user to pick from (so they drill into a
+                  category → subcategory → products flow exactly as when a category
+                  is clicked from the header). This preserves the existing UI but
+                  prevents showing the full product list immediately. */}
               {vehFilter.brandName && vehFilter.modelName && (
                 <div id="compatible-parts-section" ref={productsRef} className="mt-8">
-                  {/* Category Filter Pills for Brand Drilldown */}
-                  {(() => {
-                    // Calculate available categories from the currently visible products
-                    // (displayFiltered already includes the page-level quick-search)
-                    const categoryMap = new Map<string, number>()
-                    displayFiltered.forEach((p) => {
-                      const raw = (p as any)?.category
-                      const catName = resolveCategoryName(raw) || categoryOf(p)
-                      if (catName) {
-                        categoryMap.set(catName, (categoryMap.get(catName) || 0) + 1)
-                      }
-                    })
-                    const availableCategoriesForBrand = Array.from(categoryMap.entries())
-                      .map(([name, count]) => ({ name, count }))
-                      .sort((a, b) => a.name.localeCompare(b.name))
+                  {/* Vehicle echo */}
+                  <div className="rounded-xl bg-gradient-to-br from-white to-[#FFFBF0] p-4 ring-1 ring-black/5 mb-6">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <div className="text-[13px] font-semibold text-gray-700">Vehicle Selected</div>
+                        <div className="mt-1 text-[17px] font-bold text-gray-900">{[vehFilter.brandName, vehFilter.modelName, vehFilter.engineName].filter(Boolean).join(' ')}</div>
+                        <div className="mt-1 text-sm text-gray-600">You can now browse parts by category for this vehicle. Select a category below to see relevant sub-categories and products.</div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <button onClick={() => { setPersistedVehicleFilter({}); setVehFilter({}); navigate('/parts') }} className="rounded-md bg-white px-3 py-2 text-sm font-medium ring-1 ring-black/10">Clear</button>
+                        <button onClick={() => { /* keep selection, scroll to categories */ requestAnimationFrame(() => scrollToEl(catSectionRef.current)) }} className="rounded-md bg-brand px-4 py-2 text-sm font-semibold text-white">Browse categories</button>
+                      </div>
+                    </div>
+                  </div>
 
-                    return (
-                      <>
-                        {availableCategoriesForBrand.length > 0 && (
-                          <div className="mb-6">
-                            <h4 className="mb-3 text-[13px] font-bold text-gray-900">Filter by Category</h4>
-                            <div className="mb-3">
-                              <label htmlFor="pageSearch" className="sr-only">Search parts on page</label>
-                              <div className="relative">
-                                <input
-                                  id="pageSearch"
-                                  value={pageSearch}
-                                  onChange={(e) => setPageSearch(e.target.value)}
-                                  placeholder="Search parts by name, brand or manufacturer"
-                                  className="ml-2 w-full md:w-1/3 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-0.5 focus:ring-brand"
-                                />
-                              </div>
-                            </div>
-                            <div className="flex flex-wrap gap-2">
+                  {/* Categories grid (same pattern as drilldown start mode) */}
+                  <div className="min-w-0">
+                    {loading ? (
+                      <FallbackLoader label="Loading categories…" />
+                    ) : categories.length === 0 ? (
+                      <div className="text-sm text-gray-700">No categories found.</div>
+                    ) : (
+                      <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
+                        {categories.map((c: any, i: number) => {
+                          const id = String((c?.id ?? c?.category_id ?? i))
+                          const name = String(c?.title || c?.name || 'Category')
+                          const image = categoryImageFrom(c) || normalizeApiImage(pickImage(c) || '') || logoImg
+                          return (
+                            <li key={id}>
                               <button
-                                onClick={() => setBrandDrilldownCategoryFilter('')}
-                                className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-[13px] font-semibold transition-all ${
-                                  !brandDrilldownCategoryFilter
-                                    ? 'bg-[#F7CD3A] text-[#201A2B] ring-2 ring-[#F7CD3A]'
-                                    : 'bg-white text-gray-700 ring-1 ring-gray-300 hover:ring-gray-400'
-                                }`}
+                                onClick={() => { setParams({ catId: id, subCatId: '', subSubCatId: '' }); setActiveCatId(id) }}
+                                className="w-full rounded-2xl bg-white p-4 text-left ring-1 ring-black/10 transition hover:shadow"
                               >
-                                <span>All Categories</span>
-                                <span className="text-[11px] opacity-75">({displayFiltered.length})</span>
+                                <div className="flex w-full flex-col items-center gap-3">
+                                  <div className="overflow-hidden rounded-lg bg-[#F6F5FA] ring-1 ring-black/10">
+                                    <img src={image} alt="" className="h-full w-full object-contain" onError={(e) => { (e.currentTarget as HTMLImageElement).src = logoImg }} />
+                                  </div>
+                                  <div className="min-w-0">
+                                    <div className="truncate text-[13px] font-semibold text-gray-900">{name}</div>
+                                  </div>
+                                </div>
                               </button>
-                              {availableCategoriesForBrand.map(({ name, count }) => (
-                                <button
-                                  key={name}
-                                  onClick={() => setBrandDrilldownCategoryFilter(name)}
-                                  className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-[13px] font-semibold transition-all ${
-                                    brandDrilldownCategoryFilter === name
-                                      ? 'bg-[#F7CD3A] text-[#201A2B] ring-2 ring-[#F7CD3A]'
-                                      : 'bg-white text-gray-700 ring-1 ring-gray-300 hover:ring-gray-400'
-                                  }`}
-                                >
-                                  <span>{name}</span>
-                                  <span className="text-[11px] opacity-75">({count})</span>
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        <div className="mb-4 flex items-center justify-between">
-                          <div>
-                            <h3 className="text-[20px] font-semibold text-gray-900">
-                              Compatible Parts
-                              {brandDrilldownCategoryFilter && ` - ${brandDrilldownCategoryFilter}`}
-                            </h3>
-                            <p className="mt-1 text-[17px] text-gray-600">
-                              {vehFilter.brandName} {vehFilter.modelName}
-                              {vehFilter.engineName && ` - ${vehFilter.engineName}`}
-                            </p>
-                          </div>
-                          <div className="rounded-full bg-brand px-3 py-1 text-[13px] font-semibold text-white">
-                            {categoryFiltered.length} {categoryFiltered.length === 1 ? 'Part' : 'Parts'}
-                          </div>
-                        </div>
-
-                        {loading ? (
-                          <FallbackLoader label="Loading products…" />
-                        ) : categoryFiltered.length === 0 ? (
-                          <div className="rounded-xl bg-white p-8 text-center ring-1 ring-black/10">
-                            <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                            <h4 className="mt-4 text-[15px] font-semibold text-gray-900">
-                              No Compatible Parts Found
-                              {brandDrilldownCategoryFilter && ` in ${brandDrilldownCategoryFilter}`}
-                            </h4>
-                            <div className="mt-2 text-[14px] text-gray-600">
-                              We couldn't find any parts compatible with your {vehFilter.brandName} {vehFilter.modelName}{vehFilter.engineName ? ` ${vehFilter.engineName}` : ''}{brandDrilldownCategoryFilter ? ` in the ${brandDrilldownCategoryFilter} category` : ''}. Try selecting a different {brandDrilldownCategoryFilter ? 'category or ' : ''}model{vehFilter.engineName ? ' or sub-model' : ''}.
-                            </div>
-                            {brandDrilldownCategoryFilter && (
-                              <button
-                                onClick={() => setBrandDrilldownCategoryFilter('')}
-                                className="mt-4 text-[13px] font-medium text-brand hover:underline"
-                              >
-                                Clear category filter
-                              </button>
-                            )}
-                            <button
-                              onClick={() => {
-                                // Clear page search and URL q param
-                                setPageSearch('')
-                                try {
-                                  const current: Record<string, string> = {}
-                                  for (const [k, val] of Array.from(searchParams.entries())) current[k] = val
-                                  delete current.q
-                                  setSearchParams(current, { replace: false })
-                                } catch {
-                                  // ignore
-                                }
-                              }}
-                              className="mt-4 ml-4 text-[13px] font-medium text-brand hover:underline"
-                            >
-                              Clear search
-                            </button>
-                            {vehFilter.engineName && (
-                              <button
-                                onClick={() => setVehFilter({ ...vehFilter, engineId: undefined, engineName: undefined })}
-                                className="mt-4 ml-4 text-[13px] font-medium text-brand hover:underline"
-                              >
-                                Try without sub-model filter
-                              </button>
-                            )}
-                          </div>
-                        ) : (
-                          <div>
-                            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-                              {categoryPaged.map((product) => {
-                                const cardProduct = mapProductToActionData(product, categoryFiltered.indexOf(product))
-                                return (
-                                  <ProductActionCard
-                                    key={String(product.item_id || product.id || product.product_id)}
-                                    product={cardProduct}
-                                    enableView={true}
-                                    onView={() => onViewProduct(product)}
-                                    onAddToCart={() => onAddToCart(product)}
-                                  />
-                                )
-                              })}
-                            </div>
-                            <PaginationControls page={categoryPage} setPage={setCategoryPage} pageSize={categoryPageSize} setPageSize={setCategoryPageSize} total={categoryFiltered.length} />
-                          </div>
-                        )}
-                      </>
-                    )
-                  })()}
+                            </li>
+                          )
+                        })}
+                      </ul>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
@@ -1951,7 +1852,7 @@ function CarPartsInner() {
                   <div className="mt-3 text-xs text-gray-500">If you need help sourcing a part, <Link to="/contact" className="text-brand hover:underline">contact us</Link>.</div>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
                   {filteredWithCategory.map((p, i) => {
                     const cardProduct = mapProductToActionData(p, i)
                     return (
@@ -2258,7 +2159,7 @@ function CarPartsInner() {
                 ) : subCats.length === 0 ? (
                   <div className="mt-3 text-sm text-gray-600">No sub categories found.</div>
                 ) : (
-                  <ul className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-4">
+                  <ul className="mt-3 grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
                     {subCats.map((sc) => (
                       <li key={sc.id} className='w-full'>
                         <button
@@ -2334,7 +2235,7 @@ function CarPartsInner() {
 
                   {!subProductsLoading && filteredSubProducts.length > 0 && (
                     <div>
-                      <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                      <div className="mt-3 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
                         {subProductsPaged.map((p, i) => {
                           const cardProduct = mapProductToActionData(p, i)
                           return (
@@ -2556,7 +2457,7 @@ function CarPartsInner() {
                         {filteredSearchResults.length} result{filteredSearchResults.length === 1 ? '' : 's'} for "{qParam}"
                       </div>
                     </div>
-                    <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                    <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
                       {searchPaged.map((p: ApiProduct, i: number) => {
                         const cardProduct = mapProductToActionData(p, i)
                         return (

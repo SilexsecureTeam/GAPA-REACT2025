@@ -328,7 +328,7 @@ export default function BrandDrilldown({ brandId, onComplete, onFilterChange, cl
             </div>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+          <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
             {pagedModels.map((model) => {
               const isSelected = selectedModelId === String(model.id)
               return (
