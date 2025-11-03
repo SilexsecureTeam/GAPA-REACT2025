@@ -846,6 +846,16 @@ function CarPartsInner() {
     return ssc?.name || ''
   }, [subSubCats, activeSubSubCatId])
 
+  // Nicely formatted selected vehicle echo (e.g. "BMW 1 (Convertible E88)")
+  const vehicleEcho = useMemo(() => {
+    const brand = (vehFilter.brandName || '').trim()
+    const model = (vehFilter.modelName || '').trim()
+    const engine = (vehFilter.engineName || '').trim()
+    const base = [brand, model].filter(Boolean).join(' ')
+    if (!base && !engine) return ''
+    return engine ? `${base} (${engine})` : base || engine
+  }, [vehFilter])
+
   // --- Drill/search inside category (shorten flow for brand-drill/category pages) ---
   // Search input state used when a category is active to quickly find products
   const [drillSearch, setDrillSearch] = useState<string>('')
@@ -1227,7 +1237,7 @@ function CarPartsInner() {
     return (
       <div className="bg-white !pt-10">
         <section className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
-          <h1 className="text-2xl font-medium text-gray-900 sm:text-[32px]">
+          <h1 className="text-2xl font-bold text-gray-900 sm:text-[32px]">
             {activeBrandFilter} Compatible Parts
           </h1>
           <nav aria-label="Breadcrumb" className="mt-2 text-[14px] text-gray-700">
@@ -1439,7 +1449,7 @@ function CarPartsInner() {
     return (
       <div className="bg-white !pt-10">
         <section className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
-          <h1 className="text-2xl font-medium text-gray-900 sm:text-[32px]">
+          <h1 className="text-2xl font-bold text-gray-900 sm:text-[32px]">
             {activeVehicleEngine ? `${activeVehicleBrand} ${activeVehicleModel} ${activeVehicleEngine}` :
               activeVehicleModel ? `${activeVehicleBrand} ${activeVehicleModel}` :
                 activeVehicleBrand}
@@ -2207,79 +2217,104 @@ function CarPartsInner() {
             <div className="min-w-0 overflow-hidden">
               {/* Sub Categories */}
                 <div className="mt-0" ref={catSectionRef}>
-                <div className="flex items-center justify-between gap-4">
-                  <h3 className="text-[18px] font-semibold text-gray-900">{activeCategoryName || 'Sub Categories'}</h3>
+                <div className="mb-4">
+                  <div className="rounded-md overflow-hidden shadow-sm">
+                    <div className="border-t-4 border-b-4 border-green-600 bg-white px-4 py-4">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="min-w-0">
+                          <div className="text-sm font-semibold text-green-800">Selected vehicle</div>
+                          <div className="mt-1 text-lg font-extrabold text-gray-900 truncate">{vehicleEcho || 'No vehicle selected'}</div>
+                          <div className="mt-1 text-sm text-gray-600">{activeCategoryName || 'Browse categories'}</div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {vehicleEcho && (
+                            <button
+                              type="button"
+                              onClick={() => { setPersistedVehicleFilter({}); setVehFilter({}); }}
+                              className="inline-flex items-center gap-2 rounded-md bg-white px-3 py-2 text-sm font-medium ring-1 ring-black/10 hover:bg-gray-50"
+                            >
+                              Clear
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => requestAnimationFrame(() => scrollToEl(catSectionRef.current))}
+                            className="inline-flex items-center gap-2 rounded-md bg-brand px-4 py-2 text-sm font-semibold text-white hover:brightness-95"
+                          >
+                            Browse categories
+                          </button>
+                        </div>
+                      </div>
+                       <div className="bg-white px-4 py-3 border-t border-green-50">
+                      <div className="relative">
+                        <label htmlFor="category-drill-search" className="sr-only">Enter car part category name</label>
+                        <div className="flex items-center gap-2">
+                          <div className="relative flex-1">
+                            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+                              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z"/></svg>
+                            </span>
+                            <input
+                              id="category-drill-search"
+                              type="search"
+                              value={drillSearch}
+                              onChange={(e) => setDrillSearch(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  setPageSearch(drillSearch)
+                                  setDrillSearchPage(1)
+                                  requestAnimationFrame(() => scrollToEl(productsSectionRef.current))
+                                }
+                              }}
+                              placeholder={`Search ${activeCategoryName || 'category'} (e.g. brake, pad, disc)`}
+                              className="w-full rounded-md border border-gray-200 bg-white pl-10 pr-10 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-brand"
+                            />
 
-                  {/* Quick search inside this category (short-circuit subcategory flow) */}
-                  <div className="relative w-full max-w-md flex items-center gap-2">
-                    <label htmlFor="category-drill-search" className="sr-only">Search in category</label>
-                    <div className="relative flex-1  mt-2">
-                      {/* left search icon */}
-                      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
-                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z"/></svg>
-                      </span>
-
-                      <input
-                        id="category-drill-search"
-                        type="search"
-                        value={drillSearch}
-                        onChange={(e) => setDrillSearch(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            // apply as page search to reuse existing filtering
-                            setPageSearch(drillSearch)
-                            setDrillSearchPage(1)
-                            requestAnimationFrame(() => scrollToEl(productsSectionRef.current))
-                          }
-                        }}
-                        placeholder={`Search ${activeCategoryName || 'category'} (e.g. brake, pad, disc)`}
-                        className="w-full rounded-md border border-gray-200 bg-white pl-10 pr-10 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-brand"
-                      />
-
-                      {/* Clear (X) button inside input */}
-                      {drillSearch.trim() && (
-                        <button
-                          type="button"
-                          aria-label="Clear search"
-                          onClick={() => { setDrillSearch(''); setPageSearch(''); setDrillSearchPage(1); }}
-                          className="absolute right-2 top-1/2 -translate-y-1/2 inline-flex h-7 w-7 items-center justify-center rounded-full bg-white text-gray-500 hover:bg-gray-50"
-                        >
-                          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
-                        </button>
-                      )}
-
-                      {/* Suggestions dropdown */}
-                      {drillSuggestions.length > 0 && drillSearch.trim() && (
-                        <ul className="absolute right-0 left-0 z-40 mt-1 max-h-52 overflow-auto rounded-md bg-white p-1 shadow ring-1 ring-black/5">
-                          {drillSuggestions.map((s) => (
-                            <li key={s}>
+                            {drillSearch.trim() && (
                               <button
                                 type="button"
-                                onClick={() => {
-                                  setDrillSearch(s)
-                                  setPageSearch(s)
-                                  setDrillSearchPage(1)
-                                  // scroll to results area
-                                  requestAnimationFrame(() => scrollToEl(productsSectionRef.current))
-                                }}
-                                className="w-full text-left rounded px-3 py-2 text-sm hover:bg-gray-50"
-                              >{s}</button>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
+                                aria-label="Clear search"
+                                onClick={() => { setDrillSearch(''); setPageSearch(''); setDrillSearchPage(1); }}
+                                className="absolute right-2 top-1/2 -translate-y-1/2 inline-flex h-7 w-7 items-center justify-center rounded-full bg-white text-gray-500 hover:bg-gray-50"
+                              >
+                                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
+                              </button>
+                            )}
+
+                            {drillSuggestions.length > 0 && drillSearch.trim() && (
+                              <ul className="absolute right-0 left-0 z-40 mt-1 max-h-52 overflow-auto rounded-md bg-white p-1 shadow ring-1 ring-black/5">
+                                {drillSuggestions.map((s) => (
+                                  <li key={s}>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setDrillSearch(s)
+                                        setPageSearch(s)
+                                        setDrillSearchPage(1)
+                                        requestAnimationFrame(() => scrollToEl(productsSectionRef.current))
+                                      }}
+                                      className="w-full text-left rounded px-3 py-2 text-sm hover:bg-gray-50"
+                                    >{s}</button>
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => { setPageSearch(drillSearch); setDrillSearchPage(1); requestAnimationFrame(() => scrollToEl(productsSectionRef.current)) }}
+                            className="ml-1 inline-flex items-center gap-2 rounded-md bg-[#F7CD3A] px-4 py-2 text-sm font-semibold text-[#201A2B] ring-1 ring-black/5 hover:brightness-105"
+                            aria-label="Search in category"
+                          >
+                            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z"/></svg>
+                            <span className="hidden sm:inline">Search in catalogue</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
                     </div>
 
-                    {/* Search button to match visual treatment */}
-                    <button
-                      type="button"
-                      onClick={() => { setPageSearch(drillSearch); setDrillSearchPage(1); requestAnimationFrame(() => scrollToEl(productsSectionRef.current)) }}
-                      className="ml-1 inline-flex items-center gap-2 rounded-md bg-[#F7CD3A] px-3 py-2 text-sm font-semibold text-[#201A2B] ring-1 ring-black/5 hover:brightness-105"
-                      aria-label="Search in category"
-                    >
-                      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z"/></svg>
-                      <span className="hidden sm:inline">Search</span>
-                    </button>
+                   
                   </div>
                 </div>
                 {pageSearch && pageSearch.trim() ? (
@@ -2438,7 +2473,7 @@ function CarPartsInner() {
     return (
       <div className="bg-white !pt-10">
         <section className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
-          <h1 className="text-2xl font-medium text-gray-900 sm:text-[28px]">Search results</h1>
+          <h1 className="text-2xl font-black text-gray-900 sm:text-[28px]">Search results</h1>
           <nav aria-label="Breadcrumb" className="mt-2 text-[16px] text-gray-700">
             <ol className="flex items-center gap-2 font-medium">
               <li>
