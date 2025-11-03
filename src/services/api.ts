@@ -932,6 +932,18 @@ export async function getGigQuote(params: GigQuoteParams) {
   })
 
   try {
+    // Ensure we refresh/replace the GIG token immediately before the price call.
+    // Some GIG price endpoints return 404 if the token has expired on their side,
+    // so proactively fetch a fresh token to avoid using a stale cached token.
+    try {
+      // fetchStaticGigToken will de-duplicate parallel requests and update gigTokenCache
+      await fetchStaticGigToken()
+      console.info('[GIG DEBUG] Token refresh attempted before price call')
+    } catch (tErr) {
+      // Non-fatal: log and continue — gigFetch will call getGigToken() which may fall back to cache
+      console.warn('[GIG DEBUG] Token refresh failed (proceeding with existing token):', tErr)
+    }
+
     const res: any = await gigFetch('/price', { method: 'POST', auth: true, body: JSON.stringify(payload) })
     
     // Primary candidates from the nested response structure
