@@ -2219,7 +2219,7 @@ function CarPartsInner() {
                 <div className="mt-0" ref={catSectionRef}>
                 <div className="mb-4">
                   <div className="rounded-md overflow-hidden shadow-sm">
-                    <div className="border-t-4 border-b-4 border-green-600 bg-white px-4 py-4">
+                    <div className="border-t-4 border-b-4 border-purple-600 bg-white px-4 py-4">
                       <div className="flex items-start justify-between gap-4">
                         <div className="min-w-0">
                           <div className="text-sm font-semibold text-green-800">Selected vehicle</div>
