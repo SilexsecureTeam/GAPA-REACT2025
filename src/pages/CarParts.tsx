@@ -830,6 +830,74 @@ function CarPartsInner() {
     return filtered.filter(p => matchesPageSearch(p))
   }, [filtered, pageSearch, matchesPageSearch])
 
+  // Derived values for drill-down (must not be inside conditionals to respect Hooks rules)
+  const activeCategoryName = useMemo(() => {
+    const c = categoriesById.get(String(activeCatId))
+    return String((c as any)?.title || (c as any)?.name || '')
+  }, [categoriesById, activeCatId])
+
+  const activeSubCategoryName = useMemo(() => {
+    const sc = subCats.find((x) => x.id === activeSubCatId)
+    return sc?.name || ''
+  }, [subCats, activeSubCatId])
+
+  const activeTypeName = useMemo(() => {
+    const ssc = subSubCats.find((x) => x.id === activeSubSubCatId)
+    return ssc?.name || ''
+  }, [subSubCats, activeSubSubCatId])
+
+  // --- Drill/search inside category (shorten flow for brand-drill/category pages) ---
+  // Search input state used when a category is active to quickly find products
+  const [drillSearch, setDrillSearch] = useState<string>('')
+  const [drillSearchPage, setDrillSearchPage] = useState(1)
+  const [drillSearchPageSize, setDrillSearchPageSize] = useState(12)
+
+  // Products scoped to the currently active category (respecting vehicle & page filters)
+  const productsInActiveCategory = useMemo(() => {
+    if (!activeCatId) return [] as ApiProduct[]
+    return displayFiltered.filter((p) => {
+      const cid = categoryIdOf(p)
+      if (cid && String(cid) === String(activeCatId)) return true
+      const raw = (p as any)?.category
+      const name = resolveCategoryName(raw) || categoryOf(p)
+      if (name && activeCategoryName && String(name).toLowerCase() === String(activeCategoryName).toLowerCase()) return true
+      return false
+    })
+  }, [displayFiltered, activeCatId, activeCategoryName, resolveCategoryName])
+
+  // Simple suggestion generator: bigrams then unigrams from product titles in this category
+  const drillSuggestions = useMemo(() => {
+    const q = (drillSearch || '').trim().toLowerCase()
+    if (!q) return [] as string[]
+    const bigramCounts = new Map<string, number>()
+    const unigramCounts = new Map<string, number>()
+    for (const p of productsInActiveCategory) {
+      const title = String((p as any)?.part_name || (p as any)?.name || (p as any)?.title || '')
+      const words = title.split(/[^A-Za-z0-9]+/).map(w => w.trim()).filter(Boolean).map(w => w.toLowerCase())
+      for (let i = 0; i < words.length; i++) {
+        const w = words[i]
+        if (w.length >= 3) unigramCounts.set(w, (unigramCounts.get(w) || 0) + 1)
+        if (i + 1 < words.length) {
+          const bg = `${words[i]} ${words[i+1]}`
+          if (bg.replace(/\d+/g, '').length > 2) bigramCounts.set(bg, (bigramCounts.get(bg) || 0) + 1)
+        }
+      }
+    }
+    // Collect candidates that include or start with q
+    const candidates: Array<{ t: string; c: number }> = []
+    for (const [k, v] of bigramCounts) {
+      if (k.includes(q) || k.startsWith(q)) candidates.push({ t: k, c: v })
+    }
+    for (const [k, v] of unigramCounts) {
+      if (k.includes(q) || k.startsWith(q)) candidates.push({ t: k, c: v })
+    }
+    candidates.sort((a, b) => b.c - a.c)
+    return Array.from(new Set(candidates.map(x => x.t))).slice(0, 8)
+  }, [productsInActiveCategory, drillSearch])
+
+  // Reset drill-search pagination when scoped product set or page size changes
+  useEffect(() => { setDrillSearchPage(1) }, [productsInActiveCategory, drillSearchPageSize])
+
   // Apply category filter for vehicle search mode (operates on the displayed set)
   const filteredWithCategory = useMemo(() => {
     if (!vehicleSearchCategoryFilter) return displayFiltered
@@ -1016,20 +1084,6 @@ function CarPartsInner() {
     return base
   }, [subProducts, hasVehicleFilter, activeCatId, vehFilter])
 
-  const activeCategoryName = useMemo(() => {
-    const c = categoriesById.get(String(activeCatId))
-    return String((c as any)?.title || (c as any)?.name || '')
-  }, [categoriesById, activeCatId])
-
-  const activeSubCategoryName = useMemo(() => {
-    const sc = subCats.find((x) => x.id === activeSubCatId)
-    return sc?.name || ''
-  }, [subCats, activeSubCatId])
-
-  const activeTypeName = useMemo(() => {
-    const ssc = subSubCats.find((x) => x.id === activeSubSubCatId)
-    return ssc?.name || ''
-  }, [subSubCats, activeSubSubCatId])
 
   // Lifted pagination / derived filters to top-level so hooks are not called inside JSX
   // Lifted pagination / derived filters to top-level so hooks are not called inside JSX
@@ -2152,9 +2206,86 @@ function CarPartsInner() {
             {/* Main Content Column */}
             <div className="min-w-0 overflow-hidden">
               {/* Sub Categories */}
-              <div className="mt-0" ref={catSectionRef}>
-                <h3 className="text-[16px] font-semibold text-gray-900">{activeCategoryName || 'Sub Categories'}</h3>
-                {subCatsLoading ? (
+                <div className="mt-0" ref={catSectionRef}>
+                <div className="flex items-center justify-between gap-4">
+                  <h3 className="text-[16px] font-semibold text-gray-900">{activeCategoryName || 'Sub Categories'}</h3>
+
+                  {/* Quick search inside this category (short-circuit subcategory flow) */}
+                  <div className="relative w-full max-w-md">
+                    <label htmlFor="category-drill-search" className="sr-only">Search in category</label>
+                    <input
+                      id="category-drill-search"
+                      type="search"
+                      value={drillSearch}
+                      onChange={(e) => setDrillSearch(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          // apply as page search to reuse existing filtering
+                          setPageSearch(drillSearch)
+                          setDrillSearchPage(1)
+                          requestAnimationFrame(() => scrollToEl(productsSectionRef.current))
+                        }
+                      }}
+                      placeholder={`Search ${activeCategoryName || 'category'} (e.g. brake, pad, disc)`}
+                      className="w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-brand"
+                    />
+
+                    {/* Suggestions dropdown */}
+                    {drillSuggestions.length > 0 && drillSearch.trim() && (
+                      <ul className="absolute right-0 left-0 z-40 mt-1 max-h-52 overflow-auto rounded-md bg-white p-1 shadow ring-1 ring-black/5">
+                        {drillSuggestions.map((s) => (
+                          <li key={s}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setDrillSearch(s)
+                                setPageSearch(s)
+                                setDrillSearchPage(1)
+                                // scroll to results area
+                                requestAnimationFrame(() => scrollToEl(productsSectionRef.current))
+                              }}
+                              className="w-full text-left rounded px-3 py-2 text-sm hover:bg-gray-50"
+                            >{s}</button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </div>
+                {pageSearch && pageSearch.trim() ? (
+                  // Show quick search results inside this active category
+                  (() => {
+                    const matched = productsInActiveCategory.filter((p) => matchesPageSearch(p))
+                    const paged = matched.slice((drillSearchPage - 1) * drillSearchPageSize, drillSearchPage * drillSearchPageSize)
+                    return (
+                      <div className="mt-3">
+                        <div className="mb-3 flex items-center justify-between">
+                          <div>
+                            <div className="text-sm text-gray-600">Results for</div>
+                            <div className="text-[15px] font-semibold text-gray-900">“{pageSearch}” in {activeCategoryName}</div>
+                          </div>
+                          <div className="text-sm text-gray-500">{matched.length.toLocaleString()} results</div>
+                        </div>
+
+                        {matched.length === 0 ? (
+                          <div className="rounded-xl bg-white p-4 text-sm text-gray-700 ring-1 ring-black/10">No matching products in this category.</div>
+                        ) : (
+                          <>
+                            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
+                              {paged.map((p, i) => {
+                                const cardProduct = mapProductToActionData(p, i)
+                                return (
+                                  <ProductActionCard key={cardProduct.id} product={cardProduct} enableView={true} onView={() => onViewProduct(p)} onAddToCart={() => onAddToCart(p)} />
+                                )
+                              })}
+                            </div>
+                            <PaginationControls page={drillSearchPage} setPage={setDrillSearchPage} pageSize={drillSearchPageSize} setPageSize={setDrillSearchPageSize} total={matched.length} />
+                          </>
+                        )}
+                      </div>
+                    )
+                  })()
+                ) : subCatsLoading ? (
                   <div className="mt-3"><FallbackLoader label="Loading sub categories…" /></div>
                 ) : subCats.length === 0 ? (
                   <div className="mt-3 text-sm text-gray-600">No sub categories found.</div>
