@@ -129,7 +129,7 @@ export default function BrandDrilldown({ brandId, onComplete, onFilterChange, cl
         setTimeout(() => {
           const subModelsElement = document.getElementById('sub-models-section')
           if (subModelsElement) {
-            const yOffset = -100 // Offset for fixed header
+            const yOffset = -180 // Offset for fixed header
             const y = subModelsElement.getBoundingClientRect().top + window.pageYOffset + yOffset
             window.scrollTo({ top: y, behavior: 'smooth' })
           }
@@ -195,7 +195,7 @@ export default function BrandDrilldown({ brandId, onComplete, onFilterChange, cl
     setTimeout(() => {
       const categorySelectionElement = document.getElementById('category-selection-section')
       if (categorySelectionElement) {
-        const yOffset = -100 // Offset for fixed header
+        const yOffset = -180 // Offset for fixed header
         const y = categorySelectionElement.getBoundingClientRect().top + window.pageYOffset + yOffset
         window.scrollTo({ top: y, behavior: 'smooth' })
       }

@@ -303,7 +303,7 @@ function CarPartsInner() {
   const subSubCatSectionRef = useRef<HTMLDivElement | null>(null) // sub-sub categories pills (after selecting a sub-category)
   const productsSectionRef = useRef<HTMLDivElement | null>(null) // products grid (after selecting a sub-sub-category)
 
-  const SCROLL_OFFSET = 80 // header allowance
+  const SCROLL_OFFSET = 180 // header allowance
   const scrollToEl = (el: HTMLElement | null) => {
     if (!el) return
     const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
