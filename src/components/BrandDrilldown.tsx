@@ -37,8 +37,8 @@ export default function BrandDrilldown({ brandId, onComplete, onFilterChange, cl
   const [models, setModels] = useState<Model[]>([])
   const [subModels, setSubModels] = useState<SubModel[]>([])
   const [searchTerm, setSearchTerm] = useState<string>('')
-  const [page, setPage] = useState<number>(1)
-  const pageSize = 12
+  // Removed pagination state (page, pageSize) to show all models
+  
   const lastEmittedRef = useRef<string | null>(null)
   const [categories, setCategories] = useState<any[]>([])
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('')
@@ -181,8 +181,7 @@ export default function BrandDrilldown({ brandId, onComplete, onFilterChange, cl
   const handleModelSelect = (model: Model) => {
     setSelectedModelId(String(model.id))
     setSelectedModelName(model.name)
-    // reset pagination and search when selecting a model
-    setPage(1)
+    // reset search when selecting a model
     setSearchTerm('')
   }
 
@@ -203,8 +202,6 @@ export default function BrandDrilldown({ brandId, onComplete, onFilterChange, cl
   }
 
   // Notify parent when quick search or category selection changes
-  // Notify parent when quick search or category selection changes.
-  // Debounce and dedupe emissions and avoid emitting empty filters to prevent parent resets.
   const lastFilterEmittedRef = useRef<string | null>(null)
   useEffect(() => {
     if (!onFilterChange) return
@@ -238,20 +235,16 @@ export default function BrandDrilldown({ brandId, onComplete, onFilterChange, cl
     setSubModels([])
     setShowCategorySelection(false)
     setSearchTerm('')
-    setPage(1)
   }
 
-  // Derived filtered models for search + pagination
+  // Derived filtered models for search
   const filteredModels = useMemo(() => {
     const q = (searchTerm || '').trim().toLowerCase()
     if (!q) return models
     return models.filter(m => String(m.name || '').toLowerCase().includes(q))
   }, [models, searchTerm])
 
-  const pagedModels = useMemo(() => {
-    const start = (page - 1) * pageSize
-    return filteredModels.slice(start, start + pageSize)
-  }, [filteredModels, page])
+  // Removed pagedModels useMemo since we want to show all results
 
   // Fetch categories when category selection is shown
   useEffect(() => {
@@ -321,7 +314,7 @@ export default function BrandDrilldown({ brandId, onComplete, onFilterChange, cl
           <div className="mb-4 flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <label htmlFor="modelSearch" className="sr-only">Search models</label>
-              <input id="modelSearch" value={searchTerm} onChange={(e) => { setSearchTerm(e.target.value); setPage(1) }} placeholder="Search models by name" className="h-10 w-64 rounded-md bg-gray-50 px-3 text-sm ring-1 ring-black/5" />
+              <input id="modelSearch" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Search models by name" className="h-10 w-64 rounded-md bg-gray-50 px-3 text-sm ring-1 ring-black/5" />
             </div>
             <div className="flex items-center gap-2 text-sm text-gray-600">
               <span>{filteredModels.length} model{filteredModels.length === 1 ? '' : 's'}</span>
@@ -329,7 +322,8 @@ export default function BrandDrilldown({ brandId, onComplete, onFilterChange, cl
           </div>
 
           <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-            {pagedModels.map((model) => {
+            {/* Rendering all filtered models directly without slicing/pagination */}
+            {filteredModels.map((model) => {
               const isSelected = selectedModelId === String(model.id)
               return (
                 <button
