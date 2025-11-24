@@ -174,8 +174,8 @@ export default function VehicleFilter({ onSearch, onChange, className = '' }: Ve
   const handleSearch = async () => {
     const term = [brandName, modelName, engineName].filter(Boolean).join(' ').trim()
     if (!term) return
-    // Use vehicleSearch flag to show products directly (not category selection)
-    const url = `/parts?vehicleSearch=1`
+    // Use drill flag to trigger category selection flow instead of showing products directly
+    const url = `/parts?drill=1`
     if (onSearch) onSearch(url)
   }
 
