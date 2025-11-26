@@ -328,7 +328,7 @@ export default function BrandDrilldown({ brandId, onComplete, onFilterChange, cl
             </div>
           </div>
 
-          <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+          <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6">
             {pagedModels.map((model) => {
               const isSelected = selectedModelId === String(model.id)
               return (
@@ -338,7 +338,7 @@ export default function BrandDrilldown({ brandId, onComplete, onFilterChange, cl
                   className={`group relative overflow-hidden rounded-2xl p-2 text-left transition-all ${
                     isSelected
                       ? 'bg-gradient-to-br from-[#F7CD3A] to-[#e6bd2a] ring-2 ring-[#F7CD3A] shadow-xl scale-105'
-                      : 'bg-white ring-1 ring-black/10 hover:ring-[#F7CD3A] hover:shadow-lg hover:scale-102'
+                      : 'hover:shadow-lg hover:scale-102'
                   }`}
                 >
                   {isSelected && (
