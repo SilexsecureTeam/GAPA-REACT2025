@@ -860,7 +860,7 @@ export default function Checkout() {
                   </label>
                 )}
                 {/* Postcode */}
-                <label className="text-[13px] text-gray-700">Postcode
+                <label className="text-[13px] text-gray-700">Zipcode
                   <input value={address.postcode} onChange={(e)=>setAddress((a: Address)=>({ ...a, postcode: e.target.value }))} className="mt-1 w-full rounded-md border border-black/10 px-3 py-2 text-[14px] outline-none focus:ring-2 focus:ring-brand" />
                 </label>
               </div>

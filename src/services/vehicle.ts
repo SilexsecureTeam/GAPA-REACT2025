@@ -34,12 +34,54 @@ function includesWhole(textLower: string, needleLower: string) {
 }
 
 export function vehicleMatches(product: any, state: VehicleFilterState): boolean {
-  const { brandName = '', modelName = '', engineName = '' } = state || {}
+  const { brandName = '', modelName = '', engineName = '', brandId } = state || {}
   const hasAny = Boolean(brandName || modelName || engineName)
   if (!hasAny) return true
 
   // unwrap nested shape
   const src = (product && typeof product === 'object' && 'part' in product) ? (product as any).part : product
+
+  // 1. Primary Filter: Check suitability_models array if available
+  const suitability = src?.suitability_models
+  if (Array.isArray(suitability) && suitability.length > 0) {
+    const bLower = brandName.trim().toLowerCase()
+    const mLower = modelName.trim().toLowerCase()
+    const eLower = engineName.trim().toLowerCase()
+
+    // If any model in the suitability list matches the selected vehicle, consider it a match
+    return suitability.some((entry: any) => {
+      // Each entry typically has: { model: string, brand_id: string|null, ... }
+      
+      // A. Check Brand Match
+      let brandMatches = false
+      if (brandId && entry.brand_id) {
+        // If IDs are present, strict ID match is preferred
+        brandMatches = String(entry.brand_id) === String(brandId)
+      } else if (bLower) {
+        // Fallback to checking if brand name is in the model text
+        const txt = String(entry.model || '').toLowerCase()
+        brandMatches = txt.includes(bLower)
+      } else {
+        // If no brand selected (unlikely given hasAny check), match
+        brandMatches = true
+      }
+
+      if (!brandMatches) return false
+
+      // B. Check Model & Engine (Text-based match against entry.model)
+      const txt = String(entry.model || '').toLowerCase()
+      
+      // If model matches, it should contain the model name
+      if (mLower && !txt.includes(mLower)) return false
+      
+      // If engine matches, it should contain the engine name (whole word check)
+      if (eLower && !includesWhole(txt, eLower)) return false
+
+      return true
+    })
+  }
+
+  // 2. Fallback: Check compatibility string
   const rawCompatAny = (src as any)?.compatibility ?? (src as any)?.compatibilities ?? (src as any)?.vehicle_compatibility ?? (src as any)?.vehicleCompatibility ?? (src as any)?.fitment ?? (src as any)?.fitments
 
   const text = String(rawCompatAny || '').toLowerCase()

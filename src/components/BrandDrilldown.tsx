@@ -37,7 +37,6 @@ export default function BrandDrilldown({ brandId, onComplete, onFilterChange, cl
   const [models, setModels] = useState<Model[]>([])
   const [subModels, setSubModels] = useState<SubModel[]>([])
   const [searchTerm, setSearchTerm] = useState<string>('')
-  // Removed pagination state (page, pageSize) to show all models
   
   const lastEmittedRef = useRef<string | null>(null)
   const [categories, setCategories] = useState<any[]>([])
@@ -237,14 +236,12 @@ export default function BrandDrilldown({ brandId, onComplete, onFilterChange, cl
     setSearchTerm('')
   }
 
-  // Derived filtered models for search
+  // Derived filtered models for search (showing all results)
   const filteredModels = useMemo(() => {
     const q = (searchTerm || '').trim().toLowerCase()
     if (!q) return models
     return models.filter(m => String(m.name || '').toLowerCase().includes(q))
   }, [models, searchTerm])
-
-  // Removed pagedModels useMemo since we want to show all results
 
   // Fetch categories when category selection is shown
   useEffect(() => {
@@ -321,8 +318,8 @@ export default function BrandDrilldown({ brandId, onComplete, onFilterChange, cl
             </div>
           </div>
 
-          <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6">
-            {pagedModels.map((model) => {
+          <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+            {filteredModels.map((model) => {
               const isSelected = selectedModelId === String(model.id)
               return (
                 <button
@@ -331,7 +328,7 @@ export default function BrandDrilldown({ brandId, onComplete, onFilterChange, cl
                   className={`group relative overflow-hidden rounded-2xl p-2 text-left transition-all ${
                     isSelected
                       ? 'bg-gradient-to-br from-[#F7CD3A] to-[#e6bd2a] ring-2 ring-[#F7CD3A] shadow-xl scale-105'
-                      : 'hover:shadow-lg hover:scale-102'
+                      : 'bg-white ring-1 ring-black/10 hover:ring-[#F7CD3A] hover:shadow-lg hover:scale-102'
                   }`}
                 >
                   {isSelected && (

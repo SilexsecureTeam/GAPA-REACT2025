@@ -254,6 +254,12 @@ function absUrl(path: string) {
   return path.startsWith('http') ? path : `${path.startsWith('/') ? '' : '/'}${path}`
 }
 
+// Helper to append suitability param for product fetching APIs
+function withSuitability(url: string) {
+  const separator = url.includes('?') ? '&' : '?'
+  return `${url}${separator}suitability=true`
+}
+
 // Generic unwrap for variable API array envelopes
 export function unwrapArray<T = any>(res: any): T[] {
   if (Array.isArray(res)) return res
@@ -280,7 +286,7 @@ export function unwrapArray<T = any>(res: any): T[] {
 }
 
 export async function getFeaturedProducts() {
-  const res = await apiRequest<any>(ENDPOINTS.featuredProducts)
+  const res = await apiRequest<any>(withSuitability(ENDPOINTS.featuredProducts))
   // handle shapes: { data: [...] } or { 'top-products': [...] } or [...]
   if (Array.isArray(res)) return res
   if (res?.data && Array.isArray(res.data)) return res.data
@@ -293,7 +299,7 @@ export async function getFeaturedProducts() {
   return []
 }
 export async function getTopProducts() {
-  const res = await apiRequest<any>(ENDPOINTS.topProducts)
+  const res = await apiRequest<any>(withSuitability(ENDPOINTS.topProducts))
   if (Array.isArray(res)) return res
   if (res?.data && Array.isArray(res.data)) return res.data
   if (res && typeof res === 'object') { for (const k of Object.keys(res)) { const v = (res as any)[k]; if (Array.isArray(v)) return v } }
@@ -340,7 +346,7 @@ export async function getAllCars() {
 export async function liveSearch(term: string) {
   const form = new FormData()
   form.set('search', term)
-  const res = await apiRequest<any>(ENDPOINTS.liveSearch, { method: 'POST', body: form })
+  const res = await apiRequest<any>(withSuitability(ENDPOINTS.liveSearch), { method: 'POST', body: form })
   if (Array.isArray(res)) return res
   if (res?.result && Array.isArray(res.result)) return res.result
   if (res?.data && Array.isArray(res.data)) return res.data
@@ -350,12 +356,12 @@ export async function liveSearch(term: string) {
 
 // New: full product catalog and details
 export async function getAllProducts() {
-  const res = await apiRequest<any>(ENDPOINTS.allProducts)
+  const res = await apiRequest<any>(withSuitability(ENDPOINTS.allProducts))
   return unwrapArray<ApiProduct>(res)
 }
 
 export async function getProductById(id: string) {
-  return apiRequest<ApiProduct>(ENDPOINTS.productById(id), { auth: true })
+  return apiRequest<ApiProduct>(withSuitability(ENDPOINTS.productById(id)), { auth: true })
 }
 
 export async function getProductOEM(id: string) {
@@ -364,7 +370,7 @@ export async function getProductOEM(id: string) {
 }
 
 export async function getRelatedProducts(id: string) {
-  const res = await apiRequest<any>(ENDPOINTS.relatedProducts(id), { auth: true })
+  const res = await apiRequest<any>(withSuitability(ENDPOINTS.relatedProducts(id)), { auth: true })
   return unwrapArray<ApiProduct>(res)
 }
 
@@ -441,7 +447,7 @@ export async function getSubSubCategories(subCatId: string | number) {
 }
 
 export async function getProductsBySubSubCategory(subSubCatId: string | number) {
-  const res = await apiRequest<any>(ENDPOINTS.subSubCategoryProducts(subSubCatId))
+  const res = await apiRequest<any>(withSuitability(ENDPOINTS.subSubCategoryProducts(subSubCatId)))
   return unwrapArray<ApiProduct>(res)
 }
 
