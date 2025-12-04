@@ -254,7 +254,7 @@ function absUrl(path: string) {
   return path.startsWith('http') ? path : `${path.startsWith('/') ? '' : '/'}${path}`
 }
 
-// Helper to append suitability param for product fetching APIs
+// Helper to append suitability param to URLs
 function withSuitability(url: string) {
   const separator = url.includes('?') ? '&' : '?'
   return `${url}${separator}suitability=true`
@@ -285,9 +285,9 @@ export function unwrapArray<T = any>(res: any): T[] {
   return []
 }
 
+// Updated product fetchers with suitability=true
 export async function getFeaturedProducts() {
   const res = await apiRequest<any>(withSuitability(ENDPOINTS.featuredProducts))
-  // handle shapes: { data: [...] } or { 'top-products': [...] } or [...]
   if (Array.isArray(res)) return res
   if (res?.data && Array.isArray(res.data)) return res.data
   if (res && typeof res === 'object') {
@@ -320,7 +320,6 @@ export async function getAllCategories() {
   return []
 }
 export async function getManufacturers() {
-  // Use the partners endpoint as the manufacturers source (absolute URL)
   const res = await apiRequest<any>('https://stockmgt.gapaautoparts.com/api/getPartners')
   if (Array.isArray(res)) return res
   if (res?.data && Array.isArray(res.data)) return res.data
@@ -346,6 +345,7 @@ export async function getAllCars() {
 export async function liveSearch(term: string) {
   const form = new FormData()
   form.set('search', term)
+  // liveSearch is POST, so append param to URL manually
   const res = await apiRequest<any>(withSuitability(ENDPOINTS.liveSearch), { method: 'POST', body: form })
   if (Array.isArray(res)) return res
   if (res?.result && Array.isArray(res.result)) return res.result
