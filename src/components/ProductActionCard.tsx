@@ -23,11 +23,6 @@ export type ProductActionCardProps = {
   onAddToCart?: () => void | Promise<void>
 }
 
-// const formatNaira = (value: number) => {
-//   if (!Number.isFinite(value)) return '₦0'
-//   return `₦${Math.max(0, value).toLocaleString('en-NG')}`
-// }
-
 export default function ProductActionCard({ product, enableView = true, onView, onAddToCart }: ProductActionCardProps) {
   const wishlist = useWishlist()
   const { formatPrice } = useCurrency()
