@@ -4,6 +4,7 @@ import { getCartForUser, removeCartItem, getProductById } from '../services/api'
 import { getGuestCart, setGuestCart, type GuestCart } from '../services/cart'
 import { normalizeApiImage, pickImage, productImageFrom } from '../services/images'
 import logoImg from '../assets/gapa-logo.png'
+import { useCurrency } from '../context/CurrencyContext'
 
 export type CartPopupProps = {
   open: boolean
@@ -34,6 +35,7 @@ function mapApiCartItemToUi(item: any): UICartItem | null {
 
 export default function CartPopup({ open, onClose, onProceed, onViewCart, refreshKey = 0 }: CartPopupProps) {
   const { user } = useAuth()
+  const { formatPrice } = useCurrency()
   const [loading, setLoading] = useState(false)
   const [items, setItems] = useState<UICartItem[]>([])
   const [busyId, setBusyId] = useState<string | null>(null)
@@ -127,7 +129,7 @@ export default function CartPopup({ open, onClose, onProceed, onViewCart, refres
                   </div>
                   <div className="min-w-0">
                     <div className="truncate text-[14px] font-medium text-gray-900">{it.name}</div>
-                    <div className="mt-1 text-[13px] text-gray-600">{it.quantity} x <span className="font-semibold text-gray-900">₦{it.price.toLocaleString('en-NG')}</span></div>
+                    <div className="mt-1 text-[13px] text-gray-600">{it.quantity} x <span className="font-semibold text-gray-900">{formatPrice(it.price)}</span></div>
                   </div>
                   <button disabled={busyId===it.productId} onClick={()=>onRemove(it.productId)} className="mt-0.5 text-gray-500 hover:text-red-600" aria-label="Remove">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
@@ -141,7 +143,7 @@ export default function CartPopup({ open, onClose, onProceed, onViewCart, refres
         <div className="border-t border-gray-100 px-5 py-4">
           <div className="flex items-center justify-between text-[14px]">
             <span className="text-gray-600">Sub-Total:</span>
-            <span className="font-semibold text-gray-900">₦{subtotal.toLocaleString('en-NG')}</span>
+            <span className="font-semibold text-gray-900">{formatPrice(subtotal)}</span>
           </div>
           <button onClick={onProceed} disabled={items.length===0} className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-md bg-[#F7CD3A] text-[14px] font-semibold text-gray-900 ring-1 ring-black/10 disabled:opacity-60">
             PROCEED TO CHECKOUT <span aria-hidden>→</span>

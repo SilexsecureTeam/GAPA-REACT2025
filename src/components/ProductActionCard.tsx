@@ -3,6 +3,7 @@ import WishlistButton from './WishlistButton'
 import { toast } from 'react-hot-toast'
 import useWishlist from '../hooks/useWishlist'
 import logoImg from '../assets/gapa-logo.png'
+import { useCurrency } from '../context/CurrencyContext'
 
 export type ProductActionData = {
   id: string
@@ -22,13 +23,14 @@ export type ProductActionCardProps = {
   onAddToCart?: () => void | Promise<void>
 }
 
-const formatNaira = (value: number) => {
-  if (!Number.isFinite(value)) return '₦0'
-  return `₦${Math.max(0, value).toLocaleString('en-NG')}`
-}
+// const formatNaira = (value: number) => {
+//   if (!Number.isFinite(value)) return '₦0'
+//   return `₦${Math.max(0, value).toLocaleString('en-NG')}`
+// }
 
 export default function ProductActionCard({ product, enableView = true, onView, onAddToCart }: ProductActionCardProps) {
   const wishlist = useWishlist()
+  const { formatPrice } = useCurrency()
   const [adding, setAdding] = useState(false)
   const isFav = wishlist.has(product.id)
   const showView = enableView && typeof onView === 'function'
@@ -102,7 +104,7 @@ export default function ProductActionCard({ product, enableView = true, onView, 
             </div>
           )}
           <div className="text-[12px] text-gray-600">{product.brand}</div>
-          <div className="text-[16px] font-extrabold text-brand">{product.priceLabel || formatNaira(product.price)}</div>
+          <div className="text-[16px] font-extrabold text-brand">{product.priceLabel || formatPrice(product.price)}</div>
           <div className="text-left text-[11px] leading-3 text-gray-600">Incl. VAT</div>
         </div>
 

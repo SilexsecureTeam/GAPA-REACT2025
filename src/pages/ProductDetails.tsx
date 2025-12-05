@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, useCallback } from 'react'
 import { Link, useParams, useNavigate, useSearchParams } from 'react-router-dom'
+import { useCurrency } from '../context/CurrencyContext'
 import WishlistButton from '../components/WishlistButton'
 import ProductActionCard from '../components/ProductActionCard'
 import useWishlist from '../hooks/useWishlist'
@@ -11,7 +12,7 @@ import { useAuth } from '../services/auth'
 import { addGuestCartItem } from '../services/cart'
 import { toast } from 'react-hot-toast'
 import useManufacturers from '../hooks/useManufacturers'
-import { mapProductToActionData } from '../utils/productMapping'
+import { mapProductToActionData } from '../utils/productMapping'  
 
 type Attr = { label: string; value: string }
 
@@ -160,6 +161,7 @@ export default function ProductDetails() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const returnUrl = searchParams.get('from') || '/parts'
+  const { formatPrice } = useCurrency()
   
   const wishlist = useWishlist()
   const { user } = useAuth()
@@ -662,7 +664,7 @@ export default function ProductDetails() {
 
             {/* Price */}
             <div className="rounded-xl bg-gradient-to-br from-[#F7CD3A]/10 to-[#F7CD3A]/5 p-6">
-              <div className="text-4xl font-bold text-gray-900">₦{prod.price.toLocaleString('en-NG')}</div>
+              <div className="text-4xl font-bold text-gray-900">{formatPrice(prod.price)}</div>
               <div className="mt-1 text-sm text-gray-600">Incl. 20% VAT, excl delivery cost</div>
               <div className="mt-2">
                 <span className={`inline-block rounded-full px-3 py-1 text-sm font-semibold ${

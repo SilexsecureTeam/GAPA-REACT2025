@@ -11,6 +11,7 @@ import { getAllCategories, type ApiCategory, getAllBrands, type ApiBrand, getSub
 // added getCartForUser import
 import { categoryImageFrom, normalizeApiImage, pickImage, brandImageFrom, subCategoryImageFrom, subSubCategoryImageFrom } from '../services/images'
 import { getGuestCart } from '../services/cart'
+import { useCurrency } from '../context/CurrencyContext'
 
 // Search suggestions data
 const SEARCH_SUGGESTIONS = [
@@ -62,6 +63,10 @@ export default function Header() {
   const { user, logout: authLogout } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
+
+  const { currency, setCurrencyByCountry, availableCurrencies } = useCurrency()
+  const [currencyOpen, setCurrencyOpen] = useState(false)
+  const currencyRef = useRef<HTMLDivElement>(null)
 
   // Mega menu state for Category drill-down (formerly Car Parts)
   const [carPartsOpen, setCarPartsOpen] = useState(false)
@@ -399,22 +404,64 @@ export default function Header() {
       {/* Top promo strip */}
       <div className="bg-brand text-white py-1">
         <div className="mx-auto flex h-10 max-w-7xl items-center justify-between px-4 sm:px-6">
-          <div />
-          <p className="text-[14px] font-normal tracking-wide hidden sm:block">
+          
+          {/* Country Selector (Left Aligned) */}
+          <div className="relative" ref={currencyRef}>
+            <button
+              onClick={() => setCurrencyOpen(!currencyOpen)}
+              className="flex items-center gap-2 rounded-full bg-white/10 px-2 py-1 text-[12px] font-semibold text-white hover:bg-white/20 transition-colors"
+            >
+              <img src={currency.flag} alt={currency.countryCode} className="h-4 w-6 rounded-sm object-cover" />
+              <span className="hidden sm:inline">{currency.countryName}</span>
+              <span className="inline sm:hidden">{currency.code}</span>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </button>
+
+            {/* Dropdown */}
+            {currencyOpen && (
+              <div className="absolute left-0 top-full mt-2 max-h-[60vh] w-64 overflow-y-auto rounded-lg bg-white p-1 shadow-xl ring-1 ring-black/10 z-50">
+                <div className="px-3 py-2 text-xs font-bold text-gray-500 uppercase tracking-wider border-b border-gray-100 mb-1">Select Region</div>
+                {availableCurrencies.map((c) => (
+                  <button
+                    key={c.countryCode}
+                    onClick={() => { setCurrencyByCountry(c.countryCode); setCurrencyOpen(false) }}
+                    className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-[13px] transition-colors ${
+                      currency.countryCode === c.countryCode ? 'bg-brand/10 text-brand font-semibold' : 'text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    <img src={c.flag} alt="" className="h-4 w-6 rounded-sm shadow-sm object-cover" />
+                    <div className="flex-1 min-w-0">
+                      <div className="truncate">{c.countryName}</div>
+                      <div className="text-[10px] text-gray-500">{c.code} ({c.symbol})</div>
+                    </div>
+                    {currency.countryCode === c.countryCode && (
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Center Text */}
+          <p className="text-[14px] font-normal tracking-wide hidden md:block">
             Free Delivery on Orders Over ₦500,000 – Limited Time!
           </p>
-          <div className="flex items-center gap-3 sm:flex" aria-live="polite">
-            <span className="hidden sm:inline text-[12px] font-semibold tracking-wider text-white/90">OFFER ENDS IN:</span>
+
+          {/* Timer (Right Aligned) */}
+          <div className="flex items-center gap-3" aria-live="polite">
+            <span className="hidden lg:inline text-[12px] font-semibold tracking-wider text-white/90">OFFER ENDS IN:</span>
             <div className="flex items-center gap-1.5">
-              {/* HH:MM:SS boxes with colons like before */}
               {[pad2(timeLeft.h), pad2(timeLeft.m), pad2(timeLeft.s)].map((v, i, arr) => (
                 <div key={i} className="flex items-center gap-1.5">
                   <span className="inline-flex h-6 min-w-7 items-center justify-center rounded-md bg:white/10 bg-white/10 px-1.5 text-[12px] font-bold leading-none text-white ring-1 ring-white/15">
                     {v}
                   </span>
-                  {i < arr.length - 1 && (
-                    <span className="text-white/80">:</span>
-                  )}
+                  {i < arr.length - 1 && <span className="text-white/80">:</span>}
                 </div>
               ))}
             </div>
@@ -1111,9 +1158,7 @@ export default function Header() {
           </div>
         </div>
       </div>
-      {/* ...existing code (desktop dropdown panels remain unchanged below) ...*/}
-      {/* Keep existing desktop dropdown logic after this point */}
-      {/* The original desktop nav + dropdown code was moved into the hidden md:block nav above */}
+     
     </header>
   )
 }

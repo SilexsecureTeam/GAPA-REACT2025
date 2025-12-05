@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useCurrency } from '../context/CurrencyContext'
 import { useAuth } from '../services/auth'
 import { getCartForUser, removeCartItem, addToCartApi, getProductById, getAllStatesApi, getStatesByLocation, updateDeliveryAddress, /* getUserCartTotal, */ getPriceByState, paymentSuccessfull, getGigQuote } from '../services/api'
 import { getGuestCart, setGuestCart, type GuestCart } from '../services/cart'
@@ -120,6 +121,7 @@ function useCartData() {
 export default function Checkout() {
   const navigate = useNavigate()
   const { user } = useAuth()
+  const { formatPrice } = useCurrency()
   const { loading, items, rawItems, reload } = useCartData()
   const [busyId, setBusyId] = useState<string | null>(null)
   const unauthenticated = !user
@@ -692,9 +694,9 @@ export default function Checkout() {
                         <div className="flex justify-between gap-3">
                           <div className="pr-2">
                             <div className="line-clamp-2 text-[14px] font-medium text-gray-900">{it.name}</div>
-                            <div className="mt-1 text-[12px] text-gray-600">₦{it.price.toLocaleString('en-NG')} <span className="text-gray-500">({it.quantity} × ₦{it.price.toLocaleString('en-NG')})</span></div>
+                            <div className="mt-1 text-[12px] text-gray-600">{formatPrice(it.price)} <span className="text-gray-500">({it.quantity} × {formatPrice(it.price)})</span></div>
                           </div>
-                          <div className="text-right text-[14px] font-semibold text-gray-900">₦{(it.price * it.quantity).toLocaleString('en-NG')}</div>
+                          <div className="text-right text-[14px] font-semibold text-gray-900">{formatPrice(it.price * it.quantity)}</div>
                         </div>
                         <div className="mt-2 inline-flex items-center gap-2">
                           <button disabled={busyId===it.productId} onClick={()=>onDec(it.productId)} className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-white ring-1 ring-black/10 text-gray-700">−</button>
@@ -713,8 +715,9 @@ export default function Checkout() {
             <aside className="rounded-xl bg-white p-4 ring-1 ring-black/10">
               <h3 className="text-[16px] font-semibold text-gray-900">Order Summary</h3>
               <div className="mt-3 space-y-2 text-[14px]">
-                <div className="flex items-center justify-between"><span className="text-gray-600">Subtotal</span><span className="font-semibold">₦{subtotal.toLocaleString('en-NG')}</span></div>
-                <div className="flex items-center justify-between"><span className="text-gray-600">VAT (7.5%)</span><span className="font-semibold">₦{vat.toLocaleString('en-NG')}</span></div>
+                {/* 5. Update Totals */}
+                <div className="flex items-center justify-between"><span className="text-gray-600">Subtotal</span><span className="font-semibold">{formatPrice(subtotal)}</span></div>
+                <div className="flex items-center justify-between"><span className="text-gray-600">VAT (7.5%)</span><span className="font-semibold">{formatPrice(vat)}</span></div>
                 <div className="flex items-center justify-between"><span className="text-gray-600">Delivery</span><span className="font-semibold">Calculated at next step</span></div>
               </div>
               <button onClick={goNext} disabled={items.length===0} className="mt-4 inline-flex h-10 w-full items-center justify-center rounded-md bg-[#F7CD3A] text-[14px] font-semibold text-gray-900 ring-1 ring-black/10 disabled:opacity-60">Continue</button>
@@ -757,8 +760,8 @@ export default function Checkout() {
               <h3 className="text-[16px] font-semibold text-gray-900">Summary</h3>
               <div className="mt-3 space-y-2 text-[14px]">
                 <div className="flex items-center justify-between"><span className="text-gray-600">Items</span><span className="font-semibold">{items.length}</span></div>
-                <div className="flex items-center justify-between"><span className="text-gray-600">Subtotal</span><span className="font-semibold">₦{subtotal.toLocaleString('en-NG')}</span></div>
-                <div className="flex items-center justify-between"><span className="text-gray-600">VAT (7.5%)</span><span className="font-semibold">₦{vat.toLocaleString('en-NG')}</span></div>
+                <div className="flex items-center justify-between"><span className="text-gray-600">Subtotal</span><span className="font-semibold">{formatPrice(subtotal)}</span></div>
+                <div className="flex items-center justify-between"><span className="text-gray-600">VAT (7.5%)</span><span className="font-semibold">{formatPrice(vat)}</span></div>
               </div>
             </aside>
           </div>
@@ -876,7 +879,7 @@ export default function Checkout() {
                   <div className="mt-2 flex flex-wrap items-center gap-3 text-[13px] font-medium">
                     {gigLoading && <span className="text-gray-600">Fetching quote…</span>}
                     {/* Inline error removed; handled via toast */}
-                    {!gigLoading && !gigError && gigQuoteAmount>0 && <span className="text-gray-900">₦{gigQuoteAmount.toLocaleString('en-NG')}</span>}
+                    {!gigLoading && !gigError && gigQuoteAmount>0 && <span className="text-gray-900">{formatPrice(gigQuoteAmount)}</span>}
                     {!gigLoading && !gigError && !gigQuoteAmount && address.regionId && <span className="text-gray-500">No quote yet</span>}
                     <button type="button" disabled={gigLoading || !address.regionId} onClick={()=>void requestGigQuote()} className="inline-flex h-8 items-center justify-center rounded-md border border-brand px-3 text-[12px] font-semibold text-brand disabled:opacity-50">{gigLoading? 'Loading…' : gigQuoteAmount>0 ? 'Refresh quote' : 'Get quote'}</button>
                     {!gigLoading && gigError && <button type="button" onClick={()=>void requestGigQuote()} className="text-[12px] text-brand underline">Retry</button>}
@@ -900,11 +903,12 @@ export default function Checkout() {
             <aside className="rounded-xl bg-white p-4 ring-1 ring-black/10">
               <h3 className="text-[16px] font-semibold text-gray-900">Summary</h3>
               <div className="mt-3 space-y-2 text-[14px]">
+                {/* 7. Update Summary Sidebar (Address Step) */}
                 <div className="flex items-center justify-between"><span className="text-gray-600">Items</span><span className="font-semibold">{items.length}</span></div>
-                <div className="flex items-center justify-between"><span className="text-gray-600">Subtotal</span><span className="font-semibold">₦{subtotal.toLocaleString('en-NG')}</span></div>
-                <div className="flex items-center justify-between"><span className="text-gray-600">VAT (7.5%)</span><span className="font-semibold">₦{vat.toLocaleString('en-NG')}</span></div>
-                <div className="flex items-center justify-between"><span className="text-gray-600">Delivery ({deliveryMethod==='gig' ? 'GIG' : 'Gapa'})</span><span className="font-semibold">{effectiveDeliveryPrice>0? `₦${effectiveDeliveryPrice.toLocaleString('en-NG')}` : '-'}</span></div>
-                <div className="flex items-center justify-between border-t border-black/10 pt-2"><span className="text-gray-600">Total</span><span className="font-semibold">₦{total.toLocaleString('en-NG')}</span></div>
+                <div className="flex items-center justify-between"><span className="text-gray-600">Subtotal</span><span className="font-semibold">{formatPrice(subtotal)}</span></div>
+                <div className="flex items-center justify-between"><span className="text-gray-600">VAT (7.5%)</span><span className="font-semibold">{formatPrice(vat)}</span></div>
+                <div className="flex items-center justify-between"><span className="text-gray-600">Delivery ({deliveryMethod==='gig' ? 'GIG' : 'Gapa'})</span><span className="font-semibold">{effectiveDeliveryPrice > 0 ? formatPrice(effectiveDeliveryPrice) : '-'}</span></div>
+                <div className="flex items-center justify-between border-t border-black/10 pt-2"><span className="text-gray-600">Total</span><span className="font-semibold">{formatPrice(total)}</span></div>
               </div>
             </aside>
           </div>
@@ -934,12 +938,13 @@ export default function Checkout() {
               </div>
               <div className="mt-4 flex items-center justify-between text-[14px]">
                 <span className="text-gray-600">Total</span>
-                <span className="font-semibold">₦{total.toLocaleString('en-NG')}</span>
+                <span className="font-semibold">{formatPrice(total)}</span>
               </div>
               <div className="mt-2 space-y-1 text-[12px] text-gray-600">
-                <div className="flex items-center justify-between"><span>Subtotal</span><span>₦{subtotal.toLocaleString('en-NG')}</span></div>
-                <div className="flex items-center justify-between"><span>VAT (7.5%)</span><span>₦{vat.toLocaleString('en-NG')}</span></div>
-                <div className="flex items-center justify-between"><span>Delivery ({deliveryMethod==='gig' ? 'GIG' : 'Gapa'})</span><span>{effectiveDeliveryPrice>0? `₦${effectiveDeliveryPrice.toLocaleString('en-NG')}` : '-'}</span></div>
+                {/* 9. Update Payment Small Details */}
+                <div className="flex items-center justify-between"><span>Subtotal</span><span>{formatPrice(subtotal)}</span></div>
+                <div className="flex items-center justify-between"><span>VAT (7.5%)</span><span>{formatPrice(vat)}</span></div>
+                <div className="flex items-center justify-between"><span>Delivery ({deliveryMethod==='gig' ? 'GIG' : 'Gapa'})</span><span>{effectiveDeliveryPrice > 0 ? formatPrice(effectiveDeliveryPrice) : '-'}</span></div>
               </div>
               <div className="mt-4 flex gap-2">
                 <button onClick={goBack} className="inline-flex h-10 items-center justify-center rounded-md bg-gray-100 px-4 text-[14px] font-semibold text-gray-900 ring-1 ring-black/10">Back</button>
@@ -950,10 +955,10 @@ export default function Checkout() {
               <h3 className="text-[16px] font-semibold text-gray-900">Summary</h3>
               <div className="mt-3 space-y-2 text-[14px]">
                 <div className="flex items-center justify-between"><span className="text-gray-600">Items</span><span className="font-semibold">{items.length}</span></div>
-                <div className="flex items-center justify-between"><span className="text-gray-600">Subtotal</span><span className="font-semibold">₦{subtotal.toLocaleString('en-NG')}</span></div>
-                <div className="flex items-center justify-between"><span className="text-gray-600">VAT (7.5%)</span><span className="font-semibold">₦{vat.toLocaleString('en-NG')}</span></div>
-                <div className="flex items-center justify-between"><span className="text-gray-600">Delivery ({deliveryMethod==='gig' ? 'GIG' : 'Gapa'})</span><span className="font-semibold">{effectiveDeliveryPrice>0? `₦${effectiveDeliveryPrice.toLocaleString('en-NG')}` : '-'}</span></div>
-                <div className="flex items-center justify-between border-t border-black/10 pt-2"><span className="text-gray-600">Total</span><span className="font-semibold">₦{total.toLocaleString('en-NG')}</span></div>
+                <div className="flex items-center justify-between"><span className="text-gray-600">Subtotal</span><span className="font-semibold">{formatPrice(subtotal)}</span></div>
+                <div className="flex items-center justify-between"><span className="text-gray-600">VAT (7.5%)</span><span className="font-semibold">{formatPrice(vat)}</span></div>
+                <div className="flex items-center justify-between"><span className="text-gray-600">Delivery ({deliveryMethod==='gig' ? 'GIG' : 'Gapa'})</span><span className="font-semibold">{effectiveDeliveryPrice > 0 ? formatPrice(effectiveDeliveryPrice) : '-'}</span></div>
+                <div className="flex items-center justify-between border-t border-black/10 pt-2"><span className="text-gray-600">Total</span><span className="font-semibold">{formatPrice(total)}</span></div>
               </div>
             </aside>
           </div>
@@ -969,7 +974,7 @@ export default function Checkout() {
                   <div className="text-sm font-semibold text-gray-900">Items</div>
                   <ul className="mt-2 space-y-2">
                     {items.map((it)=> (
-                      <li key={it.productId} className="flex items-center justify-between text-[14px]"><span className="truncate">{it.name} × {it.quantity}</span><span className="font-semibold">₦{(it.price*it.quantity).toLocaleString('en-NG')}</span></li>
+                      <li key={it.productId} className="flex items-center justify-between text-[14px]"><span className="truncate">{it.name} × {it.quantity}</span><span className="font-semibold">{formatPrice(it.price * it.quantity)}</span></li>
                     ))}
                   </ul>
                 </div>
@@ -983,12 +988,11 @@ export default function Checkout() {
                   <div className="text-sm font-semibold text-gray-900">Payment</div>
                   <div className="mt-1 text-[14px] text-gray-700">{payment==='paystack' ? 'Pay with Paystack' : 'Pay with Flutterwave'}</div>
                 </div>
-                <div className="flex items-center justify-between text-[14px]"><span className="text-gray-600">Subtotal</span><span className="font-semibold">₦{subtotal.toLocaleString('en-NG')}</span></div>
-                <div className="flex items-center justify-between text-[14px]"><span className="text-gray-600">VAT (7.5%)</span><span className="font-semibold">₦{vat.toLocaleString('en-NG')}</span></div>
-                <div className="flex items-center justify-between text-[14px]"><span className="text-gray-600">Delivery ({deliveryMethod==='gig' ? 'GIG' : 'Gapa'})</span><span className="font-semibold">{effectiveDeliveryPrice>0? `₦${effectiveDeliveryPrice.toLocaleString('en-NG')}` : '-'}</span></div>
-                <div className="flex items-center justify-between border-t border-black/10 pt-3 text-[14px]">
+                <div className="flex items-center justify-between"><span>Subtotal</span><span>{formatPrice(subtotal)}</span></div>
+                <div className="flex items-center justify-between"><span>VAT (7.5%)</span><span>{formatPrice(vat)}</span></div>
+                <div className="flex items-center justify-between"><span>Delivery ({deliveryMethod==='gig' ? 'GIG' : 'Gapa'})</span><span>{effectiveDeliveryPrice > 0 ? formatPrice(effectiveDeliveryPrice) : '-'}</span></div><div className="flex items-center justify-between border-t border-black/10 pt-3 text-[14px]">
                   <span className="text-gray-600">Total</span>
-                  <span className="font-semibold">₦{total.toLocaleString('en-NG')}</span>
+                  <span className="font-semibold">{formatPrice(total)}</span>
                 </div>
               </div>
               <div className="mt-4 flex gap-2">
@@ -1004,10 +1008,10 @@ export default function Checkout() {
               <h3 className="text-[16px] font-semibold text-gray-900">Summary</h3>
               <div className="mt-3 space-y-2 text-[14px]">
                 <div className="flex items-center justify-between"><span className="text-gray-600">Items</span><span className="font-semibold">{items.length}</span></div>
-                <div className="flex items-center justify-between"><span className="text-gray-600">Subtotal</span><span className="font-semibold">₦{subtotal.toLocaleString('en-NG')}</span></div>
-                <div className="flex items-center justify-between"><span className="text-gray-600">VAT (7.5%)</span><span className="font-semibold">₦{vat.toLocaleString('en-NG')}</span></div>
-                <div className="flex items-center justify-between"><span className="text-gray-600">Delivery ({deliveryMethod==='gig' ? 'GIG' : 'Gapa'})</span><span className="font-semibold">{effectiveDeliveryPrice>0? `₦${effectiveDeliveryPrice.toLocaleString('en-NG')}` : '-'}</span></div>
-                <div className="flex items-center justify-between border-t border-black/10 pt-2"><span className="text-gray-600">Total</span><span className="font-semibold">₦{total.toLocaleString('en-NG')}</span></div>
+                <div className="flex items-center justify-between"><span className="text-gray-600">Subtotal</span><span className="font-semibold">{formatPrice(subtotal)}</span></div>
+                <div className="flex items-center justify-between"><span className="text-gray-600">VAT (7.5%)</span><span className="font-semibold">{formatPrice(vat)}</span></div>
+                <div className="flex items-center justify-between"><span className="text-gray-600">Delivery ({deliveryMethod==='gig' ? 'GIG' : 'Gapa'})</span><span className="font-semibold">{effectiveDeliveryPrice > 0 ? formatPrice(effectiveDeliveryPrice) : '-'}</span></div>
+                <div className="flex items-center justify-between border-t border-black/10 pt-2"><span className="text-gray-600">Total</span><span className="font-semibold">{formatPrice(total)}</span></div>
               </div>
             </aside>
           </div>
