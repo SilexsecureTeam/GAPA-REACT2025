@@ -405,47 +405,7 @@ export default function Header() {
       <div className="bg-brand text-white py-1">
         <div className="mx-auto flex h-10 max-w-7xl items-center justify-between px-4 sm:px-6">
           
-          {/* Country Selector (Left Aligned) */}
-          <div className="relative" ref={currencyRef}>
-            <button
-              onClick={() => setCurrencyOpen(!currencyOpen)}
-              className="flex items-center gap-2 rounded-full bg-white/10 px-2 py-1 text-[12px] font-semibold text-white hover:bg-white/20 transition-colors"
-            >
-              <img src={currency.flag} alt={currency.countryCode} className="h-4 w-6 rounded-sm object-cover" />
-              <span className="hidden sm:inline">{currency.countryName}</span>
-              <span className="inline sm:hidden">{currency.code}</span>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="6 9 12 15 18 9" />
-              </svg>
-            </button>
-
-            {/* Dropdown */}
-            {currencyOpen && (
-              <div className="absolute left-0 top-full mt-2 max-h-[60vh] w-64 overflow-y-auto rounded-lg bg-white p-1 shadow-xl ring-1 ring-black/10 z-50">
-                <div className="px-3 py-2 text-xs font-bold text-gray-500 uppercase tracking-wider border-b border-gray-100 mb-1">Select Region</div>
-                {availableCurrencies.map((c) => (
-                  <button
-                    key={c.countryCode}
-                    onClick={() => { setCurrencyByCountry(c.countryCode); setCurrencyOpen(false) }}
-                    className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-[13px] transition-colors ${
-                      currency.countryCode === c.countryCode ? 'bg-brand/10 text-brand font-semibold' : 'text-gray-700 hover:bg-gray-50'
-                    }`}
-                  >
-                    <img src={c.flag} alt="" className="h-4 w-6 rounded-sm shadow-sm object-cover" />
-                    <div className="flex-1 min-w-0">
-                      <div className="truncate">{c.countryName}</div>
-                      <div className="text-[10px] text-gray-500">{c.code} ({c.symbol})</div>
-                    </div>
-                    {currency.countryCode === c.countryCode && (
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="20 6 9 17 4 12" />
-                      </svg>
-                    )}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+          
 
           {/* Center Text */}
           <p className="text-[14px] font-normal tracking-wide hidden md:block">
@@ -561,6 +521,48 @@ export default function Header() {
                 </span>
               )}
             </Link>
+
+            {/* Country Selector (Left Aligned) */}
+          <div className="relative" ref={currencyRef}>
+            <button
+              onClick={() => setCurrencyOpen(!currencyOpen)}
+              className="flex items-center gap-2 rounded-full bg-white/10 px-2 py-1 text-[12px] font-semibold text-white hover:bg-white/20 transition-colors"
+            >
+              <img src={currency.flag} alt={currency.countryCode} className="h-4 w-6 rounded-sm object-cover" />
+              
+              <span className="inline sm:hidden">{currency.code}</span>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </button>
+
+            {/* Dropdown */}
+            {currencyOpen && (
+              <div className="absolute left-0 top-full mt-2 max-h-[60vh] w-64 overflow-y-auto rounded-lg bg-white p-1 shadow-xl ring-1 ring-black/10 z-50">
+                <div className="px-3 py-2 text-xs font-bold text-gray-500 uppercase tracking-wider border-b border-gray-100 mb-1">Select Region</div>
+                {availableCurrencies.map((c) => (
+                  <button
+                    key={c.countryCode}
+                    onClick={() => { setCurrencyByCountry(c.countryCode); setCurrencyOpen(false) }}
+                    className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-[13px] transition-colors ${
+                      currency.countryCode === c.countryCode ? 'bg-brand/10 text-brand font-semibold' : 'text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    <img src={c.flag} alt="" className="h-4 w-6 rounded-sm shadow-sm object-cover" />
+                    <div className="flex-1 min-w-0">
+                      <div className="truncate">{c.countryName}</div>
+                      <div className="text-[10px] text-gray-500">{c.code} ({c.symbol})</div>
+                    </div>
+                    {currency.countryCode === c.countryCode && (
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
 
             {/* Auth - Desktop Dropdown */}
             {user ? (
