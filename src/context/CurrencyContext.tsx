@@ -30,16 +30,6 @@ const DEFAULT_CURRENCY: Currency = {
   countryCode: 'NG',
 }
 
-// Helper to format numbers
-const formatMoney = (amount: number, currency: string, locale: string = 'en-US') => {
-  return new Intl.NumberFormat(locale, {
-    style: 'currency',
-    currency: currency,
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
-  }).format(amount)
-}
-
 export function CurrencyProvider({ children }: { children: React.ReactNode }) {
   const [currency, setCurrency] = useState<Currency>(DEFAULT_CURRENCY)
   const [rates, setRates] = useState<Record<string, number>>({ NGN: 1 })
@@ -122,15 +112,19 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
 
   // 3. Formatter Function
   const formatPrice = useCallback((amountInNaira: number) => {
-    if (currency.code === 'NGN') {
-      return formatMoney(amountInNaira, 'NGN', 'en-NG')
-    }
-    
-    const rate = rates[currency.code]
-    if (!rate) return formatMoney(amountInNaira, 'NGN', 'en-NG') // Fallback
-
+    const isNaira = currency.code === 'NGN'
+    const rate = isNaira ? 1 : (rates[currency.code] || 1)
     const converted = amountInNaira * rate
-    return formatMoney(converted, currency.code)
+    
+    // Format number part with commas and 2 decimals
+    const numStr = new Intl.NumberFormat('en-US', {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+      useGrouping: true
+    }).format(converted)
+
+    // Explicitly use the symbol from our data
+    return `${currency.symbol}${numStr}`
   }, [currency, rates])
 
   return (
