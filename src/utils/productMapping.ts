@@ -76,6 +76,7 @@ export const mapProductToActionData = (p: any, fallbackIndex = 0): ProductAction
     src?.unit_price ||
     0
   )
-  const priceLabel = `₦${Math.max(0, price).toLocaleString('en-NG')}`
-  return { id, title, image, rating, reviews, brand, price, priceLabel }
+  // REMOVED: Hardcoded priceLabel generation. 
+  // By leaving priceLabel undefined, the UI components will use the CurrencyContext formatter.
+  return { id, title, image, rating, reviews, brand, price }
 }
