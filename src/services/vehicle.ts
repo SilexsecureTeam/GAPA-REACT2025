@@ -62,13 +62,13 @@ export function vehicleMatches(product: any, state: VehicleFilterState): boolean
       // --- Brand Check ---
       let brandMatches = false
       if (brandId && entry.brand_id) {
-        // strict ID match
+        // strict ID match preferred
         brandMatches = String(entry.brand_id) === String(brandId)
       } else if (bLower) {
+        // loose name match
         const txt = String(entry.model || '').toLowerCase()
         if (txt.includes(bLower)) brandMatches = true
         else {
-          // Check aliases
           const aliases = BRAND_ALIASES[bLower] || []
           if (aliases.some(a => txt.includes(a))) brandMatches = true
         }
@@ -85,19 +85,22 @@ export function vehicleMatches(product: any, state: VehicleFilterState): boolean
       const subList = entry.sub_suitability_models
       if (Array.isArray(subList) && subList.length > 0) {
         return subList.some((sub: any) => {
+          const subTxt = String(sub.sub_model || '').toLowerCase()
+
           // A. Model Match
           let modelMatches = false
-          // 1. ID Match (check both model_id and main_model_id)
+          // 1. ID Match (check both main_model_id and model_id)
+          // Note: main_model_id usually correlates to the Model (Chassis) ID
           if (modelId && (String(sub.main_model_id) === String(modelId) || String(sub.model_id) === String(modelId))) {
              modelMatches = true
           }
           // 2. Name Match
           if (!modelMatches && modelName) {
              const mLower = modelName.trim().toLowerCase()
-             const subTxt = String(sub.sub_model || '').toLowerCase()
+             // Simple includes is usually enough for Model names
              if (subTxt.includes(mLower)) modelMatches = true
           }
-          // If no model selected in filter (unlikely), pass
+          // If no model selected in filter (unlikely here), pass
           if (!modelId && !modelName) modelMatches = true
 
           if (!modelMatches) return false
@@ -114,9 +117,15 @@ export function vehicleMatches(product: any, state: VehicleFilterState): boolean
           // 2. Name Match
           if (!engineMatches && engineName) {
              const eLower = engineName.trim().toLowerCase()
-             const subTxt = String(sub.sub_model || '').toLowerCase()
-             // Check if engine name is inside sub_model string
              if (subTxt.includes(eLower)) engineMatches = true
+          }
+
+          // 3. Generic/Range Match (The Fix)
+          // If the entry describes a range (e.g. "95 - 340 PS"), it likely covers ALL engines for this model.
+          // So if we matched the Model, and this entry is a generic range, we accept it even if specific engine ID/Name didn't match.
+          if (!engineMatches) {
+            const isGenericRange = /\d+\s*-\s*\d+\s*(PS|kW|hp|CV)/i.test(subTxt) || /all engines|universal/i.test(subTxt)
+            if (isGenericRange) engineMatches = true
           }
 
           return engineMatches
