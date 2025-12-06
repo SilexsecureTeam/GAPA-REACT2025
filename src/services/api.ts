@@ -2,6 +2,61 @@ import { apiRequest } from './apiClient'
 // Optional secrets fallback (development only) for GIG base URL only (static token flow in use)
 import { GIG_BASE_URL as SECRET_GIG_BASE } from '../secrets'
 
+// --- Caching Utility --------------------------------------------------------
+// Cache Duration: 30 minutes (in milliseconds)
+const CACHE_DURATION = 30 * 60 * 1000 
+const CACHE_PREFIX = 'gapa_api_cache_'
+
+/**
+ * Wrapper to handle LocalStorage caching for API GET requests.
+ * @param key Unique key for the cache (e.g. 'all_products')
+ * @param fetcher Async function that performs the actual API call
+ * @param ttl Time to live in ms (default 30 mins)
+ */
+async function cachedRequest<T>(key: string, fetcher: () => Promise<T>, ttl = CACHE_DURATION): Promise<T> {
+  const storageKey = `${CACHE_PREFIX}${key}`
+  
+  // 1. Try to get from cache
+  try {
+    const cached = localStorage.getItem(storageKey)
+    if (cached) {
+      const parsed = JSON.parse(cached)
+      const now = Date.now()
+      // Check if expired
+      if (now - parsed.timestamp < ttl) {
+        return parsed.data as T
+      }
+    }
+  } catch (e) {
+    // If parsing fails, ignore and fetch fresh
+  }
+
+  // 2. Fetch fresh data
+  const data = await fetcher()
+
+  // 3. Save to cache (if possible)
+  try {
+    const record = {
+      timestamp: Date.now(),
+      data: data
+    }
+    localStorage.setItem(storageKey, JSON.stringify(record))
+  } catch (e) {
+    console.warn('Cache write failed (likely quota exceeded)', e)
+    // Try to clear old GAPA caches to free space if quota exceeded
+    try {
+      Object.keys(localStorage).forEach(k => {
+        if (k.startsWith(CACHE_PREFIX) && k !== storageKey) localStorage.removeItem(k)
+      })
+      // Retry save once
+      localStorage.setItem(storageKey, JSON.stringify({ timestamp: Date.now(), data }))
+    } catch (_) { /* give up on caching this item */ }
+  }
+
+  return data
+}
+// ----------------------------------------------------------------------------
+
 // Types based on provided login response
 export type LoginResponse = {
   message: string
@@ -285,48 +340,64 @@ export function unwrapArray<T = any>(res: any): T[] {
   return []
 }
 
+// Updated product fetchers with caching + suitability
 export async function getFeaturedProducts() {
-  const res = await apiRequest<any>(withSuitability(ENDPOINTS.featuredProducts))
-  // handle shapes: { data: [...] } or { 'top-products': [...] } or [...]
-  if (Array.isArray(res)) return res
-  if (res?.data && Array.isArray(res.data)) return res.data
-  if (res && typeof res === 'object') {
-    for (const k of Object.keys(res)) {
-      const v = (res as any)[k]
-      if (Array.isArray(v)) return v
+  return cachedRequest('featured', async () => {
+    const res = await apiRequest<any>(withSuitability(ENDPOINTS.featuredProducts))
+    if (Array.isArray(res)) return res
+    if (res?.data && Array.isArray(res.data)) return res.data
+    if (res && typeof res === 'object') {
+      for (const k of Object.keys(res)) {
+        const v = (res as any)[k]
+        if (Array.isArray(v)) return v
+      }
     }
-  }
-  return []
+    return []
+  })
 }
+
 export async function getTopProducts() {
-  const res = await apiRequest<any>(withSuitability(ENDPOINTS.topProducts))
-  if (Array.isArray(res)) return res
-  if (res?.data && Array.isArray(res.data)) return res.data
-  if (res && typeof res === 'object') { for (const k of Object.keys(res)) { const v = (res as any)[k]; if (Array.isArray(v)) return v } }
-  return []
+  return cachedRequest('top', async () => {
+    const res = await apiRequest<any>(withSuitability(ENDPOINTS.topProducts))
+    if (Array.isArray(res)) return res
+    if (res?.data && Array.isArray(res.data)) return res.data
+    if (res && typeof res === 'object') { for (const k of Object.keys(res)) { const v = (res as any)[k]; if (Array.isArray(v)) return v } }
+    return []
+  })
 }
+
 export async function getAllBrands() {
-  const res = await apiRequest<any>(ENDPOINTS.allBrands)
-  if (Array.isArray(res)) return res
-  if (res?.data && Array.isArray(res.data)) return res.data
-  if (res && typeof res === 'object') { for (const k of Object.keys(res)) { const v = (res as any)[k]; if (Array.isArray(v)) return v } }
-  return []
+  // Brands are also good candidates for caching
+  return cachedRequest('brands', async () => {
+    const res = await apiRequest<any>(ENDPOINTS.allBrands)
+    if (Array.isArray(res)) return res
+    if (res?.data && Array.isArray(res.data)) return res.data
+    if (res && typeof res === 'object') { for (const k of Object.keys(res)) { const v = (res as any)[k]; if (Array.isArray(v)) return v } }
+    return []
+  }, 60 * 60 * 1000) // 1 hour cache for brands
 }
+
 export async function getAllCategories() {
-  const res = await apiRequest<any>(ENDPOINTS.allCategories)
-  if (Array.isArray(res)) return res
-  if (res?.data && Array.isArray(res.data)) return res.data
-  if (res && typeof res === 'object') { for (const k of Object.keys(res)) { const v = (res as any)[k]; if (Array.isArray(v)) return v } }
-  return []
+  // Categories rarely change, cache for 1 hour
+  return cachedRequest('categories', async () => {
+    const res = await apiRequest<any>(ENDPOINTS.allCategories)
+    if (Array.isArray(res)) return res
+    if (res?.data && Array.isArray(res.data)) return res.data
+    if (res && typeof res === 'object') { for (const k of Object.keys(res)) { const v = (res as any)[k]; if (Array.isArray(v)) return v } }
+    return []
+  }, 60 * 60 * 1000)
 }
+
 export async function getManufacturers() {
-  // Use the partners endpoint as the manufacturers source (absolute URL)
-  const res = await apiRequest<any>('https://stockmgt.gapaautoparts.com/api/getPartners')
-  if (Array.isArray(res)) return res
-  if (res?.data && Array.isArray(res.data)) return res.data
-  if (res && typeof res === 'object') { for (const k of Object.keys(res)) { const v = (res as any)[k]; if (Array.isArray(v)) return v } }
-  return []
+  return cachedRequest('manufacturers', async () => {
+    const res = await apiRequest<any>('https://stockmgt.gapaautoparts.com/api/getPartners')
+    if (Array.isArray(res)) return res
+    if (res?.data && Array.isArray(res.data)) return res.data
+    if (res && typeof res === 'object') { for (const k of Object.keys(res)) { const v = (res as any)[k]; if (Array.isArray(v)) return v } }
+    return []
+  }, 60 * 60 * 1000)
 }
+
 export async function getPartners() {
   const res = await apiRequest<any>(ENDPOINTS.partners)
   if (Array.isArray(res)) return res
@@ -334,34 +405,45 @@ export async function getPartners() {
   if (res && typeof res === 'object') { for (const k of Object.keys(res)) { const v = (res as any)[k]; if (Array.isArray(v)) return v } }
   return []
 }
+
 export async function getAllCars() {
-  const res = await apiRequest<any>(ENDPOINTS.cars)
-  if (Array.isArray(res)) return res
-  if (res?.cars && Array.isArray(res.cars)) return res.cars
-  if (res?.data && Array.isArray(res.data)) return res.data
-  if (res && typeof res === 'object') { for (const k of Object.keys(res)) { const v = (res as any)[k]; if (Array.isArray(v)) return v } }
-  return []
+  return cachedRequest('cars', async () => {
+    const res = await apiRequest<any>(ENDPOINTS.cars)
+    if (Array.isArray(res)) return res
+    if (res?.cars && Array.isArray(res.cars)) return res.cars
+    if (res?.data && Array.isArray(res.data)) return res.data
+    if (res && typeof res === 'object') { for (const k of Object.keys(res)) { const v = (res as any)[k]; if (Array.isArray(v)) return v } }
+    return []
+  })
 }
 
 export async function liveSearch(term: string) {
-  const form = new FormData()
-  form.set('search', term)
-  const res = await apiRequest<any>(withSuitability(ENDPOINTS.liveSearch), { method: 'POST', body: form })
-  if (Array.isArray(res)) return res
-  if (res?.result && Array.isArray(res.result)) return res.result
-  if (res?.data && Array.isArray(res.data)) return res.data
-  if (res && typeof res === 'object') { for (const k of Object.keys(res)) { const v = (res as any)[k]; if (Array.isArray(v)) return v } }
-  return []
+  // Cache search results based on the term (5 mins TTL)
+  return cachedRequest(`search_${term.trim().toLowerCase()}`, async () => {
+    const form = new FormData()
+    form.set('search', term)
+    const res = await apiRequest<any>(withSuitability(ENDPOINTS.liveSearch), { method: 'POST', body: form })
+    if (Array.isArray(res)) return res
+    if (res?.result && Array.isArray(res.result)) return res.result
+    if (res?.data && Array.isArray(res.data)) return res.data
+    if (res && typeof res === 'object') { for (const k of Object.keys(res)) { const v = (res as any)[k]; if (Array.isArray(v)) return v } }
+    return []
+  }, 5 * 60 * 1000)
 }
 
-// New: full product catalog and details
+// New: full product catalog and details (HEAVY)
 export async function getAllProducts() {
-  const res = await apiRequest<any>(withSuitability(ENDPOINTS.allProducts))
-  return unwrapArray<ApiProduct>(res)
+  return cachedRequest('all_products', async () => {
+    const res = await apiRequest<any>(withSuitability(ENDPOINTS.allProducts))
+    return unwrapArray<ApiProduct>(res)
+  })
 }
 
 export async function getProductById(id: string) {
-  return apiRequest<ApiProduct>(withSuitability(ENDPOINTS.productById(id)), { auth: true })
+  // Cache product details by ID (5 mins TTL)
+  return cachedRequest(`product_detail_${id}`, async () => {
+    return apiRequest<ApiProduct>(withSuitability(ENDPOINTS.productById(id)), { auth: true })
+  }, 5 * 60 * 1000)
 }
 
 export async function getProductOEM(id: string) {
@@ -437,18 +519,25 @@ export async function getSubSuitabilityModel(subModelId: string | number) {
 
 // Category drill-down helpers
 export async function getSubCategories(catId: string | number) {
-  const res = await apiRequest<any>(ENDPOINTS.subCategoriesByCategoryId(catId))
-  return unwrapArray<any>(res)
+  return cachedRequest(`subcat_${catId}`, async () => {
+    const res = await apiRequest<any>(ENDPOINTS.subCategoriesByCategoryId(catId))
+    return unwrapArray<any>(res)
+  })
 }
 
 export async function getSubSubCategories(subCatId: string | number) {
-  const res = await apiRequest<any>(ENDPOINTS.subSubCategoriesBySubCatId(subCatId))
-  return unwrapArray<any>(res)
+  return cachedRequest(`subsubcat_${subCatId}`, async () => {
+    const res = await apiRequest<any>(ENDPOINTS.subSubCategoriesBySubCatId(subCatId))
+    return unwrapArray<any>(res)
+  })
 }
 
 export async function getProductsBySubSubCategory(subSubCatId: string | number) {
-  const res = await apiRequest<any>(withSuitability(ENDPOINTS.subSubCategoryProducts(subSubCatId)))
-  return unwrapArray<ApiProduct>(res)
+  // Caching product lists by category significantly speeds up navigation
+  return cachedRequest(`prods_subsub_${subSubCatId}`, async () => {
+    const res = await apiRequest<any>(withSuitability(ENDPOINTS.subSubCategoryProducts(subSubCatId)))
+    return unwrapArray<ApiProduct>(res)
+  })
 }
 
 export async function addToCartApi(payload: { user_id: number | string; product_id: string; quantity: number }) {

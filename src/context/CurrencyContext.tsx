@@ -54,34 +54,46 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
         }
 
         // Process Countries to create a clean list
+        // Note: We deliberately DO NOT deduplicate by currency code here.
+        // We want users to be able to select "United States" even if "Ecuador" (also USD) was processed first.
         const list: Currency[] = []
-        const seenCodes = new Set<string>()
 
-        // Add NGN first to ensure it's top
-        seenCodes.add('NGN')
-        list.push(DEFAULT_CURRENCY)
+        // Add NGN (Nigeria) explicitly first to ensure it's the default/top option if not found in loop
+        const nigeria = countriesData.find((c: any) => c.cca2 === 'NG')
+        if (nigeria && nigeria.currencies && nigeria.currencies.NGN) {
+           list.push({
+            code: 'NGN',
+            name: 'Nigerian Naira',
+            symbol: '₦',
+            flag: nigeria.flags.png,
+            countryName: 'Nigeria',
+            countryCode: 'NG',
+           })
+        } else {
+           list.push(DEFAULT_CURRENCY)
+        }
 
         countriesData.forEach((c: any) => {
-          if (!c.currencies) return
-          const code = Object.keys(c.currencies)[0]
-          if (!code || seenCodes.has(code)) return
+          // Skip if no currency or if it's Nigeria (already added)
+          if (!c.currencies || c.cca2 === 'NG') return
           
-          // Only add if we have an exchange rate for it
+          const code = Object.keys(c.currencies)[0]
+          // Skip if we don't have a live exchange rate for this currency
           if (ratesData.rates && !ratesData.rates[code]) return
 
-          seenCodes.add(code)
           list.push({
             code: code,
             name: c.currencies[code].name,
             symbol: c.currencies[code].symbol || code,
-            flag: c.flags.png, // or c.flags.svg
+            flag: c.flags.png,
             countryName: c.name.common,
             countryCode: c.cca2
           })
         })
 
-        // Sort alphabetically by country name
+        // Sort alphabetically by country name for a better UX
         list.sort((a, b) => a.countryName.localeCompare(b.countryName))
+        
         setAvailableCurrencies(list)
 
         // Restore from LocalStorage

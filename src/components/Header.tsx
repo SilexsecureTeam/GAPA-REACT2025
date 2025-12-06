@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { useCurrency } from '../context/CurrencyContext'
 import logo from '../assets/gapa-logo.png';
 import icon1 from '../assets/h1.png'
 import gapafix from '../assets/gapa-fix.svg'
@@ -11,7 +12,6 @@ import { getAllCategories, type ApiCategory, getAllBrands, type ApiBrand, getSub
 // added getCartForUser import
 import { categoryImageFrom, normalizeApiImage, pickImage, brandImageFrom, subCategoryImageFrom, subSubCategoryImageFrom } from '../services/images'
 import { getGuestCart } from '../services/cart'
-import { useCurrency } from '../context/CurrencyContext'
 
 // Search suggestions data
 const SEARCH_SUGGESTIONS = [
@@ -63,6 +63,7 @@ export default function Header() {
   const { user, logout: authLogout } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
+  const { formatPrice } = useCurrency()
 
   const { currency, setCurrencyByCountry, availableCurrencies } = useCurrency()
   const [currencyOpen, setCurrencyOpen] = useState(false)
@@ -395,6 +396,8 @@ export default function Header() {
     navigate('/login')
   }
 
+  const amount = 500000;
+
   return (
     <header className="fixed w-full top-0 z-50 shadow-sm" onKeyDown={(e) => { if (e.key === 'Escape') { closeMenus(); closeAllMobile() } }}>
       {/* Mobile backdrop */}
@@ -409,7 +412,7 @@ export default function Header() {
 
           {/* Center Text */}
           <p className="text-[14px] font-normal tracking-wide hidden md:block">
-            Free Delivery on Orders Over ₦500,000 – Limited Time!
+            Free Delivery on Orders Over {formatPrice(amount)} – Limited Time!
           </p>
 
           {/* Timer (Right Aligned) */}

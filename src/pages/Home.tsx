@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import ProductCard, { type Product } from '../components/ProductCard'
+import { useCurrency } from '../context/CurrencyContext'
 import Rating from '../components/Rating'
 import WishlistButton from '../components/WishlistButton'
 import useWishlist from '../hooks/useWishlist'
@@ -108,6 +109,7 @@ const TAB_LABELS: [string, string, string] = ['Top Car Parts', 'Top Manufacturer
 
 export default function Home() {
   const navigate = useNavigate()
+  const { formatPrice } = useCurrency()
   // API state
   const [loading, setLoading] = useState(true)
   const [featured, setFeatured] = useState<ApiProduct[]>([])
@@ -314,6 +316,8 @@ export default function Home() {
   // Slider state and logic
   const [currentSlide, setCurrentSlide] = React.useState(0)
   const [isAutoPlaying, setIsAutoPlaying] = React.useState(true)
+
+  const promo_amount = 50000
   
   const slides: Array<
     | { type: 'text'; content: { title: string; subtitle: string; description: string } }
@@ -324,7 +328,7 @@ export default function Home() {
       content: {
         title: 'LOOKING FOR THE BEST CAR PARTS FOR YOUR CAR?',
         subtitle: "WE'VE GOT YOU COVERED!",
-        description: 'Over 20,000 genuine parts with free delivery above ₦50,000'
+        description: `Over 20,000 genuine parts with free delivery above ${formatPrice(promo_amount)}`
       }
     },
     { type: 'image', src: slider1, alt: 'Car Parts Showcase 1' },

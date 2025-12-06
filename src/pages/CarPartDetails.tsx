@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, useCallback } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { useCurrency } from '../context/CurrencyContext'
 import { getAllProducts, liveSearch, getRelatedProducts, type ApiProduct, getProductById, getAllCategories, type ApiCategory, addToCartApi, type ApiManufacturer, getProductReviews, type ApiReview,
   checkSuitability, getSuitabilityModel, getSubSuitabilityModel } from '../services/api'
 import { normalizeApiImage, pickImage, productImageFrom, categoryImageFrom, manufacturerImageFrom } from '../services/images'
@@ -139,6 +140,7 @@ function mapApiToUiCached(p: any) {
 
 export default function CarPartDetails() {
   const navigate = useNavigate()
+  const { formatPrice } = useCurrency()
   const { brand, part } = useParams<{ brand?: string; part?: string }>()
   const [searchParams, setSearchParams] = useSearchParams()
   const q = searchParams.get('q') || ''
@@ -934,7 +936,7 @@ export default function CarPartDetails() {
 
           <aside className="rounded-lg bg-white col-span-2 px-1">
             <div className="text-right">
-              <div className="text-[22px] font-bold text-gray-900">₦{ui.price.toLocaleString('en-NG')}</div>
+              <div className="text-[22px] font-bold text-gray-900">{formatPrice(ui.price)}</div>
               <div className="mt-1 text-[10px] text-gray-600">Incl. 20% VAT, excl delivery cost</div>
             </div>
             <div className="mt-4 flex items-center justify-center gap-2">
@@ -1376,7 +1378,7 @@ export default function CarPartDetails() {
                             <ImageWithFallback src={r.image} alt={r.title} className="h-28 w-auto object-contain" />
                           </div>
                           <div className="mt-2 text-[12px] font-medium text-gray-900 line-clamp-2">{r.title}</div>
-                          <div className="mt-1 text-[12px] text-gray-600">₦{r.price.toLocaleString('en-NG')}</div>
+                          <div className="mt-1 text-[12px] text-gray-600">{formatPrice(r.price)}</div>
                         </div>
                       </button>
                     ))}
