@@ -2,60 +2,99 @@ import { apiRequest } from './apiClient'
 // Optional secrets fallback (development only) for GIG base URL only (static token flow in use)
 import { GIG_BASE_URL as SECRET_GIG_BASE } from '../secrets'
 
-// --- Caching Utility --------------------------------------------------------
+// --- IndexedDB Caching Utility (Bypasses 5MB LocalStorage Limit) ------------
+const DB_NAME = 'GapaCacheDB'
+const STORE_NAME = 'api_responses'
+const DB_VERSION = 1
+
+// Helper to open the database
+const openDB = (): Promise<IDBDatabase> => {
+  return new Promise((resolve, reject) => {
+    // Check if indexedDB exists
+    if (typeof window === 'undefined' || !window.indexedDB) {
+      reject(new Error('IndexedDB not supported'))
+      return
+    }
+    const request = window.indexedDB.open(DB_NAME, DB_VERSION)
+    request.onerror = () => reject(request.error)
+    request.onsuccess = () => resolve(request.result)
+    request.onupgradeneeded = (e) => {
+      const db = (e.target as IDBOpenDBRequest).result
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        db.createObjectStore(STORE_NAME) // Key is the API cache key
+      }
+    }
+  })
+}
+
+// Helper to get data
+const dbGet = async <T>(key: string): Promise<{ timestamp: number; data: T } | null> => {
+  try {
+    const db = await openDB()
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readonly')
+      const store = tx.objectStore(STORE_NAME)
+      const req = store.get(key)
+      req.onsuccess = () => resolve(req.result || null)
+      req.onerror = () => reject(req.error)
+    })
+  } catch (e) {
+    return null
+  }
+}
+
+// Helper to set data
+const dbSet = async (key: string, data: any, timestamp: number) => {
+  try {
+    const db = await openDB()
+    return new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite')
+      const store = tx.objectStore(STORE_NAME)
+      const req = store.put({ timestamp, data }, key)
+      req.onsuccess = () => resolve()
+      req.onerror = () => reject(req.error)
+    })
+  } catch (e) {
+    console.warn('IndexedDB write failed', e)
+  }
+}
+
 // Cache Duration: 30 minutes (in milliseconds)
 const CACHE_DURATION = 30 * 60 * 1000 
-const CACHE_PREFIX = 'gapa_api_cache_'
+const CACHE_PREFIX = 'gapa_api_'
 
 /**
- * Wrapper to handle LocalStorage caching for API GET requests.
- * @param key Unique key for the cache (e.g. 'all_products')
- * @param fetcher Async function that performs the actual API call
- * @param ttl Time to live in ms (default 30 mins)
+ * Wrapper to handle IndexedDB caching for heavy API GET requests.
+ * Use this for large datasets (products, catalogs) that don't change every second.
  */
 async function cachedRequest<T>(key: string, fetcher: () => Promise<T>, ttl = CACHE_DURATION): Promise<T> {
   const storageKey = `${CACHE_PREFIX}${key}`
   
-  // 1. Try to get from cache
+  // 1. Try to get from IndexedDB
   try {
-    const cached = localStorage.getItem(storageKey)
-    if (cached) {
-      const parsed = JSON.parse(cached)
+    const record = await dbGet<T>(storageKey)
+    if (record) {
       const now = Date.now()
-      // Check if expired
-      if (now - parsed.timestamp < ttl) {
-        return parsed.data as T
+      if (now - record.timestamp < ttl) {
+        // console.log(`[Cache Hit] ${key}`)
+        return record.data
       }
     }
   } catch (e) {
-    // If parsing fails, ignore and fetch fresh
+    // Ignore read errors, proceed to fetch
   }
 
   // 2. Fetch fresh data
+  // console.log(`[Cache Miss] Fetching ${key}...`)
   const data = await fetcher()
 
-  // 3. Save to cache (if possible)
-  try {
-    const record = {
-      timestamp: Date.now(),
-      data: data
-    }
-    localStorage.setItem(storageKey, JSON.stringify(record))
-  } catch (e) {
-    console.warn('Cache write failed (likely quota exceeded)', e)
-    // Try to clear old GAPA caches to free space if quota exceeded
-    try {
-      Object.keys(localStorage).forEach(k => {
-        if (k.startsWith(CACHE_PREFIX) && k !== storageKey) localStorage.removeItem(k)
-      })
-      // Retry save once
-      localStorage.setItem(storageKey, JSON.stringify({ timestamp: Date.now(), data }))
-    } catch (_) { /* give up on caching this item */ }
-  }
+  // 3. Save to IndexedDB (Async, doesn't block UI)
+  dbSet(storageKey, data, Date.now()).catch(err => console.warn('Failed to cache data', err))
 
   return data
 }
 // ----------------------------------------------------------------------------
+
 
 // Types based on provided login response
 export type LoginResponse = {
@@ -340,7 +379,7 @@ export function unwrapArray<T = any>(res: any): T[] {
   return []
 }
 
-// Updated product fetchers with caching + suitability
+// Updated product fetchers with caching (IndexedDB) + suitability
 export async function getFeaturedProducts() {
   return cachedRequest('featured', async () => {
     const res = await apiRequest<any>(withSuitability(ENDPOINTS.featuredProducts))
@@ -367,7 +406,6 @@ export async function getTopProducts() {
 }
 
 export async function getAllBrands() {
-  // Brands are also good candidates for caching
   return cachedRequest('brands', async () => {
     const res = await apiRequest<any>(ENDPOINTS.allBrands)
     if (Array.isArray(res)) return res
@@ -378,7 +416,6 @@ export async function getAllBrands() {
 }
 
 export async function getAllCategories() {
-  // Categories rarely change, cache for 1 hour
   return cachedRequest('categories', async () => {
     const res = await apiRequest<any>(ENDPOINTS.allCategories)
     if (Array.isArray(res)) return res
@@ -418,7 +455,7 @@ export async function getAllCars() {
 }
 
 export async function liveSearch(term: string) {
-  // Cache search results based on the term (5 mins TTL)
+  // Cache search results based on term (5 mins)
   return cachedRequest(`search_${term.trim().toLowerCase()}`, async () => {
     const form = new FormData()
     form.set('search', term)
@@ -433,6 +470,7 @@ export async function liveSearch(term: string) {
 
 // New: full product catalog and details (HEAVY)
 export async function getAllProducts() {
+  // This is the big one - caching it in IDB saves huge bandwidth and time
   return cachedRequest('all_products', async () => {
     const res = await apiRequest<any>(withSuitability(ENDPOINTS.allProducts))
     return unwrapArray<ApiProduct>(res)
@@ -440,7 +478,7 @@ export async function getAllProducts() {
 }
 
 export async function getProductById(id: string) {
-  // Cache product details by ID (5 mins TTL)
+  // Cache individual product details for 5 mins
   return cachedRequest(`product_detail_${id}`, async () => {
     return apiRequest<ApiProduct>(withSuitability(ENDPOINTS.productById(id)), { auth: true })
   }, 5 * 60 * 1000)
@@ -473,18 +511,9 @@ export async function getSubModelsByModelId(modelId: string) {
 }
 
 // ----- Suitability APIs ----------------------------------------------------
-/**
- * POST /checkSuitability
- * body: { product_id }
- * returns { result: [...] }
- */
 export async function checkSuitability(productId: string) {
   const body = { product_id: String(productId) }
   const res = await apiRequest<any>('/checkSuitability', { method: 'POST', body })
-  // If the API returns a wrapped { result: [...] } we want to preserve the
-  // distinction between "no result found" (explicit empty array) and an
-  // absent envelope. Return a sentinel object for an explicit empty array so
-  // callers can decide how to render (e.g. "compatible with all vehicles").
   if (res && Array.isArray(res.result)) {
     if (res.result.length === 0) return { __emptySuitability: true }
     return res.result
@@ -492,11 +521,6 @@ export async function checkSuitability(productId: string) {
   return unwrapArray<any>(res)
 }
 
-/**
- * POST /suitabilityModel
- * body: { model_id }
- * returns { result: [...] }
- */
 export async function getSuitabilityModel(modelId: string | number) {
   const body = { model_id: String(modelId) }
   const res = await apiRequest<any>('/suitabilityModel', { method: 'POST', body })
@@ -504,11 +528,6 @@ export async function getSuitabilityModel(modelId: string | number) {
   return unwrapArray<any>(res)
 }
 
-/**
- * POST /sub-suitabilityModel
- * body: FormData { sub_model_id }
- * returns { result: [...] }
- */
 export async function getSubSuitabilityModel(subModelId: string | number) {
   const form = new FormData()
   form.set('sub_model_id', String(subModelId))
@@ -533,7 +552,6 @@ export async function getSubSubCategories(subCatId: string | number) {
 }
 
 export async function getProductsBySubSubCategory(subSubCatId: string | number) {
-  // Caching product lists by category significantly speeds up navigation
   return cachedRequest(`prods_subsub_${subSubCatId}`, async () => {
     const res = await apiRequest<any>(withSuitability(ENDPOINTS.subSubCategoryProducts(subSubCatId)))
     return unwrapArray<ApiProduct>(res)
