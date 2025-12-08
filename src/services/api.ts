@@ -76,7 +76,6 @@ async function cachedRequest<T>(key: string, fetcher: () => Promise<T>, ttl = CA
     if (record) {
       const now = Date.now()
       if (now - record.timestamp < ttl) {
-        // console.log(`[Cache Hit] ${key}`)
         return record.data
       }
     }
@@ -85,7 +84,6 @@ async function cachedRequest<T>(key: string, fetcher: () => Promise<T>, ttl = CA
   }
 
   // 2. Fetch fresh data
-  // console.log(`[Cache Miss] Fetching ${key}...`)
   const data = await fetcher()
 
   // 3. Save to IndexedDB (Async, doesn't block UI)
@@ -93,6 +91,19 @@ async function cachedRequest<T>(key: string, fetcher: () => Promise<T>, ttl = CA
 
   return data
 }
+
+// Cache Warmup Export
+// Call this from App.tsx or main.tsx to pre-load data in background
+export async function warmupCache() {
+  if (typeof window === 'undefined') return
+  // Small delay to let critical UI render first
+  setTimeout(() => {
+    getAllProducts().catch(() => {})
+    getAllBrands().catch(() => {})
+    getAllCategories().catch(() => {})
+  }, 3000)
+}
+
 // ----------------------------------------------------------------------------
 
 
@@ -406,6 +417,7 @@ export async function getTopProducts() {
 }
 
 export async function getAllBrands() {
+  // Brands are also good candidates for caching
   return cachedRequest('brands', async () => {
     const res = await apiRequest<any>(ENDPOINTS.allBrands)
     if (Array.isArray(res)) return res
@@ -416,6 +428,7 @@ export async function getAllBrands() {
 }
 
 export async function getAllCategories() {
+  // Categories rarely change, cache for 1 hour
   return cachedRequest('categories', async () => {
     const res = await apiRequest<any>(ENDPOINTS.allCategories)
     if (Array.isArray(res)) return res
@@ -500,14 +513,19 @@ export async function getProductProperties(id: string) {
 }
 
 // Vehicle drill-down helpers
+// Update: Added Caching for these as they are static dropdown data
 export async function getModelsByBrandId(brandId: string) {
-  const res = await apiRequest<any>(ENDPOINTS.modelsByBrandId(brandId))
-  return unwrapArray<any>(res)
+  return cachedRequest(`models_${brandId}`, async () => {
+    const res = await apiRequest<any>(ENDPOINTS.modelsByBrandId(brandId))
+    return unwrapArray<any>(res)
+  })
 }
 
 export async function getSubModelsByModelId(modelId: string) {
-  const res = await apiRequest<any>(ENDPOINTS.subModelsByModelId(modelId))
-  return unwrapArray<any>(res)
+  return cachedRequest(`submodels_${modelId}`, async () => {
+    const res = await apiRequest<any>(ENDPOINTS.subModelsByModelId(modelId))
+    return unwrapArray<any>(res)
+  })
 }
 
 // ----- Suitability APIs ----------------------------------------------------
@@ -552,6 +570,7 @@ export async function getSubSubCategories(subCatId: string | number) {
 }
 
 export async function getProductsBySubSubCategory(subSubCatId: string | number) {
+  // Caching product lists by category significantly speeds up navigation
   return cachedRequest(`prods_subsub_${subSubCatId}`, async () => {
     const res = await apiRequest<any>(withSuitability(ENDPOINTS.subSubCategoryProducts(subSubCatId)))
     return unwrapArray<ApiProduct>(res)
@@ -612,14 +631,19 @@ export async function increaseCartItem(payload: { user_id: string | number; prod
 // ----- Address helpers -----
 export type ApiState = { id?: string | number; name?: string; state?: string; title?: string } & Record<string, any>
 
+// Update: Cache address states (very static data)
 export async function getAllStatesApi() {
-  const res = await apiRequest<any>(ADDRESS_ENDPOINTS.getAllStates)
-  return unwrapArray<ApiState>(res)
+  return cachedRequest('all_states', async () => {
+    const res = await apiRequest<any>(ADDRESS_ENDPOINTS.getAllStates)
+    return unwrapArray<ApiState>(res)
+  }, 24 * 60 * 60 * 1000) // 24 hours
 }
 
 export async function getStatesByLocation(location: string = 'gapa') {
-  const res = await apiRequest<any>(ADDRESS_ENDPOINTS.getStatesByLocation(location))
-  return unwrapArray<ApiState>(res)
+  return cachedRequest(`states_loc_${location}`, async () => {
+    const res = await apiRequest<any>(ADDRESS_ENDPOINTS.getStatesByLocation(location))
+    return unwrapArray<ApiState>(res)
+  }, 24 * 60 * 60 * 1000)
 }
 
 export async function getDeliveryRate() {

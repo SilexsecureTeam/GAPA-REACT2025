@@ -32,6 +32,7 @@ import GapaToaster from './components/GapaToaster'
 import OrderSuccess from './pages/OrderSuccess'
 import OrderHistory from './pages/OrderHistory'
 import Wishlist from './pages/Wishlist'
+import { warmupCache } from './services/api'
 
 function App() {
   const location = useLocation()
@@ -41,6 +42,10 @@ function App() {
   // Global cart popup state controlled via URL hash (#cart)
   const [cartOpen, setCartOpen] = useState(false)
   const [cartRefreshKey, setCartRefreshKey] = useState(0)
+
+  useEffect(() => {
+    warmupCache()
+  }, [])
 
   useEffect(() => {
     if (location.hash === '#cart') {
