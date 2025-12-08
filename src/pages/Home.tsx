@@ -53,13 +53,14 @@ function brandNameOf(b: any): string {
 // Special offers demo type reused by API mapping
 type Offer = Product & { price: number; reviews: number }
 
-function formatNaira(n: number) { return `\u20a6${n.toLocaleString('en-NG')}` }
+// function formatNaira(n: number) { return `\u20a6${n.toLocaleString('en-NG')}` }
 
 function OfferCard({ offer, rawProduct }: { offer: Offer; rawProduct?: any }) {
   const wishlist = useWishlist()
   const isFav = wishlist.has(offer.id)
   const navigate = useNavigate()
   const toSlug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
+  const { formatPrice } = useCurrency()
   
   // Extract brand and category for proper URL routing
   const brandName = String(rawProduct?.brand?.name || rawProduct?.brand || rawProduct?.manufacturer || rawProduct?.maker || '').trim()
@@ -96,7 +97,7 @@ function OfferCard({ offer, rawProduct }: { offer: Offer; rawProduct?: any }) {
             <span className="text-gray-500">({offer.reviews.toLocaleString()})</span>
           </div>
           <span className="block text-[13px] font-semibold text-gray-900 hover:underline">{offer.title}</span>
-          <div className="text-[13px] font-extrabold text-gray-900">{formatNaira(offer.price)}</div>
+          <div className="text-[13px] font-extrabold text-gray-900">{formatPrice(offer.price)}</div>
           <div className="text-[10px] leading-3 text-gray-500">NG/ECOM tax</div>
           <div className="text-[10px] leading-3 text-gray-500">Incl. 30% VAT</div>
         </div>

@@ -13,21 +13,12 @@ import WishlistButton from '../components/WishlistButton'
 import useWishlist from '../hooks/useWishlist'
 import { toast } from 'react-hot-toast'
 import useManufacturers from '../hooks/useManufacturers'
-import { makerIdOf, isViewEnabledCategory } from '../utils/productMapping'
+import { makerIdOf, isViewEnabledCategory, categoryOf, brandOf } from '../utils/productMapping'
+// import ProductActionCard from '../components/ProductActionCard'
 
 // Helpers
 const toSlug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
 const titleCase = (s: string) => s.replace(/-/g, ' ').replace(/\b\w/g, (m) => m.toUpperCase())
-
-// Derive brand and category names from product
-function brandOf(p: any): string {
-  return String(p?.brand?.name || p?.brand || p?.manufacturer || p?.maker || p?.brand_name || '').trim()
-}
-function categoryOf(p: any): string {
-  const c = (p as any)?.category
-  if (typeof c === 'string') return c
-  return String(c?.name || c?.title || (p as any)?.category_name || '').trim()
-}
 
 // Small helpers to read attributes/specs consistently
 type Attr = { label: string; value: string }
@@ -63,7 +54,28 @@ function attrsFrom(p: any): Attr[] {
   return out
 }
 
-function mapApiToUi(p: any) {
+type UiProduct = {
+  id: string
+  brand: string
+  brandLogo: string
+  name: string
+  articleNo: string
+  price: number
+  image: string
+  gallery: string[]
+  rating: number
+  reviews: number
+  inStock: boolean
+  attributes: Attr[]
+  description?: string
+  makerId?: string
+  makerName?: string
+  makerImage?: string
+  category?: string
+  soldInPairs?: boolean
+}
+
+function mapApiToUi(p: any, manufacturers: any[] = []): UiProduct {
   // Unwrap nested `part` payloads
   const src = (p && typeof p === 'object' && 'part' in p) ? (p as any).part : p
   // Prefer product_id (string)
@@ -89,14 +101,35 @@ function mapApiToUi(p: any) {
   const inStock = Boolean((src as any)?.in_stock ?? (src as any)?.live_status ?? true)
   const attributes = attrsFrom(src)
   const description = String(src?.description || src?.details || '')
+  
+  // Manufacturer Logic
   const makerId = String(src?.saler_id ?? src?.maker_id_ ?? src?.maker_id ?? src?.manufacturer_id ?? '').trim()
-  const makerName = String(src?.maker?.name || src?.manufacturer?.name || src?.manufacturer || src?.maker || '').trim()
-  const makerImage = manufacturerImageFrom(src?.maker || src?.manufacturer || src) || ''
-  return { id, brand: brandName, brandLogo: brandLogo || logoImg, name, articleNo, price, image, gallery: gallery.length ? gallery : [image], rating, reviews, inStock, attributes, description, makerId, makerName, makerImage }
+  let makerName = String(src?.maker?.name || src?.manufacturer?.name || src?.manufacturer || src?.maker || '').trim()
+  let makerImage = manufacturerImageFrom(src?.maker || src?.manufacturer || src) || ''
+
+  // Enhance with manufacturers data if available
+  if (makerId && manufacturers.length) {
+    const manufacturer = manufacturers.find((m: any) => {
+      const mId = String(m.id ?? m?.maker_id_ ?? m?.maker_id ?? m?.manufacturer_id ?? '')
+      const mSalerId = String((m as any)?.saler_id ?? '')
+      return (mSalerId && mSalerId === makerId) || (mId === makerId)
+    })
+    if (manufacturer) {
+      makerImage = manufacturerImageFrom(manufacturer) || makerImage
+      makerName = String(manufacturer.name || manufacturer.title || (manufacturer as any)?.maker_name || makerName || '').trim()
+    }
+  }
+
+  const cat = categoryOf(src)
+  
+  const rawPairsVal = src?.pairs ?? src?.sold_in_pairs ?? src?.pair ?? src?.is_pair
+  const pairsStr = String(rawPairsVal ?? '').trim().toLowerCase()
+  const soldInPairs = rawPairsVal === true || pairsStr === 'yes' || pairsStr === 'true' || pairsStr === '1'
+
+  return { id, brand: brandName, brandLogo: brandLogo || logoImg, name, articleNo, price, image, gallery: gallery.length ? gallery : [image], rating, reviews, inStock, attributes, description, makerId, makerName, makerImage, category: cat, soldInPairs }
 }
 
-// Stateful image component to avoid infinite onError loops where React keeps re-setting a broken src.
-// Once a fallback is applied it persists until the original src prop changes.
+// Stateful image component to avoid infinite onError loops
 function ImageWithFallback({ src, alt, className, showFallback = false }: { src: string | undefined; alt: string; className?: string; showFallback?: boolean }) {
   const safeSrc = src || (showFallback ? logoImg : '')
   const [current, setCurrent] = useState(safeSrc)
@@ -127,13 +160,13 @@ function ImageWithFallback({ src, alt, className, showFallback = false }: { src:
 const RELATED_LIMIT = 24
 const INITIAL_VISIBLE_RELATED = 10
 
-// Simple in‑memory UI mapping cache to avoid recomputing galleries repeatedly
-const __productUiCache = new Map<string, ReturnType<typeof mapApiToUi>>()
-function mapApiToUiCached(p: any) {
+// Cache for mapped UI objects
+const __productUiCache = new Map<string, UiProduct>()
+function mapApiToUiCached(p: any, manufacturers: any[] = []) {
   const src = (p && typeof p === 'object' && 'part' in p) ? (p as any).part : p
   const id = String(src?.product_id ?? src?.id ?? '')
   if (id && __productUiCache.has(id)) return __productUiCache.get(id)!
-  const ui = mapApiToUi(p)
+  const ui = mapApiToUi(p, manufacturers)
   if (id) __productUiCache.set(id, ui)
   return ui
 }
@@ -149,7 +182,7 @@ export default function CarPartDetails() {
   const [loading, setLoading] = useState(true)
   const [products, setProducts] = useState<ApiProduct[]>([])
   const [related, setRelated] = useState<ApiProduct[]>([])
-  const [selected, setSelected] = useState<ReturnType<typeof mapApiToUi> | null>(null)
+  const [selected, setSelected] = useState<UiProduct | null>(null)
   const [selectedRaw, setSelectedRaw] = useState<any | null>(null)
   const [categories, setCategories] = useState<ApiCategory[]>([])
   const [relatedLoading, setRelatedLoading] = useState(false)
@@ -186,7 +219,7 @@ export default function CarPartDetails() {
     })
   }, [])
   const hasVehicleFilter = useMemo(() => Boolean(vehFilter.brandName || vehFilter.modelName || vehFilter.engineName), [vehFilter])
-  const productMatchesVehicle = (p: any) => sharedVehicleMatches(p, vehFilter)
+  const productMatchesVehicle = useCallback((p: any) => sharedVehicleMatches(p, vehFilter), [vehFilter])
   const hasManufacturerFilter = Boolean(selectedManufacturerId)
   const selectedVehicleLabel = useMemo(() => {
     if (!vehFilter.brandName && !vehFilter.modelName && !vehFilter.engineName) return 'All vehicles'
@@ -196,7 +229,6 @@ export default function CarPartDetails() {
   const handleManufacturerSelect = useCallback((manufacturer: ApiManufacturer | null) => {
     if (!manufacturer) {
       setSelectedManufacturerId('')
-
       return
     }
     // Use saler_id instead of maker_id
@@ -207,42 +239,17 @@ export default function CarPartDetails() {
       ?? (manufacturer as any)?.manufacturer_id
     const id = rawId != null ? String(rawId) : ''
     setSelectedManufacturerId(id)
-
   }, [])
-
-  // Filter manufacturers to only show those with products in current view
-
-
-  // Helper to enhance product UI data with manufacturer info from loaded list
-  const enhanceWithManufacturerData = useCallback((ui: ReturnType<typeof mapApiToUi>, _raw: any) => {
-    if (!ui.makerId || !manufacturers.length) return ui
-    
-    // Find manufacturer by saler_id (prioritize) or fallback to maker_id_
-    const manufacturer = manufacturers.find(m => {
-      const mSalerId = String((m as any)?.saler_id ?? '')
-      const mId = String(m.id ?? (m as any)?.maker_id_ ?? (m as any)?.maker_id ?? (m as any)?.manufacturer_id ?? '')
-      // Match by saler_id first, then fallback to other IDs
-      return (mSalerId && mSalerId === ui.makerId) || (mId && mId === ui.makerId)
-    })
-    
-    if (manufacturer) {
-      const makerImg = manufacturerImageFrom(manufacturer) || ui.makerImage
-      const makerNm = String(manufacturer.name || manufacturer.title || (manufacturer as any)?.maker_name || ui.makerName || '').trim()
-      return { ...ui, makerImage: makerImg, makerName: makerNm }
-    }
-    
-    return ui
-  }, [manufacturers])
 
   // Re-enhance selected product when manufacturers become available
   useEffect(() => {
     if (selected && selectedRaw && manufacturers.length && !manufacturersLoading) {
-      const enhanced = enhanceWithManufacturerData(selected, selectedRaw)
+      const enhanced = mapApiToUi(selectedRaw, manufacturers)
       if (enhanced.makerImage !== selected.makerImage || enhanced.makerName !== selected.makerName) {
         setSelected(enhanced)
       }
     }
-  }, [manufacturers, manufacturersLoading, enhanceWithManufacturerData])
+  }, [manufacturers, manufacturersLoading])
 
 
   // Load catalog + categories
@@ -322,7 +329,9 @@ export default function CarPartDetails() {
 
   const zeroResults = !loading && filtered.length === 0
 
-  // Fetch details + related when pid is present (selected product) - incremental strategy
+  // ----------------------------------------------------------------------------------
+  // OPTIMIZED FETCHING STRATEGY
+  // ----------------------------------------------------------------------------------
   useEffect(() => {
     let alive = true
     const relAbort = new AbortController()
@@ -332,96 +341,69 @@ export default function CarPartDetails() {
       try {
         if (!pid) { setSelected(null); setSelectedRaw(null); setRelated([]); setReviews([]); return }
         setRelatedLoading(true)
+        setReviewsLoading(true)
         
-        // Try to get product data from navigation state or local products array
+        // 1. IMMEDIATE RENDER: Use data passed from navigation or cached in products list
         let detail: any = location?.productData
-        if (!detail) {
+        if (!detail && products.length > 0) {
           detail = products.find(p => String((p as any)?.product_id ?? (p as any)?.id) === pid)
         }
         
-        // Determine if we should fetch from API based on category
-        const categoryName = detail ? categoryOf(detail) : ''
-        const shouldFetchDetails = isViewEnabledCategory(categoryName)
-        
-        // 1. Fetch detail from API ONLY for Car Parts & Car Electricals
-        if (shouldFetchDetails) {
-          try {
-            detail = await getProductById(pid)
-          } catch (err) {
-            console.error('Failed to fetch product details:', err)
-            // If API fails but we have local data, use it
-            if (!detail) {
-              if (!alive) return
-              setSelected(null)
-              setSelectedRaw(null)
-              setRelated([])
-              setReviews([])
-              setRelatedLoading(false)
-              return
-            }
-          }
-        } else if (!detail) {
-          // No local data and category doesn't support API fetch
-          console.warn('No product data available for pid:', pid)
-          if (!alive) return
-          setSelected(null)
-          setSelectedRaw(null)
-          setRelated([])
-          setReviews([])
-          setRelatedLoading(false)
-          return
+        // If we have local data, render it immediately to avoid lag
+        if (detail) {
+           setSelectedRaw(detail)
+           setSelected(mapApiToUi(detail, manufacturers))
         }
+
+        // 2. PARALLEL FETCH: Fire all API requests at once to minimize total wait time
+        // We fetch fresh product details to ensure stock/price is current
+        const detailPromise = getProductById(pid)
+        const relatedPromise = getRelatedProducts(pid)
+        const reviewsPromise = getProductReviews(pid)
+        
+        // Use allSettled so one failure doesn't block the others
+        const results = await Promise.allSettled([
+          detailPromise,
+          relatedPromise,
+          reviewsPromise
+        ])
         
         if (!alive) return
-        setSelectedRaw(detail)
-        // Schedule mapping after next frame to unblock paint
-        requestAnimationFrame(() => { 
-          if (alive) {
-            const mapped = mapApiToUi(detail)
-            setSelected(enhanceWithManufacturerData(mapped, detail))
-          }
-        })
-        
-        // 2. Kick off related fetch in background (for ALL categories)
-        ;(async () => {
-          try {
-            const rel = await getRelatedProducts(pid)
-            if (!alive || relAbort.signal.aborted) return
-            setRelated(Array.isArray(rel) ? rel.slice(0, RELATED_LIMIT) : [])
-          } catch (err) {
-            console.error('Related products fetch error:', err)
-            if (!alive) return
-            setRelated([])
-          } finally {
-            if (alive) setRelatedLoading(false)
-          }
-        })()
-        
-        // 3. Fetch reviews in background (for ALL products)
-        ;(async () => {
-          try {
-            setReviewsLoading(true)
-            const reviewsData = await getProductReviews(pid)
-            if (!alive || relAbort.signal.aborted) return
-            setReviews(Array.isArray(reviewsData) ? reviewsData : [])
-          } catch {
-            if (!alive) return
-            setReviews([])
-          } finally {
-            if (alive) setReviewsLoading(false)
-          }
-        })()
-      } catch {
-        if (!alive) return
-        setSelected(null)
-        setSelectedRaw(null)
-        setRelated([])
-        setReviews([])
+
+        // Process Product Detail
+        if (results[0].status === 'fulfilled') {
+           const freshDetail = results[0].value
+           if (freshDetail) {
+             setSelectedRaw(freshDetail)
+             setSelected(mapApiToUi(freshDetail, manufacturers))
+           }
+        } else if (!detail) {
+           // Only log error if we also failed to get local data
+           console.warn('Product details fetch failed', results[0].reason)
+        }
+
+        // Process Related Products
+        if (results[1].status === 'fulfilled') {
+           const rel = results[1].value
+           setRelated(Array.isArray(rel) ? rel.slice(0, RELATED_LIMIT) : [])
+        }
         setRelatedLoading(false)
+
+        // Process Reviews
+        if (results[2].status === 'fulfilled') {
+           const rev = results[2].value
+           setReviews(Array.isArray(rev) ? rev : [])
+        }
+        setReviewsLoading(false)
+
+      } catch (e) {
+        // Catch-all
+        console.error(e)
       }
     })()
+    
     return () => { alive = false; relAbort.abort() }
-  }, [pid, products, enhanceWithManufacturerData])
+  }, [pid, products, manufacturers])
 
   // Frontend-related suggestions when search fails or related API fails
   const frontendRelated = useMemo(() => {
@@ -462,28 +444,11 @@ export default function CarPartDetails() {
   const manufacturerFilteredFinalRelated = useMemo(() => {
     if (!hasManufacturerFilter) return finalRelated
     
-    if (import.meta.env.DEV) {
-      console.log('[ManufacturerFilter] Filtering related products')
-      console.log('[ManufacturerFilter] Selected manufacturer ID:', selectedManufacturerId)
-      console.log('[ManufacturerFilter] Total related products:', finalRelated.length)
-      console.log('[ManufacturerFilter] Sample related product:', finalRelated[0])
-    }
-    
     const filtered = finalRelated.filter((p) => {
       const productMakerId = makerIdOf(p)
       const matches = productMakerId === selectedManufacturerId
-      
-      if (import.meta.env.DEV && finalRelated.indexOf(p) < 2) {
-        console.log('[ManufacturerFilter] Product maker ID:', productMakerId, 'Matches:', matches)
-      }
-      
       return matches
     })
-    
-    if (import.meta.env.DEV) {
-      console.log('[ManufacturerFilter] Filtered related products:', filtered.length)
-    }
-    
     return filtered
   }, [finalRelated, hasManufacturerFilter, selectedManufacturerId])
   const compatibleRelated = useMemo(() => manufacturerFilteredFinalRelated.filter(productMatchesVehicle), [manufacturerFilteredFinalRelated, vehFilter])
@@ -517,8 +482,9 @@ export default function CarPartDetails() {
     const categoryName = categoryOf(p)
     const shouldFetchDetails = isViewEnabledCategory(categoryName)
     
+    // We fire the fetch but don't await it to block navigation - optimist approach
     if (shouldFetchDetails) {
-      try { await getProductById(id) } catch { /* ignore view errors */ }
+       getProductById(id).catch(() => {}) 
     }
     
     const brandSlug = toSlug(brandOf(p) || brand || '') || (brand ? toSlug(brand) : 'gapa')
@@ -623,8 +589,6 @@ export default function CarPartDetails() {
     // Wishlist status for this item
     const wished = wishlistHas(ui.id)
 
-    // Removed old expand/collapse booleans in favor of tabbed/accordion UI
-
     // Heavy parsing only when viewing the main selected product; skip for related list items
     const compatList = useMemo(() => {
       if (!rawSrc || !isSelected) return [] as string[]
@@ -707,13 +671,10 @@ export default function CarPartDetails() {
     }, [rawSrc, isSelected])
 
     const [copiedOEM, setCopiedOEM] = useState<number | null>(null)
+  
   // Suitability state (uses backend endpoints)
   const [suitabilityLoading, setSuitabilityLoading] = useState(false)
-  // const [suitabilityError, setSuitabilityError] = useState<string | null>(null)
   const [suitabilityData, setSuitabilityData] = useState<any[]>([])
-  // When the backend explicitly returns { result: [] } we treat that as an
-  // intentional empty list (compatible with all vehicles) and surface a
-  // friendly message instead of falling back to parsed compatibility.
   const [suitabilityExplicitEmpty, setSuitabilityExplicitEmpty] = useState(false)
 
     // Fetch suitability hierarchy for the selected product (top-level models and their sub-models)
@@ -721,7 +682,6 @@ export default function CarPartDetails() {
       let alive = true
       if (!isSelected || !ui?.id) return
       setSuitabilityLoading(true)
-      // setSuitabilityError(null)
       setSuitabilityData([])
       setSuitabilityExplicitEmpty(false)
       ;(async () => {
@@ -738,6 +698,7 @@ export default function CarPartDetails() {
             setSuitabilityData([])
             return
           }
+          // Parallel fetch for sub-models
           const prepared = await Promise.all(modelArr.map(async (m: any) => {
             const modelId = m?.id ?? m?.model_id
             const sub = await getSuitabilityModel(modelId)
@@ -748,7 +709,6 @@ export default function CarPartDetails() {
           setSuitabilityData(prepared)
         } catch (e: any) {
           if (!alive) return
-          // setSuitabilityError(e?.message || 'Failed to load suitability information')
           setSuitabilityData([])
         } finally {
           if (alive) setSuitabilityLoading(false)
@@ -792,8 +752,6 @@ export default function CarPartDetails() {
         })
       }
     }
-    // Removed unused infoTab state that previously controlled tab UI
-    // const [infoTab, setInfoTab] = useState<'vehicles' | 'oem'>('vehicles')
 
   const inc = () => setQty((v) => (pairsYes ? Math.min(v + 2, 99) : Math.min(v + 1, 99)))
   const dec = () => setQty((v) => (pairsYes ? Math.max(v - 2, 1) : Math.max(v - 1, 1)))
@@ -803,7 +761,6 @@ export default function CarPartDetails() {
       if (adding) return
       setAdding(true)
       try {
-        // If the selected product is flagged as pairs, ensure we add "qty" items which already increments/decrements by 2
         const effQty = isSelected ? qty : qty
         if (user && user.id) {
           await addToCartApi({ user_id: user.id, product_id: ui.id, quantity: effQty })
@@ -811,7 +768,6 @@ export default function CarPartDetails() {
           addGuestCartItem(ui.id, effQty)
         }
         setShowPopup(true)
-        // Open global cart popup
         navigate({ hash: '#cart' })
         setTimeout(() => setShowPopup(false), 1200)
       } catch (e) {
@@ -824,13 +780,10 @@ export default function CarPartDetails() {
     }
 
     // Render compatibility as nested <details> (Maker -> Model -> Details)
-    // Updated to match the backend suitability UI: lightweight details/summary
-    // with native arrow affordance and minimal borders/backgrounds.
     function CompatDetails({ compatTree }: { compatTree: Record<string, Record<string, string[]>> }) {
       const makers = useMemo(() => Object.keys(compatTree).sort(), [compatTree])
       const [expandedMaker, setExpandedMaker] = useState<string | null>(null)
 
-      // Expand first maker by default when compatTree changes
       useEffect(() => {
         setExpandedMaker(makers.length > 0 ? makers[0] : null)
       }, [makers])
@@ -951,23 +904,16 @@ export default function CarPartDetails() {
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="21" r="1" /><circle cx="20" cy="21" r="1" /><path d="M1 1h4l2.68 12.39a2 2 0 0 0 2 1.61h7.72a2 2 0 0 0 2-1.61L23 6H6" /></svg>
               {adding ? 'Adding…' : 'Add to cart'}
             </button>
-{isSelected && (() => {
-              // Only show "View Full Details" for CAR PARTS and CAR ELECTRICALS
-              const productCategoryRaw = rawSrc ? categoryOf(rawSrc) : ''
-              
-              // Resolve category ID to category name
-              let categoryName = productCategoryRaw
-              if (/^\d+$/.test(productCategoryRaw)) {
-                // It's a category ID, look up the name from categories array
-                const categoryId = productCategoryRaw
-                const categoryObj = categories.find(c => String(c.id) === categoryId)
-                categoryName = categoryObj ? String(categoryObj.title || categoryObj.name || '').trim().toUpperCase() : ''
-              } else {
-                // It's already a name, normalize it
-                categoryName = productCategoryRaw.trim().toUpperCase()
+            {isSelected && (() => {
+              // 1. Instantly resolve category to decide if we show button
+              const rawCat = rawSrc ? categoryOf(rawSrc) : ''
+              let categoryName = rawCat
+              if (/^\d+$/.test(rawCat)) {
+                 const match = categories.find(c => String(c.id) === rawCat)
+                 categoryName = match ? String(match.title || match.name) : ''
               }
-              
               const shouldShowFullDetails = isViewEnabledCategory(categoryName)
+              
               return shouldShowFullDetails ? (
                 <Link to={`/product/${ui.id}?from=${encodeURIComponent(window.location.pathname + window.location.search)}`} className="mt-2 inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-white text-[13px] font-medium text-gray-900 ring-1 ring-black/10 hover:bg-gray-50">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
@@ -1009,7 +955,9 @@ export default function CarPartDetails() {
                             <details key={`suit-sub-${mi}-${si}`} className="rounded-md bg-white px-3 py-2 text-sm text-gray-700 ring-1 ring-black/5" onToggle={(e) => {
                               try {
                                 const opened = (e.target as HTMLDetailsElement).open
-                                if (opened && !sub.subSubHtml && !sub.loading) loadSubSub(mi, si)
+                                if (opened && !sub.subSubHtml && !sub.loading) {
+                                  loadSubSub(mi, si)
+                                }
                               } catch (err) { }
                             }}>
                               <summary className="cursor-pointer font-medium">{sub?.sub_model || sub?.name || `Variant ${sub?.id || si}`}</summary>
@@ -1115,7 +1063,7 @@ export default function CarPartDetails() {
 
       <div className="grid min-w-0 gap-6 lg:grid-cols-[280px_1fr]">
         <aside className="hidden lg:block">
-          <div className="sticky top-20 space-y-4 self-start">
+          <div className="space-y-4 self-start">
             {/* Vehicle Filter Card */}
             <div className="rounded-xl bg-gradient-to-br from-[#201A2B] via-[#2d2436] to-[#201A2B] p-[2px] shadow-xl">
               <div className="rounded-[10px] bg-white p-2">
