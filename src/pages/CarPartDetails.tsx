@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, useCallback } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useCurrency } from '../context/CurrencyContext'
 import { getAllProducts, liveSearch, getRelatedProducts, type ApiProduct, getProductById, getAllCategories, type ApiCategory, addToCartApi, type ApiManufacturer, getProductReviews, type ApiReview,
-  checkSuitability, getSuitabilityModel, getSubSuitabilityModel } from '../services/api'
+  checkSuitability, getSuitabilityModel, getSubSuitabilityModel, getProductOEM, getProductProperties } from '../services/api'
 import { normalizeApiImage, pickImage, productImageFrom, categoryImageFrom, manufacturerImageFrom } from '../services/images'
 import logoImg from '../assets/gapa-logo.png'
 import { useAuth } from '../services/auth'
@@ -14,7 +14,7 @@ import useWishlist from '../hooks/useWishlist'
 import { toast } from 'react-hot-toast'
 import useManufacturers from '../hooks/useManufacturers'
 import { makerIdOf, isViewEnabledCategory, categoryOf, brandOf } from '../utils/productMapping'
-// import ProductActionCard from '../components/ProductActionCard'
+import ProductActionCard from '../components/ProductActionCard'
 
 // Helpers
 const toSlug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
@@ -207,14 +207,8 @@ export default function CarPartDetails() {
   // Stable handler to avoid recreating on each render (prevents child effect loop)
   const handleVehFilterChange = useCallback((next: VehState) => {
     setVehFilter(prev => {
-      if (
-        prev.brandId === next.brandId &&
-        prev.modelId === next.modelId &&
-        prev.engineId === next.engineId &&
-        prev.brandName === next.brandName &&
-        prev.modelName === next.modelName &&
-        prev.engineName === next.engineName
-      ) return prev // no actual change
+      // Simple equality check
+      if (JSON.stringify(prev) === JSON.stringify(next)) return prev
       return next
     })
   }, [])
@@ -360,12 +354,18 @@ export default function CarPartDetails() {
         const detailPromise = getProductById(pid)
         const relatedPromise = getRelatedProducts(pid)
         const reviewsPromise = getProductReviews(pid)
+        const suitabilityPromise = checkSuitability(pid)
+        const oemPromise = getProductOEM(pid)
+        const propertiesPromise = getProductProperties(pid)
         
         // Use allSettled so one failure doesn't block the others
         const results = await Promise.allSettled([
           detailPromise,
           relatedPromise,
-          reviewsPromise
+          reviewsPromise,
+          suitabilityPromise,
+          oemPromise,
+          propertiesPromise
         ])
         
         if (!alive) return
@@ -396,8 +396,36 @@ export default function CarPartDetails() {
         }
         setReviewsLoading(false)
 
+        // Process Suitability
+        if (results[3].status === 'fulfilled') {
+           const models = results[3].value
+           if (models && (models as any).__emptySuitability) {
+               setSuitabilityData([])
+               setSuitabilityExplicitEmpty(true)
+           } else {
+             const modelArr: any[] = Array.isArray(models) ? models : []
+             if (modelArr.length > 0) {
+                // Fetch sub-models in parallel
+                const prepared = await Promise.all(modelArr.map(async (m: any) => {
+                   const modelId = m?.id ?? m?.model_id
+                   const sub = await getSuitabilityModel(modelId)
+                   const subModels = Array.isArray(sub) ? sub.map((s: any) => ({ ...s, subSubHtml: undefined, loading: false, error: null })) : []
+                   return { modelId, modelName: m?.model || m?.name || '', raw: m, subModels }
+                }))
+                if (alive) setSuitabilityData(prepared)
+             } else {
+               setSuitabilityData([])
+             }
+           }
+        }
+        setSuitabilityLoading(false)
+        
+        // Process OEM
+        if (results[4].status === 'fulfilled') {
+          setOem(Array.isArray(results[4].value) ? results[4].value : [])
+        }
+
       } catch (e) {
-        // Catch-all
         console.error(e)
       }
     })()
@@ -426,7 +454,7 @@ export default function CarPartDetails() {
       return picked
     }
 
-    // Else, derive by similarity (same category/brand) if we have a selected product or URL part/brand
+    // Else, derive by similarity
     const wantBrand = brand ? toSlug(brand) : (selectedRaw ? toSlug(brandOf(selectedRaw)) : '')
     const wantPart = part ? toSlug(part) : (selectedRaw ? toSlug(categoryOf(selectedRaw)) : '')
     const similar = basePool.filter((p) => {
@@ -452,7 +480,7 @@ export default function CarPartDetails() {
     return filtered
   }, [finalRelated, hasManufacturerFilter, selectedManufacturerId])
   const compatibleRelated = useMemo(() => manufacturerFilteredFinalRelated.filter(productMatchesVehicle), [manufacturerFilteredFinalRelated, vehFilter])
-  // NEW: ensure uniqueness of related products by id to avoid duplicate key warnings
+  
   const uniqueFinalRelated = useMemo(() => {
     const seen = new Set<string>()
     return manufacturerFilteredFinalRelated.filter((p: any) => {
@@ -462,7 +490,7 @@ export default function CarPartDetails() {
       return true
     })
   }, [manufacturerFilteredFinalRelated])
-  // NEW: ensure uniqueness for compatible related products (vehicle‑filtered)
+  
   const uniqueCompatibleRelated = useMemo(() => {
     const seen = new Set<string>()
     return compatibleRelated.filter((p: any) => {
@@ -474,11 +502,10 @@ export default function CarPartDetails() {
   }, [compatibleRelated])
   const compatSlice = useMemo(() => uniqueCompatibleRelated.slice(0, visibleCompatCount), [uniqueCompatibleRelated, visibleCompatCount])
   const relatedSlice = useMemo(() => uniqueFinalRelated.slice(0, visibleRelatedCount), [uniqueFinalRelated, visibleRelatedCount])
-  
 
   // When a user clicks a result, request details, then navigate and update pid
   const onViewProduct = async (id: string, p: any) => {
-    // Only fetch details for view-enabled categories (Car Parts & Car Electricals)
+    // Only fetch details for view-enabled categories
     const categoryName = categoryOf(p)
     const shouldFetchDetails = isViewEnabledCategory(categoryName)
     
@@ -513,7 +540,7 @@ export default function CarPartDetails() {
     raw: p,
   })), [filtered])
 
-  // Simple pagination state for product lists (placed after results declaration)
+  // Simple pagination state for product lists
   const [resultsPage, setResultsPage] = useState(1)
   const RESULTS_PER_PAGE = 12
   const [compatPage, setCompatPage] = useState(1)
@@ -541,7 +568,7 @@ export default function CarPartDetails() {
     return relatedSlice.slice(start, start + RELATED_PER_PAGE)
   }, [relatedSlice, relatedPage])
 
-  // Breadcrumb part label: if URL part looks like an ID, resolve name from categories using selected product's category id
+  // Breadcrumb part label
   const breadcrumbPartLabel = useMemo(() => {
     const looksNumeric = part ? /^\d+$/.test(part) : false
     if (!looksNumeric && part) return titleCase(part)
@@ -589,76 +616,15 @@ export default function CarPartDetails() {
     // Wishlist status for this item
     const wished = wishlistHas(ui.id)
 
-    // Heavy parsing only when viewing the main selected product; skip for related list items
-    const compatList = useMemo(() => {
-      if (!rawSrc || !isSelected) return [] as string[]
-      // ...existing code...
-      const src: any = rawSrc
-      const comp = src?.compatibility ?? src?.compatibilities ?? src?.vehicle_compatibility ?? src?.vehicleCompatibility ?? src?.fitment ?? src?.fitments
-      const out: string[] = []
-      const pushItem = (item: any) => {
-        if (!item) return
-        if (typeof item === 'string') { item.split(/\n+/).map((s) => s.trim()).filter(Boolean).forEach((s) => out.push(s)); return }
-        if (Array.isArray(item)) { item.forEach(pushItem); return }
-        if (typeof item === 'object') { Object.values(item).forEach(pushItem as any); return }
-        out.push(String(item))
-      }
-      pushItem(comp)
-      return Array.from(new Set(out))
-    }, [rawSrc, isSelected])
-
-    type CompatTree = Record<string, Record<string, string[]>>
-    const compatTree = useMemo<CompatTree>(() => {
-      if (!isSelected) return {} as CompatTree
-      // ...existing code...
-      const tree: CompatTree = {}
-      let currentMaker = 'Other'
-      const up = (s: string) => s.trim().toUpperCase()
-      const stripBullets = (s: string) => s.replace(/^[\s\t•·\-\u2022]+/, '').trim()
-      const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-      for (let raw of compatList) {
-        if (!raw) continue
-        let s = stripBullets(raw).replace(/\s+/g, ' ')
-        if (!s) continue
-        const isMakerHeader = /^[A-Z][A-Z\s\-&/]+$/.test(s) && !/[()]/.test(s) && !/\d{2}\.\d{4}/.test(s) && s.length <= 40
-        if (isMakerHeader) { currentMaker = s; if (!tree[currentMaker]) tree[currentMaker] = {}; continue }
-        const tokens = s.split(/\s+/)
-        if (currentMaker && new RegExp('^' + esc(currentMaker) + '\\b', 'i').test(up(s))) {
-          s = s.replace(new RegExp('^' + esc(currentMaker) + '\\s+', 'i'), '')
-        } else {
-          const guess = tokens[0]
-            ; (currentMaker = guess)
-          if (!tree[currentMaker]) tree[currentMaker] = {}
-          s = s.replace(new RegExp('^' + esc(guess) + '\\s+', 'i'), '')
-        }
-        let model = s
-        let rest = ''
-        const upper = s.toUpperCase()
-        const yearIdx = upper.indexOf('YEAR OF CONSTRUCTION')
-        const parenIdx = s.indexOf('(')
-        const commaIdx = s.indexOf(',')
-        const stopIdx = yearIdx >= 0 ? yearIdx : (parenIdx >= 0 ? parenIdx : (commaIdx >= 0 ? commaIdx : -1))
-        if (stopIdx > 0) {
-          model = s.slice(0, stopIdx).trim()
-          rest = s.slice(stopIdx).trim()
-        }
-        if (!model) model = s
-        if (!tree[currentMaker][model]) tree[currentMaker][model] = []
-        if (rest) tree[currentMaker][model].push(rest)
-      }
-      return tree
-    }, [compatList, isSelected])
-
+    // Parsing OEM List for compatibility tab
     const oemList = useMemo(() => {
       if (!rawSrc || !isSelected) return [] as string[]
       const src: any = rawSrc
-      // Check multiple possible OEM field names
       const o = src?.oem ?? src?.oem_no ?? src?.oem_number ?? src?.oem_numbers ?? src?.oemNumbers ?? src?.oem_list ?? src?.oemList ?? src?.OEM ?? src?.OEM_NO
       const out: string[] = []
       const push = (v: any) => {
         if (!v) return
         if (typeof v === 'string') { 
-          // Split by newlines, commas, semicolons, and spaces
           v.split(/[\n,;\s]+/).map((s) => s.trim()).filter(s => s.length > 0).forEach((s) => out.push(s))
           return
         }
@@ -667,94 +633,20 @@ export default function CarPartDetails() {
         out.push(String(v))
       }
       push(o)
+      // Merge with data from getProductOEM if available
+      if (oem.length > 0) {
+          oem.forEach((item: any) => {
+             const code = item?.oem || item?.OEM || item?.code || item?.oem_number
+             if (code) push(code)
+          })
+      }
       return Array.from(new Set(out)).filter(s => s && s !== 'null' && s !== 'undefined')
-    }, [rawSrc, isSelected])
+    }, [rawSrc, isSelected, oem])
 
     const [copiedOEM, setCopiedOEM] = useState<number | null>(null)
   
-  // Suitability state (uses backend endpoints)
-  const [suitabilityLoading, setSuitabilityLoading] = useState(false)
-  const [suitabilityData, setSuitabilityData] = useState<any[]>([])
-  const [suitabilityExplicitEmpty, setSuitabilityExplicitEmpty] = useState(false)
-
-    // Fetch suitability hierarchy for the selected product (top-level models and their sub-models)
-    useEffect(() => {
-      let alive = true
-      if (!isSelected || !ui?.id) return
-      setSuitabilityLoading(true)
-      setSuitabilityData([])
-      setSuitabilityExplicitEmpty(false)
-      ;(async () => {
-        try {
-          const models = await checkSuitability(ui.id)
-          if (!alive) return
-          if (models && (models as any).__emptySuitability) {
-            setSuitabilityData([])
-            setSuitabilityExplicitEmpty(true)
-            return
-          }
-          const modelArr: any[] = Array.isArray(models) ? models : []
-          if (modelArr.length === 0) {
-            setSuitabilityData([])
-            return
-          }
-          // Parallel fetch for sub-models
-          const prepared = await Promise.all(modelArr.map(async (m: any) => {
-            const modelId = m?.id ?? m?.model_id
-            const sub = await getSuitabilityModel(modelId)
-            const subModels = Array.isArray(sub) ? sub.map((s: any) => ({ ...s, subSubHtml: undefined, loading: false, error: null })) : []
-            return { modelId, modelName: m?.model || m?.name || '', raw: m, subModels }
-          }))
-          if (!alive) return
-          setSuitabilityData(prepared)
-        } catch (e: any) {
-          if (!alive) return
-          setSuitabilityData([])
-        } finally {
-          if (alive) setSuitabilityLoading(false)
-        }
-      })()
-      return () => { alive = false }
-    }, [isSelected, ui?.id])
-
-    // Lazy-load sub-sub HTML for a sub-model when expanded
-    const loadSubSub = async (modelIndex: number, subIndex: number) => {
-      setSuitabilityData((prev) => {
-        const copy = JSON.parse(JSON.stringify(prev || []))
-        const target = copy[modelIndex]?.subModels?.[subIndex]
-        if (!target) return prev
-        if (target.subSubHtml || target.loading) return prev
-        target.loading = true
-        return copy
-      })
-
-      try {
-        const prev = suitabilityData[modelIndex]
-        const sub = prev?.subModels?.[subIndex]
-        const subModelId = sub?.id ?? sub?.sub_model_id
-        const res = await getSubSuitabilityModel(subModelId)
-        const html = Array.isArray(res) && res.length ? (res[0]?.sub_sub_model || '') : ''
-        setSuitabilityData((prev) => {
-          const copy = JSON.parse(JSON.stringify(prev || []))
-          if (!copy[modelIndex] || !copy[modelIndex].subModels) return prev
-          copy[modelIndex].subModels[subIndex].subSubHtml = html
-          copy[modelIndex].subModels[subIndex].loading = false
-          copy[modelIndex].subModels[subIndex].error = null
-          return copy
-        })
-      } catch (e: any) {
-        setSuitabilityData((prev) => {
-          const copy = JSON.parse(JSON.stringify(prev || []))
-          if (!copy[modelIndex] || !copy[modelIndex].subModels) return prev
-          copy[modelIndex].subModels[subIndex].loading = false
-          copy[modelIndex].subModels[subIndex].error = e?.message || 'Failed to load details'
-          return copy
-        })
-      }
-    }
-
-  const inc = () => setQty((v) => (pairsYes ? Math.min(v + 2, 99) : Math.min(v + 1, 99)))
-  const dec = () => setQty((v) => (pairsYes ? Math.max(v - 2, 1) : Math.max(v - 1, 1)))
+    const inc = () => setQty((v) => (pairsYes ? Math.min(v + 2, 99) : Math.min(v + 1, 99)))
+    const dec = () => setQty((v) => (pairsYes ? Math.max(v - 2, 1) : Math.max(v - 1, 1)))
     const mainImage = ui.gallery[activeIdx] || ui.image
 
     const onAddToCart = async () => {
@@ -779,56 +671,8 @@ export default function CarPartDetails() {
       }
     }
 
-    // Render compatibility as nested <details> (Maker -> Model -> Details)
-    function CompatDetails({ compatTree }: { compatTree: Record<string, Record<string, string[]>> }) {
-      const makers = useMemo(() => Object.keys(compatTree).sort(), [compatTree])
-      const [expandedMaker, setExpandedMaker] = useState<string | null>(null)
-
-      useEffect(() => {
-        setExpandedMaker(makers.length > 0 ? makers[0] : null)
-      }, [makers])
-
-      return (
-        <div className="space-y-2">
-          {makers.map((maker) => {
-            const isOpen = expandedMaker === maker
-            return (
-              <details key={`maker-${maker}`} className="rounded-md bg-gray-50" open={isOpen}>
-                <summary
-                  className="cursor-pointer px-3 py-2 font-semibold text-sm text-gray-800"
-                  onClick={(e) => { e.preventDefault(); setExpandedMaker(prev => prev === maker ? null : maker) }}
-                >
-                  {maker}
-                </summary>
-                <div className="px-3 pb-3 pt-0">
-                  {Object.keys(compatTree[maker] || {}).length === 0 ? (
-                    <div className="text-sm text-gray-700">No specific models listed.</div>
-                  ) : (
-                    Object.entries(compatTree[maker]).map(([model, details]) => (
-                      <details key={`model-${maker}-${model}`} className="mt-2 rounded-md bg-white px-3 py-2 text-sm text-gray-700 ring-1 ring-black/5">
-                        <summary className="cursor-pointer font-medium">{model}</summary>
-                        <div className="mt-2 pl-2 text-gray-600">
-                          {details && details.length > 0 ? (
-                            <ul className="list-disc pl-5">
-                              {details.map((d, i) => <li key={`detail-${maker}-${model}-${i}`}>{d}</li>)}
-                            </ul>
-                          ) : (
-                            <div className="text-sm text-gray-600">No additional details</div>
-                          )}
-                        </div>
-                      </details>
-                    ))
-                  )}
-                </div>
-              </details>
-            )
-          })}
-        </div>
-      )
-    }
-
     return (
-  <div className="overflow-hidden rounded-xl bg-white p-4 ring-1 ring-black/10">
+      <div className="overflow-hidden rounded-xl bg-white p-4 ring-1 ring-black/10">
         {/* Warning */}
         {hasVehicleFilter && !selectedCompatible && (
           <div className="mb-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-[13px] text-amber-800">
@@ -836,10 +680,10 @@ export default function CarPartDetails() {
           </div>
         )}
         <div className="grid gap-6 lg:grid-cols-7">
+          {/* Left: Images */}
           <aside className="rounded-lg p-6 row-span-2 lg:col-span-3">
               <div className={`flex items-center justify-center rounded-lg bg-[#F6F5FA] p-6 ${onSelect && !isSelected ? 'cursor-pointer hover:opacity-90' : ''}`}
               onClick={() => { if (onSelect && !isSelected) onSelect(ui.id, raw) }}>
-              {/* Show site logo as fallback for the main image so the large frame isn't empty when product image fails */}
               <ImageWithFallback src={mainImage} alt={ui.name} className="h-[320px] w-auto object-contain" showFallback={true} />
             </div>
             <div className="mt-3 grid grid-cols-4 gap-2">
@@ -851,16 +695,16 @@ export default function CarPartDetails() {
             </div>
           </aside>
 
+          {/* Center: Info */}
           <div className="space-y-3 col-span-2">
             <div className="flex items-start gap-2">
               <p className='font-semibold'>Article No: {ui.articleNo}</p>
               <div className="ml-auto flex items-center gap-2">
                 <WishlistButton ariaLabel={wished ? 'Remove from wishlist' : 'Add to wishlist'} size={22} active={wished} onToggle={(active) => { wishlistToggle(ui.id); if (active) toast.success('Added to wishlist') }} />
-
               </div>
             </div>
             {ui.makerId && ui.makerId !== 'null' && (ui.makerImage || ui.makerName) && (
-              <div className="flex items-center gap-3  bg-white p-1">
+              <div className="flex items-center gap-3 bg-white p-1">
                 {ui.makerImage && <ImageWithFallback src={ui.makerImage} alt={ui.makerName || 'Manufacturer'} className="h-16 w-16 object-contain" />}
                 {ui.makerName && (
                   <div className="text-[14px] text-gray-600">
@@ -887,6 +731,7 @@ export default function CarPartDetails() {
             </div>
           </div>
 
+          {/* Right: Actions */}
           <aside className="rounded-lg bg-white col-span-2 px-1">
             <div className="text-right">
               <div className="text-[22px] font-bold text-gray-900">{formatPrice(ui.price)}</div>
@@ -926,6 +771,7 @@ export default function CarPartDetails() {
             )}
             <div className="mt-2 text-center text-[12px] text-purple-700">{ui.inStock ? 'In Stock' : 'Out of stock'}</div>
           </aside>
+          
           {/* Full-width sections: Description + Collapsible panels */}
           <div className="mt-5 space-y-4 lg:col-span-4">
             {ui.description && (
@@ -934,9 +780,9 @@ export default function CarPartDetails() {
                 <p className="mt-2 text-[13px] leading-relaxed text-gray-700">{ui.description}</p>
               </section>
             )}
-            {/* Suitable vehicles — prefer backend suitability endpoints, fall back to parsed compatibility */}
+            {/* Suitable vehicles — use backend suitability endpoints strictly */}
             {suitabilityLoading ? (
-              <div className="rounded-lg bg-white p-4 text-center text-gray-500"></div>
+              <div className="rounded-lg bg-white p-4 text-center text-gray-500">Loading vehicle compatibility...</div>
             ) : suitabilityExplicitEmpty ? (
               <div className="rounded-lg bg-white ring-1 ring-black/10">
                 <div className="px-4 py-3 text-[13px] font-semibold text-gray-900">Suitable vehicles</div>
@@ -982,37 +828,7 @@ export default function CarPartDetails() {
                   ))}
                 </div>
               </div>
-            ) : Object.keys(compatTree).length > 0 ? (
-              <div className="rounded-lg bg-white ring-1 ring-black/10">
-                <div className="px-4 py-3 text-[13px] font-semibold text-gray-900">Suitable vehicles</div>
-                <div className="max-h-60 overflow-auto p-3 pt-0">
-                  {/* If compatList is a flat list with no structured tree, just show it */}
-                  {Object.values(compatTree).every(models => Object.keys(models).length === 0) ? (
-                    <div className="space-y-2">
-                      {compatList.map((vehicle, i) => {
-                        const splitIdx = vehicle.toUpperCase().indexOf('YEAR OF CONSTRUCTION')
-                        let model = vehicle, details = ''
-                        if (splitIdx !== -1) {
-                          model = vehicle.slice(0, splitIdx).trim()
-                          details = vehicle.slice(splitIdx).trim()
-                        }
-                        return (
-                          <details key={`compat-${i}`} className="rounded-md bg-gray-50">
-                            <summary className="cursor-pointer px-3 py-2 font-semibold text-sm text-gray-800">{model || vehicle}</summary>
-                            {details && (
-                              <div className="mt-2 pl-2 text-gray-600">{details}</div>
-                            )}
-                          </details>
-                        )
-                      })}
-                    </div>
-                  ) : (
-                    <CompatDetails compatTree={compatTree} />
-                  )}
-                </div>
-              </div>
-            ) : null}
-            {oemList.length > 0 && (
+            ) : oemList.length > 0 ? (
               <details className="rounded-lg bg-white ring-1 ring-black/10">
                 <summary className="cursor-pointer list-none px-4 py-3 text-[13px] font-semibold text-gray-900">OEM Part Numbers</summary>
                 <div className="p-3 pt-0">
@@ -1033,9 +849,10 @@ export default function CarPartDetails() {
                   </div>
                 </div>
               </details>
-            )}
+            ) : null}
           </div>
         </div>
+        
         {/* Popup */}
         {showPopup && (
           <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 transform rounded-lg bg-gray-900 px-4 py-3 text-white shadow-lg ring-1 ring-black/20">
@@ -1063,7 +880,7 @@ export default function CarPartDetails() {
 
       <div className="grid min-w-0 gap-6 lg:grid-cols-[280px_1fr]">
         <aside className="hidden lg:block">
-          <div className="space-y-4 self-start">
+          <div className="sticky top-20 space-y-4 self-start">
             {/* Vehicle Filter Card */}
             <div className="rounded-xl bg-gradient-to-br from-[#201A2B] via-[#2d2436] to-[#201A2B] p-[2px] shadow-xl">
               <div className="rounded-[10px] bg-white p-2">
@@ -1137,14 +954,6 @@ export default function CarPartDetails() {
           </div>
           {/* Manufacturer filter UI (image pills/buttons, name on hover) */}
           {(() => {
-            // Extract unique manufacturer IDs and info from related products and manufacturers list
-            const manufacturerMap = new Map();
-            products.forEach((p) => {
-              const makerId = makerIdOf(p);
-              if (makerId) {
-                manufacturerMap.set(makerId, p);
-              }
-            });
             // Only show manufacturers that have at least one product in the related products list
             // Use related products (finalRelated) for filtering
             const relatedMakerIds = new Set(finalRelated.map(p => makerIdOf(p)).filter(Boolean));
