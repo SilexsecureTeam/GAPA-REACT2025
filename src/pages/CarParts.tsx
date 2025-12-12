@@ -220,45 +220,13 @@ function CarPartsInner() {
   }, [searchResults, resolveCategoryName])
 
   // --- Vehicle compatibility matching (shared util) ---
-  const productMatchesVehicle = (p: any) => {
-    if (!hasVehicleFilter) return true
-    const cid = categoryIdOf(p)
-    if (cid && NON_VEHICLE_CATEGORY_IDS.has(cid)) return true // skip filtering for non-vehicle categories
-    
-    // Unwrap part to find suitability_models
-    const raw = (p && typeof p === 'object' && 'part' in p) ? (p as any).part : p
-    const models = raw?.suitability_models
-    
-    // If suitability_models is present and not empty, use strict matching
-    if (models && Array.isArray(models) && models.length > 0) {
-      const brandName = vehFilter.brandName?.toLowerCase().trim()
-      const modelName = vehFilter.modelName?.toLowerCase().trim()
-
-      // 1. Brand Check
-      const brandMatch = !brandName || models.some((m: any) => 
-        String(m.model || '').toLowerCase().includes(brandName)
-      )
-      if (!brandMatch) return false
-
-      // 2. Model Check
-      if (modelName) {
-         const matchingModels = models.filter((m: any) => 
-           !brandName || String(m.model || '').toLowerCase().includes(brandName)
-         )
-         // Check sub_suitability_models for the model name
-         const subMatch = matchingModels.some((m: any) => 
-           m.sub_suitability_models?.some((sub: any) => 
-             String(sub.sub_model || '').toLowerCase().includes(modelName)
-           )
-         )
-         if (!subMatch) return false
-      }
-      return true
-    }
-
-    // Fallback to legacy shared string match if no structured data
-    return sharedVehicleMatches(p, vehFilter)
-  }
+  // In CarParts.tsx (No changes needed if it looks like this)
+const productMatchesVehicle = (p: any) => {
+  if (!hasVehicleFilter) return true
+  const cid = categoryIdOf(p)
+  if (cid && NON_VEHICLE_CATEGORY_IDS.has(cid)) return true 
+  return sharedVehicleMatches(p, vehFilter)
+}
 
   const filteredSearchResults = useMemo<ApiProduct[]>(() => {
     return searchResults
