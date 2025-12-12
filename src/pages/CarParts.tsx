@@ -220,13 +220,16 @@ function CarPartsInner() {
   }, [searchResults, resolveCategoryName])
 
   // --- Vehicle compatibility matching (shared util) ---
-  // In CarParts.tsx (No changes needed if it looks like this)
-const productMatchesVehicle = (p: any) => {
-  if (!hasVehicleFilter) return true
-  const cid = categoryIdOf(p)
-  if (cid && NON_VEHICLE_CATEGORY_IDS.has(cid)) return true 
-  return sharedVehicleMatches(p, vehFilter)
-}
+// --- Vehicle compatibility matching (shared util) ---
+  const productMatchesVehicle = (p: any) => {
+    if (!hasVehicleFilter) return true
+    const cid = categoryIdOf(p)
+    if (cid && NON_VEHICLE_CATEGORY_IDS.has(cid)) return true // skip filtering for non-vehicle categories
+    
+    // Delegate entirely to the shared service which now handles 
+    // strict ID checks, token-based model safety, and fuzzy engine matching.
+    return sharedVehicleMatches(p, vehFilter)
+  }
 
   const filteredSearchResults = useMemo<ApiProduct[]>(() => {
     return searchResults
