@@ -292,8 +292,25 @@ function CarPartsInner() {
   const [subCatsLoading, setSubCatsLoading] = useState(false)
   const [subSubCats, setSubSubCats] = useState<Array<{ id: string; name: string; image: string }>>([])
   const [subSubCatsLoading, setSubSubCatsLoading] = useState(false)
-  const [subProducts, setSubProducts] = useState<ApiProduct[]>([])
-  const [subProductsLoading, setSubProductsLoading] = useState(false)
+  // const [subProducts, setSubProducts] = useState<ApiProduct[]>([])
+  // const [subProductsLoading, setSubProductsLoading] = useState(false)
+
+  // This ensures they share the same data source as search results, 
+  // allowing the vehicle filter to work correctly.
+  const subProducts = useMemo(() => {
+    if (!activeSubSubCatId) return []
+    const targetId = String(activeSubSubCatId)
+    
+    return products.filter((p) => {
+      // Unwrap potentially nested part object
+      const raw = (p as any).part || p
+      // Filter by sub_sub_category ID
+      return String(raw.sub_sub_category) === targetId
+    })
+  }, [products, activeSubSubCatId])
+
+  // Since filtering is instant on the client side, loading is always false
+  const subProductsLoading = false
 
   // Accessories data (category id: 4)
   const ACCESSORIES_CAT_ID = '4'
@@ -487,29 +504,10 @@ function CarPartsInner() {
     return () => { alive = false }
   }, [activeSubCatId])
 
-  useEffect(() => {
-    let alive = true
-    if (!activeSubSubCatId) { setSubProducts([]); return }
-    ; (async () => {
-      try {
-        setSubProductsLoading(true)
-        const res = await getProductsBySubSubCategory(activeSubSubCatId)
-        if (!alive) return
-        
-        // Filter out incomplete products
-        const rawProducts = Array.isArray(res) ? res : []
-        const completeProducts = rawProducts.filter(isCompleteProduct)
-        
-        setSubProducts(completeProducts)
-      } catch (_) {
-        if (!alive) return
-        setSubProducts([])
-      } finally {
-        if (alive) setSubProductsLoading(false)
-      }
-    })()
-    return () => { alive = false }
-  }, [activeSubSubCatId])
+  // Derive products for the selected sub-sub-category directly from the main list
+  // This bypasses the endpoint and uses the data source that works correctly for search
+  // Derive sub-sub category products directly from the main product list.
+  
 
   // Fetch search results when qParam present
   useEffect(() => {
