@@ -232,52 +232,35 @@ export default function CarPartDetails() {
   const hasVehicleFilter = useMemo(() => Boolean(vehFilter.brandName || vehFilter.modelName || vehFilter.engineName), [vehFilter])
 
   // =========================================================
-  // Suitability Logic using `suitability_models` from product
+  // Suitability Logic
+  // Using shared vehicleMatches logic to check compatibility
   // =========================================================
-  // const checkSuitabilityModels = useCallback((p: any) => {
-  //   // If no vehicle filter selected, everything "fits"
-  //   if (!hasVehicleFilter) return true
+  const checkSuitabilityModels = useCallback((p: any) => {
+    // If no vehicle filter selected, everything "fits"
+    if (!hasVehicleFilter) return true
     
-  //   // Unwrap part
-  //   const raw = (p && typeof p === 'object' && 'part' in p) ? (p as any).part : p
-  //   const models = raw?.suitability_models
+    // Unwrap part
+    const raw = (p && typeof p === 'object' && 'part' in p) ? (p as any).part : p
     
-  //   // If suitability_models is missing/empty, we can't confirm fit.
-  //   // NOTE: If you want to fall back to the old string match when array is empty,
-  //   // uncomment the next line. Otherwise, strictly strictly checking models implies false.
-  //   if (!models || !Array.isArray(models) || models.length === 0) {
-  //       // Fallback to shared string matching if models array is missing, 
-  //       // to avoid hiding legacy products that might match.
-  //       return sharedVehicleMatches(p, vehFilter)
-  //   }
+    // DEBUG: Log inputs when checking main product
+    if (selectedRaw && (p === selectedRaw || p === (selectedRaw as any)?.part)) {
+        const models = raw?.suitability_models
+        console.log('🧐 [Details] checkSuitabilityModels:', { 
+            hasSuitability: !!models,
+            count: models?.length || 0,
+            vehFilter 
+        })
+    }
     
-  //   const brandName = vehFilter.brandName?.toLowerCase().trim()
-  //   const modelName = vehFilter.modelName?.toLowerCase().trim()
-
-  //   // 1. Check if ANY model entry matches the Brand
-  //   const brandMatch = !brandName || models.some((m: any) => 
-  //     String(m.model || '').toLowerCase().includes(brandName)
-  //   )
-  //   if (!brandMatch) return false
-
-  //   // 2. If a Model is selected, check sub_suitability_models
-  //   if (modelName) {
-  //      // Filter down to the matching brand entries first
-  //      const matchingBrandEntries = models.filter((m: any) => 
-  //        !brandName || String(m.model || '').toLowerCase().includes(brandName)
-  //      )
-       
-  //      // Check if any sub_model string contains the selected model name
-  //      const subMatch = matchingBrandEntries.some((m: any) => 
-  //        m.sub_suitability_models?.some((sub: any) => 
-  //          String(sub.sub_model || '').toLowerCase().includes(modelName)
-  //        )
-  //      )
-  //      if (!subMatch) return false
-  //   }
+    // Use the robust shared logic (year-insensitive, fuzzy tokens)
+    const match = sharedVehicleMatches(p, vehFilter)
     
-  //   return true
-  // }, [vehFilter, hasVehicleFilter])
+    if (selectedRaw && (p === selectedRaw || p === (selectedRaw as any)?.part)) {
+        console.log('🏁 [Details] Match Result:', match)
+    }
+    
+    return match
+  }, [vehFilter, hasVehicleFilter, selectedRaw])
 
   const selectedVehicleLabel = useMemo(() => {
     if (!vehFilter.brandName && !vehFilter.modelName && !vehFilter.engineName) return 'All vehicles'
@@ -412,6 +395,7 @@ export default function CarPartDetails() {
         
         // If we have local data, render it immediately to avoid lag
         if (detail) {
+           console.log('🚀 [Details] Immediate local render. Suitability:', (detail as any)?.suitability_models ? 'YES' : 'NO')
            setSelectedRaw(detail)
            setSelected(mapApiToUi(detail, manufacturers))
         }
@@ -432,27 +416,43 @@ export default function CarPartDetails() {
         // Process Product Detail
         if (results[0].status === 'fulfilled') {
            const res = results[0].value
-           // Robust unwrap of API response
+           // Robust unwrap: handle different API envelopes
            const freshDetail = (res as any)?.data || (res as any)?.result || (res as any)?.product || res
            
            if (freshDetail) {
-             // --- FIX: Prevent suitability_models from disappearing ---
-             // If the fresh detail API response lacks suitability data, 
-             // copy it from the initial local data (selectedRaw) which likely has it.
-             const prevRaw = selectedRaw || {}
-             // Check deep for suitability in both 'part' wrapper or root
+             console.log('📡 [Details] Fresh API data loaded.')
+             
+             // 1. Identify previous suitability data (local cache)
+             const prevRaw = selectedRaw || detail || {}
              const prevSuit = (prevRaw as any).suitability_models || (prevRaw as any).part?.suitability_models
-             const freshSuit = freshDetail.suitability_models || freshDetail.part?.suitability_models
 
-             if (!freshSuit && prevSuit && Array.isArray(prevSuit) && prevSuit.length > 0) {
-               console.log('🔧 Restoring lost suitability_models from cache')
-               if (freshDetail.part) {
-                 freshDetail.part.suitability_models = prevSuit
-               } else {
-                 freshDetail.suitability_models = prevSuit
-               }
+             // 2. Identify fresh suitability data
+             let freshSuit = freshDetail.suitability_models || freshDetail.part?.suitability_models
+             
+             // 3. Fallback: Restore from local cache if API returns empty/missing suitability
+             if ((!freshSuit || freshSuit.length === 0) && prevSuit && prevSuit.length > 0) {
+               console.log('🔧 [Details] Restoring suitability_models from local cache')
+               freshSuit = prevSuit
              }
 
+             // 4. CRITICAL FIX: Normalize Data Structure
+             // The vehicleMatches() function unwraps the 'part' object if it exists.
+             // We MUST ensure suitability_models resides inside 'part' if 'part' exists.
+             if (freshDetail.part) {
+                // If we have a part wrapper, ensure models are inside it
+                if (freshSuit && freshSuit.length > 0) {
+                   freshDetail.part.suitability_models = freshSuit
+                   // Also keep at root for UI components that might look there
+                   freshDetail.suitability_models = freshSuit 
+                }
+             } else {
+                // No part wrapper, just ensure it's at root
+                if (freshSuit && freshSuit.length > 0) {
+                   freshDetail.suitability_models = freshSuit
+                }
+             }
+             
+             // Update state
              setSelectedRaw(freshDetail)
              setSelected(mapApiToUi(freshDetail, manufacturers))
            }
@@ -648,13 +648,18 @@ export default function CarPartDetails() {
   // Selected product compatibility using new logic
   // Selected product compatibility check using the robust shared logic
   const selectedCompatible = useMemo(() => {
-    return selectedRaw ? sharedVehicleMatches(selectedRaw, vehFilter) : true
-  }, [selectedRaw, vehFilter])
+    const matches = selectedRaw ? checkSuitabilityModels(selectedRaw) : true
+    return matches
+  }, [selectedRaw, checkSuitabilityModels])
 
   // Derive suitability display data from selectedRaw
   const suitabilityData = useMemo(() => {
     const raw = selectedRaw ? ((selectedRaw as any).part ? (selectedRaw as any).part : selectedRaw) : null
     const models = raw?.suitability_models
+    
+    // DEBUG: Check what's being passed to UI
+    console.log('🎨 [Details] Rendering suitability list. Count:', models?.length || 0)
+    
     if (!models || !Array.isArray(models)) return []
     return models.map((m: any) => ({
       modelName: m.model,
