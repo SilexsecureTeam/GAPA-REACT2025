@@ -482,12 +482,41 @@ export async function liveSearch(term: string) {
 }
 
 // New: full product catalog and details (HEAVY)
+// Define this key at the top of the file if not already present, 
+
 export async function getAllProducts() {
-  // This is the big one - caching it in IDB saves huge bandwidth and time
+  // Use cachedRequest to leverage IndexedDB (bypassing LocalStorage 5MB limit)
   return cachedRequest('all_products', async () => {
+    console.log('🌍 [getAllProducts] Fetching fresh data from API...')
+    
+    // 1. Request with suitability param
     const res = await apiRequest<any>(withSuitability(ENDPOINTS.allProducts))
-    return unwrapArray<ApiProduct>(res)
-  })
+    
+    let data: ApiProduct[] = []
+    
+    // 2. Robust Unwrapping Strategy
+    if (Array.isArray(res)) {
+      data = res
+    } else if (res?.data && Array.isArray(res.data)) {
+      data = res.data
+    } else if (res?.result && Array.isArray(res.result)) {
+      data = res.result
+    } else if (res?.products && Array.isArray(res.products)) {
+      data = res.products
+    } else if (res && typeof res === 'object') {
+      // Last resort: find the first array property in the object
+      for (const k of Object.keys(res)) {
+        if (Array.isArray(res[k]) && res[k].length > 0) {
+          data = res[k]
+          console.log(`⚠️ [getAllProducts] Found data in unexpected key: '${k}'`)
+          break
+        }
+      }
+    }
+
+    console.log(`✅ [getAllProducts] API returned ${data.length} items. Caching in IndexedDB...`)
+    return data
+  }, 24 * 60 * 60 * 1000) // Cache for 24 hours (adjust as needed)
 }
 
 export async function getProductById(id: string) {

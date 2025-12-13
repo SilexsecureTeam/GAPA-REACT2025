@@ -297,20 +297,45 @@ function CarPartsInner() {
 
   // This ensures they share the same data source as search results, 
   // allowing the vehicle filter to work correctly.
+  // --- REPLACEMENT CODE ---
+
+  // --- Filter Products for Category Drilldown ---
   const subProducts = useMemo(() => {
+    // 1. Basic checks
+    if (!products || products.length === 0) return []
     if (!activeSubSubCatId) return []
-    const targetId = String(activeSubSubCatId)
+
+    const targetId = String(activeSubSubCatId).trim()
     
-    return products.filter((p) => {
+    // Debugging: Log what we are looking for
+    console.log(`🔍 [Drilldown] Filtering for Sub-Sub-Category ID: "${targetId}"`)
+
+    const results = products.filter((p) => {
       // Unwrap potentially nested part object
       const raw = (p as any).part || p
-      // Filter by sub_sub_category ID
-      return String(raw.sub_sub_category) === targetId
+      
+      // Get ID from various possible fields
+      const pId = raw.sub_sub_category ?? raw.sub_sub_category_id ?? raw.subSubCategoryId ?? ''
+      const pIdString = String(pId).trim()
+
+      // Log the first failure and first success to verify data shape
+      // (Using a random check to avoid spamming console for 5000 products)
+      if (pIdString === targetId) return true
+      return false
     })
+
+    console.log(`✅ [Drilldown] Found ${results.length} matching products`)
+    
+    // If we have results, verify one for debugging
+    if (results.length > 0) {
+       console.log('Sample match:', results[0])
+    }
+
+    return results
   }, [products, activeSubSubCatId])
 
-  // Since filtering is instant on the client side, loading is always false
-  const subProductsLoading = false
+  // Ensure loader is tied to main loading state
+  const subProductsLoading = loading
 
   // Accessories data (category id: 4)
   const ACCESSORIES_CAT_ID = '4'
@@ -559,52 +584,51 @@ function CarPartsInner() {
   const INITIAL_VISIBLE = 10
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
 
+ // --- Load Full Catalog (Run once on mount) ---
   useEffect(() => {
     let alive = true
-    async function load() {
+    
+    async function loadCatalog() {
       try {
         setLoading(true)
-        console.log('🔄 CarParts: Loading products...', { inBrandDrillMode, catIdParam, qParam })
+        console.log('🔄 CarParts: Loading full catalog...')
+        
+        // Fetch both products and categories
         const [prods, c] = await Promise.all([
           getAllProducts(),
           getAllCategories(),
         ])
+        
         if (!alive) return
         
-        // Filter out products with missing critical data
-        const rawProducts = Array.isArray(prods) ? prods : []
+        // 1. Process Products
+        const rawProducts = Array.isArray(prods) ? prods : (prods as any)?.data || []
+        // Filter out incomplete items
         const completeProducts = rawProducts.filter(isCompleteProduct)
         
-        const filtered = rawProducts.length - completeProducts.length
-        if (filtered > 0) {
-          console.info(`ℹ️ Filtered out ${filtered} incomplete products from catalog (${completeProducts.length} valid products shown)`)
-        }
+        console.log(`✅ CarParts: Loaded ${completeProducts.length} valid products (from ${rawProducts.length} total)`)
         
-        console.log('✅ CarParts: Products loaded:', completeProducts.length)
+        if (completeProducts.length === 0) {
+           console.warn('⚠️ Warning: No valid products found. Check API or isCompleteProduct logic.')
+        }
+
         setProducts(completeProducts)
+
+        // 2. Process Categories
         setCategories(Array.isArray(c) ? c : [])
+        
       } catch (err) {
-        console.error('❌ CarParts: Failed to load products:', err)
-        if (!alive) return
-        setProducts([])
+        console.error('❌ CarParts: Failed to load catalog:', err)
+        if (alive) setProducts([])
       } finally {
         if (alive) setLoading(false)
       }
     }
-    // Load products for: main catalog, brand drilldown mode, and when no category drill-down or search active
-    console.log('🎯 CarParts useEffect triggered:', { catIdParam, qParam, inBrandDrillMode })
-    if (!catIdParam && !qParam) {
-      console.log('📦 Loading products: no category, no search')
-      load()
-    } else if (inBrandDrillMode) {
-      console.log('🚗 Loading products: brand drilldown mode')
-      load()
-    } else {
-      console.log('⏭️ Skipping product load')
-      setLoading(false)
-    }
+
+    loadCatalog()
+
     return () => { alive = false }
-  }, [catIdParam, qParam, inBrandDrillMode])
+  }, []) // Empty dependency array = run once on mount
 
   // Ensure categories are available for search/drilldown mapping (if not already loaded)
   useEffect(() => {
