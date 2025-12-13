@@ -234,50 +234,50 @@ export default function CarPartDetails() {
   // =========================================================
   // Suitability Logic using `suitability_models` from product
   // =========================================================
-  const checkSuitabilityModels = useCallback((p: any) => {
-    // If no vehicle filter selected, everything "fits"
-    if (!hasVehicleFilter) return true
+  // const checkSuitabilityModels = useCallback((p: any) => {
+  //   // If no vehicle filter selected, everything "fits"
+  //   if (!hasVehicleFilter) return true
     
-    // Unwrap part
-    const raw = (p && typeof p === 'object' && 'part' in p) ? (p as any).part : p
-    const models = raw?.suitability_models
+  //   // Unwrap part
+  //   const raw = (p && typeof p === 'object' && 'part' in p) ? (p as any).part : p
+  //   const models = raw?.suitability_models
     
-    // If suitability_models is missing/empty, we can't confirm fit.
-    // NOTE: If you want to fall back to the old string match when array is empty,
-    // uncomment the next line. Otherwise, strictly strictly checking models implies false.
-    if (!models || !Array.isArray(models) || models.length === 0) {
-        // Fallback to shared string matching if models array is missing, 
-        // to avoid hiding legacy products that might match.
-        return sharedVehicleMatches(p, vehFilter)
-    }
+  //   // If suitability_models is missing/empty, we can't confirm fit.
+  //   // NOTE: If you want to fall back to the old string match when array is empty,
+  //   // uncomment the next line. Otherwise, strictly strictly checking models implies false.
+  //   if (!models || !Array.isArray(models) || models.length === 0) {
+  //       // Fallback to shared string matching if models array is missing, 
+  //       // to avoid hiding legacy products that might match.
+  //       return sharedVehicleMatches(p, vehFilter)
+  //   }
     
-    const brandName = vehFilter.brandName?.toLowerCase().trim()
-    const modelName = vehFilter.modelName?.toLowerCase().trim()
+  //   const brandName = vehFilter.brandName?.toLowerCase().trim()
+  //   const modelName = vehFilter.modelName?.toLowerCase().trim()
 
-    // 1. Check if ANY model entry matches the Brand
-    const brandMatch = !brandName || models.some((m: any) => 
-      String(m.model || '').toLowerCase().includes(brandName)
-    )
-    if (!brandMatch) return false
+  //   // 1. Check if ANY model entry matches the Brand
+  //   const brandMatch = !brandName || models.some((m: any) => 
+  //     String(m.model || '').toLowerCase().includes(brandName)
+  //   )
+  //   if (!brandMatch) return false
 
-    // 2. If a Model is selected, check sub_suitability_models
-    if (modelName) {
-       // Filter down to the matching brand entries first
-       const matchingBrandEntries = models.filter((m: any) => 
-         !brandName || String(m.model || '').toLowerCase().includes(brandName)
-       )
+  //   // 2. If a Model is selected, check sub_suitability_models
+  //   if (modelName) {
+  //      // Filter down to the matching brand entries first
+  //      const matchingBrandEntries = models.filter((m: any) => 
+  //        !brandName || String(m.model || '').toLowerCase().includes(brandName)
+  //      )
        
-       // Check if any sub_model string contains the selected model name
-       const subMatch = matchingBrandEntries.some((m: any) => 
-         m.sub_suitability_models?.some((sub: any) => 
-           String(sub.sub_model || '').toLowerCase().includes(modelName)
-         )
-       )
-       if (!subMatch) return false
-    }
+  //      // Check if any sub_model string contains the selected model name
+  //      const subMatch = matchingBrandEntries.some((m: any) => 
+  //        m.sub_suitability_models?.some((sub: any) => 
+  //          String(sub.sub_model || '').toLowerCase().includes(modelName)
+  //        )
+  //      )
+  //      if (!subMatch) return false
+  //   }
     
-    return true
-  }, [vehFilter, hasVehicleFilter])
+  //   return true
+  // }, [vehFilter, hasVehicleFilter])
 
   const selectedVehicleLabel = useMemo(() => {
     if (!vehFilter.brandName && !vehFilter.modelName && !vehFilter.engineName) return 'All vehicles'
@@ -375,17 +375,18 @@ export default function CarPartDetails() {
     })
   }, [products, brand, part])
 
-  // Apply vehicle compatibility via checkSuitabilityModels
+  // Apply vehicle compatibility
   const filtered = useMemo(() => {
     let list = scoped
     if (hasManufacturerFilter) {
       list = list.filter((p) => makerIdOf(p) === selectedManufacturerId)
     }
     if (hasVehicleFilter) {
-      list = list.filter(checkSuitabilityModels)
+      // Use shared logic ensuring years are stripped and tokens matched fuzzily
+      list = list.filter(p => sharedVehicleMatches(p, vehFilter))
     }
     return list
-  }, [scoped, hasManufacturerFilter, selectedManufacturerId, hasVehicleFilter, checkSuitabilityModels])
+  }, [scoped, hasManufacturerFilter, selectedManufacturerId, hasVehicleFilter, vehFilter])
 
   const zeroResults = !loading && filtered.length === 0
 
@@ -430,8 +431,28 @@ export default function CarPartDetails() {
 
         // Process Product Detail
         if (results[0].status === 'fulfilled') {
-           const freshDetail = results[0].value
+           const res = results[0].value
+           // Robust unwrap of API response
+           const freshDetail = (res as any)?.data || (res as any)?.result || (res as any)?.product || res
+           
            if (freshDetail) {
+             // --- FIX: Prevent suitability_models from disappearing ---
+             // If the fresh detail API response lacks suitability data, 
+             // copy it from the initial local data (selectedRaw) which likely has it.
+             const prevRaw = selectedRaw || {}
+             // Check deep for suitability in both 'part' wrapper or root
+             const prevSuit = (prevRaw as any).suitability_models || (prevRaw as any).part?.suitability_models
+             const freshSuit = freshDetail.suitability_models || freshDetail.part?.suitability_models
+
+             if (!freshSuit && prevSuit && Array.isArray(prevSuit) && prevSuit.length > 0) {
+               console.log('🔧 Restoring lost suitability_models from cache')
+               if (freshDetail.part) {
+                 freshDetail.part.suitability_models = prevSuit
+               } else {
+                 freshDetail.suitability_models = prevSuit
+               }
+             }
+
              setSelectedRaw(freshDetail)
              setSelected(mapApiToUi(freshDetail, manufacturers))
            }
@@ -509,7 +530,9 @@ export default function CarPartDetails() {
   }, [finalRelated, hasManufacturerFilter, selectedManufacturerId])
 
   // Filter related items using the new suitability logic
-  const compatibleRelated = useMemo(() => manufacturerFilteredFinalRelated.filter(checkSuitabilityModels), [manufacturerFilteredFinalRelated, checkSuitabilityModels])
+  const compatibleRelated = useMemo(() => 
+    manufacturerFilteredFinalRelated.filter(p => sharedVehicleMatches(p, vehFilter)), 
+  [manufacturerFilteredFinalRelated, vehFilter])
 
   // Ensure uniqueness of related products by id
   const uniqueFinalRelated = useMemo(() => {
@@ -623,9 +646,10 @@ export default function CarPartDetails() {
   }, [selectedRaw, categories, part])
 
   // Selected product compatibility using new logic
+  // Selected product compatibility check using the robust shared logic
   const selectedCompatible = useMemo(() => {
-    return selectedRaw ? checkSuitabilityModels(selectedRaw) : true
-  }, [selectedRaw, checkSuitabilityModels])
+    return selectedRaw ? sharedVehicleMatches(selectedRaw, vehFilter) : true
+  }, [selectedRaw, vehFilter])
 
   // Derive suitability display data from selectedRaw
   const suitabilityData = useMemo(() => {

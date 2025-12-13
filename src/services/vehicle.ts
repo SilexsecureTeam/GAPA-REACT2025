@@ -33,6 +33,11 @@ function normalize(str: string): string {
     .trim()
 }
 
+// Helper to remove 4-digit years (1990-2029) to avoid year mismatch issues
+function stripYears(str: string): string {
+  return str.replace(/\b(19|20)\d{2}\b/g, '')
+}
+
 export function vehicleMatches(product: any, state: VehicleFilterState): boolean {
   const { brandId, modelId, engineId, brandName, modelName, engineName } = state || {}
   
@@ -51,7 +56,11 @@ export function vehicleMatches(product: any, state: VehicleFilterState): boolean
   // Prepare tokens for name-based fallback matching
   const searchBrand = normalize(brandName || '')
   const modelTokens = normalize(modelName || '').split(' ').filter(t => t.length > 0)
-  const engineTokens = normalize(engineName || '').split(' ').filter(t => t.length > 1) // Ignore single chars for engine
+  
+  // Engine tokens: Normalize -> Strip Years -> Split -> Filter tiny words
+  // This ensures "2009 - 2010" in filter doesn't clash with "11.2009" in product
+  const cleanEngineName = stripYears(normalize(engineName || ''))
+  const engineTokens = cleanEngineName.split(' ').filter(t => t.length > 1) 
 
   // Check if ANY suitability entry matches
   return suitability.some((entry: any) => {
@@ -93,8 +102,6 @@ export function vehicleMatches(product: any, state: VehicleFilterState): boolean
       // 2. Fallback: Token-based Match (Fixes "X5" matching "X50")
       // All words in selected model name must exist as whole words in product string
       else if (modelTokens.length > 0) {
-        // e.g. Filter "X5" -> tokens ["x5"]. Product "BMW X50" -> tokens ["bmw", "x50"]. 
-        // "x5" !== "x50", so NO match. Correct.
         const allTokensFound = modelTokens.every(token => subTokens.includes(token))
         if (allTokensFound) modelMatches = true
       }
@@ -115,16 +122,22 @@ export function vehicleMatches(product: any, state: VehicleFilterState): boolean
       if (engineId && subEngineId) {
         if (subEngineId === String(engineId)) engineMatches = true
       }
-      // 2. Fuzzy Token Match (Requested behavior)
-      // Allows "2009 - 2010" to match "11.2009" by checking for overlap
+      // 2. Fuzzy Token Match (WITHOUT YEARS)
+      // Check if critical tokens (like "J150" or "GX") exist in the product string
       else if (engineTokens.length > 0) {
         const hits = engineTokens.filter(token => subStr.includes(token))
-        // Match if > 40% of filter words are found in product description
-        if ((hits.length / engineTokens.length) > 0.4) {
-          engineMatches = true
+        
+        // If we have meaningful tokens (like J150), require a high match rate.
+        // If the engine string was mostly years (which we stripped), this list might be empty or short,
+        // in which case we fall back to logic below.
+        if (hits.length === engineTokens.length) {
+           engineMatches = true
+        } else if (hits.length > 0 && (hits.length / engineTokens.length) > 0.6) {
+           // Allow slight mismatch if mostly matching (e.g. extra words)
+           engineMatches = true
         }
       } 
-      // 3. Simple Substring fallback
+      // 3. Simple Substring fallback (using original string if token logic was skipped)
       else if (normalize(engineName || '') && subStr.includes(normalize(engineName || ''))) {
         engineMatches = true
       }
@@ -135,4 +148,4 @@ export function vehicleMatches(product: any, state: VehicleFilterState): boolean
       return engineMatches
     })
   })
-    }
+}
