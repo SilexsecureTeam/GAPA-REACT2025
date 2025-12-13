@@ -48,9 +48,9 @@ export function vehicleMatches(product: any, state: VehicleFilterState): boolean
   const src = (product && typeof product === 'object' && 'part' in product) ? (product as any).part : product
   const suitability = src?.suitability_models
 
-  // Strict check: if suitability data is missing/empty, we cannot verify fit -> hide product
+  // UPDATE: If suitability data is missing or empty, assume Universal Fit -> Return TRUE
   if (!Array.isArray(suitability) || suitability.length === 0) {
-    return false
+    return true
   }
 
   // Prepare tokens for name-based fallback matching
