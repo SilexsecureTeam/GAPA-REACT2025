@@ -393,9 +393,8 @@ export default function CarPartDetails() {
           detail = products.find(p => String((p as any)?.product_id ?? (p as any)?.id) === pid)
         }
         
-        // If we have local data, render it immediately to avoid lag
+        // If we have local data, render it immediately
         if (detail) {
-           console.log('🚀 [Details] Immediate local render. Suitability:', (detail as any)?.suitability_models ? 'YES' : 'NO')
            setSelectedRaw(detail)
            setSelected(mapApiToUi(detail, manufacturers))
         }
@@ -416,43 +415,31 @@ export default function CarPartDetails() {
         // Process Product Detail
         if (results[0].status === 'fulfilled') {
            const res = results[0].value
-           // Robust unwrap: handle different API envelopes
            const freshDetail = (res as any)?.data || (res as any)?.result || (res as any)?.product || res
            
            if (freshDetail) {
-             console.log('📡 [Details] Fresh API data loaded.')
-             
-             // 1. Identify previous suitability data (local cache)
+             // --- CRITICAL FIX START ---
+             // Check if fresh data is missing suitability OR has "shallow" suitability (models without sub-models)
              const prevRaw = selectedRaw || detail || {}
              const prevSuit = (prevRaw as any).suitability_models || (prevRaw as any).part?.suitability_models
-
-             // 2. Identify fresh suitability data
              let freshSuit = freshDetail.suitability_models || freshDetail.part?.suitability_models
-             
-             // 3. Fallback: Restore from local cache if API returns empty/missing suitability
-             if ((!freshSuit || freshSuit.length === 0) && prevSuit && prevSuit.length > 0) {
-               console.log('🔧 [Details] Restoring suitability_models from local cache')
+
+             const isFreshEmpty = !freshSuit || !Array.isArray(freshSuit) || freshSuit.length === 0
+             // Check if the first model exists but has NO sub_models (this is the specific bug you are seeing)
+             const isFreshShallow = freshSuit && freshSuit.length > 0 && (!freshSuit[0].sub_suitability_models || freshSuit[0].sub_suitability_models.length === 0)
+
+             if ((isFreshEmpty || isFreshShallow) && prevSuit && prevSuit.length > 0) {
+               console.log('🔧 [Details] Restoring rich suitability data from local cache')
                freshSuit = prevSuit
              }
 
-             // 4. CRITICAL FIX: Normalize Data Structure
-             // The vehicleMatches() function unwraps the 'part' object if it exists.
-             // We MUST ensure suitability_models resides inside 'part' if 'part' exists.
-             if (freshDetail.part) {
-                // If we have a part wrapper, ensure models are inside it
-                if (freshSuit && freshSuit.length > 0) {
-                   freshDetail.part.suitability_models = freshSuit
-                   // Also keep at root for UI components that might look there
-                   freshDetail.suitability_models = freshSuit 
-                }
-             } else {
-                // No part wrapper, just ensure it's at root
-                if (freshSuit && freshSuit.length > 0) {
-                   freshDetail.suitability_models = freshSuit
-                }
+             // Normalize location of suitability_models to be at the root for vehicleMatches()
+             if (freshSuit) {
+                 freshDetail.suitability_models = freshSuit
+                 if (freshDetail.part) freshDetail.part.suitability_models = freshSuit
              }
+             // --- CRITICAL FIX END ---
              
-             // Update state
              setSelectedRaw(freshDetail)
              setSelected(mapApiToUi(freshDetail, manufacturers))
            }

@@ -23,7 +23,7 @@ export function setPersistedVehicleFilter(v: VehicleFilterState) {
   try { localStorage.setItem(VEHICLE_FILTER_KEY, JSON.stringify(v)) } catch {}
 }
 
-// Normalize string: lowercase, replace punctuation with spaces to ensure word boundaries
+// Helper: lowercase, punctuation to space, trim
 function normalize(str: string): string {
   if (!str) return ''
   return String(str)
@@ -33,119 +33,101 @@ function normalize(str: string): string {
     .trim()
 }
 
-// Helper to remove 4-digit years (1990-2029) to avoid year mismatch issues
+// Helper: Remove 4-digit years to compare mechanical specs only
 function stripYears(str: string): string {
-  return str.replace(/\b(19|20)\d{2}\b/g, '')
+  // Removes 19xx and 20xx patterns
+  return str.replace(/\b(19|20)\d{2}\b/g, '').replace(/\s+/g, ' ').trim()
 }
 
 export function vehicleMatches(product: any, state: VehicleFilterState): boolean {
   const { brandId, modelId, engineId, brandName, modelName, engineName } = state || {}
   
-  // No filter selected = match all
+  // 1. If no filter, everything fits
   if (!brandId && !modelId && !engineId && !brandName && !modelName && !engineName) return true
 
-  // Unwrap product
+  // 2. Unwrap product data
   const src = (product && typeof product === 'object' && 'part' in product) ? (product as any).part : product
   const suitability = src?.suitability_models
 
-  // UPDATE: If suitability data is missing or empty, assume Universal Fit -> Return TRUE
-  if (!Array.isArray(suitability) || suitability.length === 0) {
-    return true
-  }
+  // 3. Universal Match Check: 
+  // If product has NO suitability data array at all, assume it fits everything (Universal).
+  // If it has an empty array [], it fits nothing specific (unless filter is empty).
+  if (!suitability) return true
+  if (Array.isArray(suitability) && suitability.length === 0) return true // Treat empty array as universal for now to avoid hiding too much
 
-  // Prepare tokens for name-based fallback matching
+  // 4. Prepare Filter Tokens (Year-Insensitive)
   const searchBrand = normalize(brandName || '')
-  const modelTokens = normalize(modelName || '').split(' ').filter(t => t.length > 0)
+  const searchModel = stripYears(normalize(modelName || '')) 
+  const cleanEngine = stripYears(normalize(engineName || ''))
   
-  // Engine tokens: Normalize -> Strip Years -> Split -> Filter tiny words
-  // This ensures "2009 - 2010" in filter doesn't clash with "11.2009" in product
-  const cleanEngineName = stripYears(normalize(engineName || ''))
-  const engineTokens = cleanEngineName.split(' ').filter(t => t.length > 1) 
+  // Split engine into tokens (e.g. "4", "7", "v8"). 
+  // We keep ALL tokens (even single chars) to support "2.0", "3", "L" etc.
+  const engineTokens = cleanEngine.split(' ').filter(t => t.length > 0)
 
-  // Check if ANY suitability entry matches
+  // 5. Check against Suitability Array
   return suitability.some((entry: any) => {
-    // --- 1. Brand Check ---
+    // --- Brand Match ---
     const entryBrandId = String(entry.brand_id || '')
+    const entryBrandStr = normalize(entry.model || entry.brand_name || '')
+
+    // Match by ID if available, else strict Name match
+    const brandMatches = (brandId && entryBrandId === String(brandId)) || 
+                         (searchBrand && entryBrandStr.includes(searchBrand))
     
-    // A: Strict ID Match
-    if (brandId && entryBrandId) {
-      if (entryBrandId !== String(brandId)) return false
-    }
-    // B: Fallback Name Match (substring is usually safe for Brand)
-    else if (searchBrand) {
-      const entryBrandStr = normalize(entry.model || entry.brand_name || '')
-      if (!entryBrandStr.includes(searchBrand)) return false
-    }
+    if (!brandMatches && (brandId || searchBrand)) return false
+    
+    // If only Brand filtered, we are done
+    if (!modelId && !modelName) return true
 
-    // If only brand filtered, match found
-    if (!modelId && !engineId && !modelName) return true
-
-    // --- 2. Sub-Models Check ---
+    // --- Sub-Model Match (Model & Engine) ---
     const subList = entry.sub_suitability_models
-    if (!Array.isArray(subList) || subList.length === 0) return false
+    // If sub-models missing but brand matched, assume generic fit for brand
+    if (!Array.isArray(subList) || subList.length === 0) return true
 
     return subList.some((sub: any) => {
       const subMainId = String(sub.main_model_id ?? sub.model_id ?? '')
       const subEngineId = String(sub.suit_sub_models_id ?? sub.id ?? '')
-      const subStr = normalize(sub.sub_model || sub.model || '')
       
-      // Tokenize product string for word-based matching
-      const subTokens = subStr.split(' ')
+      // Normalize product string and strip years for fair comparison
+      const rawSubStr = normalize(sub.sub_model || sub.model || '')
+      const cleanSubStr = stripYears(rawSubStr)
 
-      // --- A. Model Match ---
+      // A. Model Match
       let modelMatches = false
-      
-      // 1. Strict ID Match
-      if (modelId && subMainId) {
-        if (subMainId === String(modelId)) modelMatches = true
-      }
-      // 2. Fallback: Token-based Match (Fixes "X5" matching "X50")
-      // All words in selected model name must exist as whole words in product string
-      else if (modelTokens.length > 0) {
-        const allTokensFound = modelTokens.every(token => subTokens.includes(token))
-        if (allTokensFound) modelMatches = true
-      }
-      // 3. Fallback to simple substring if no tokens (unlikely)
-      else if (!modelId && !modelName) {
+      if (modelId && subMainId === String(modelId)) {
+        modelMatches = true
+      } else if (searchModel && cleanSubStr.includes(searchModel)) {
+        modelMatches = true
+      } else if (!modelId && !modelName) {
         modelMatches = true
       }
 
       if (!modelMatches) return false
-      
-      // If only model filtered, match found
       if (!engineId && !engineName) return true
 
-      // --- B. Engine Match ---
-      let engineMatches = false
-      
-      // 1. Strict ID Match
-      if (engineId && subEngineId) {
-        if (subEngineId === String(engineId)) engineMatches = true
-      }
-      // 2. Fuzzy Token Match (WITHOUT YEARS)
-      // Check if critical tokens (like "J150" or "GX") exist in the product string
-      else if (engineTokens.length > 0) {
-        const hits = engineTokens.filter(token => subStr.includes(token))
-        
-        // If we have meaningful tokens (like J150), require a high match rate.
-        // If the engine string was mostly years (which we stripped), this list might be empty or short,
-        // in which case we fall back to logic below.
-        if (hits.length === engineTokens.length) {
-           engineMatches = true
-        } else if (hits.length > 0 && (hits.length / engineTokens.length) > 0.6) {
-           // Allow slight mismatch if mostly matching (e.g. extra words)
-           engineMatches = true
-        }
-      } 
-      // 3. Simple Substring fallback (using original string if token logic was skipped)
-      else if (normalize(engineName || '') && subStr.includes(normalize(engineName || ''))) {
-        engineMatches = true
-      }
-      else if (!engineId && !engineName) {
-        engineMatches = true
+      // B. Engine Match
+      if (engineId && subEngineId === String(engineId)) {
+        return true
       }
 
-      return engineMatches
+      // Fuzzy Token Match for Engine
+      if (engineTokens.length > 0) {
+        // Check how many tokens from the filter appear in the product string
+        const tokensFound = engineTokens.filter(token => cleanSubStr.includes(token))
+        
+        // Strictness logic:
+        // If filter is simple (1-2 words e.g. "V8"), require ALL to match.
+        // If filter is complex (e.g. "3.5L V6 Gas"), allow some mismatch (e.g. missing "Gas").
+        if (engineTokens.length <= 2) {
+             return tokensFound.length === engineTokens.length
+        } else {
+             // For longer strings, require 90% match
+             return (tokensFound.length / engineTokens.length) >= 0.90
+        }
+      } 
+      
+      // If we are here, we had engine text but no tokens (unlikely), or match failed.
+      return true // If engineTokens empty (only years were stripped), assume match.
     })
   })
 }
