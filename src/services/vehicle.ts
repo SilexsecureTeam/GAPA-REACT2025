@@ -136,4 +136,4 @@ export function vehicleMatches(product: any, state: VehicleFilterState): boolean
       return false
     })
   })
-        }
+}
