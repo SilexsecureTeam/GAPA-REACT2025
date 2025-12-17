@@ -23,7 +23,7 @@ export function setPersistedVehicleFilter(v: VehicleFilterState) {
   try { localStorage.setItem(VEHICLE_FILTER_KEY, JSON.stringify(v)) } catch {}
 }
 
-// Normalize string: lowercase, replace punctuation with spaces to ensure word boundaries
+// Normalize string: lowercase, replace punctuation with spaces
 function normalize(str: string): string {
   if (!str) return ''
   return String(str)
@@ -96,7 +96,7 @@ export function vehicleMatches(product: any, state: VehicleFilterState): boolean
       if (modelId && subMainId === String(modelId)) {
         modelMatches = true
       } else if (searchModel && cleanSubStr.includes(searchModel)) {
-        // Strict text check: The product string MUST contain the model name 100%
+        // Strict text check: The product string MUST contain the model name (after years stripped)
         modelMatches = true
       } else if (!modelId && !modelName) {
         modelMatches = true
