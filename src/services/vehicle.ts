@@ -121,7 +121,7 @@ export function vehicleMatches(product: any, state: VehicleFilterState): boolean
         const matchRatio = tokensFound.length / engineTokens.length
         
         // Requirement: 90% match for engine details
-        if (matchRatio >= 0.9) {
+        if (matchRatio >= 0.98) {
            engineMatches = true
         }
       } else {
