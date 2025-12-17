@@ -2,40 +2,21 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useCurrency } from '../context/CurrencyContext'
 import { useAuth } from '../services/auth'
-import { getCartForUser, removeCartItem, addToCartApi, getProductById, getAllStatesApi, getStatesByLocation, updateDeliveryAddress, /* getUserCartTotal, */ getPriceByState, paymentSuccessfull, getGigQuote } from '../services/api'
+import { getCartForUser, removeCartItem, addToCartApi, getProductById, getAllStatesApi, getStatesByLocation, updateDeliveryAddress, getPriceByState, paymentSuccessfull, getGigQuote, type GigQuoteParams, getUserProfileById, updateUserProfile } from '../services/api'
 import { getGuestCart, setGuestCart, type GuestCart } from '../services/cart'
 import { normalizeApiImage, pickImage, productImageFrom } from '../services/images'
 import logoImg from '../assets/gapa-logo.png'
-import toast from 'react-hot-toast'
+import FallbackLoader from '../components/FallbackLoader'
+import { toast } from 'react-hot-toast'
 import AddressAutocomplete from '../components/AddressAutocomplete'
-// import deliveryGig from '../assets/deliveryGig.png'
-// Add optional secrets fallback (dev convenience only)
-import { PAYSTACK_PUBLIC_KEY as SECRET_PAYSTACK_KEY } from '../secrets'
+import { PaystackButton } from 'react-paystack'
 
-// One-time GIG env diagnostic logging (added per debugging requirement)
-if (typeof window !== 'undefined' && !(window as any).__GIG_ENV_LOGGED__) {
-  (window as any).__GIG_ENV_LOGGED__ = true
-  try {
-    const envAny: any = (import.meta as any)?.env || {}
-    const gigSnapshot = Object.fromEntries(Object.entries(envAny).filter(([k]) => k.includes('GIG')))
-    console.group('[GIG ENV CHECK]')
-    console.info('Raw GIG-related keys:', Object.keys(gigSnapshot))
-    console.info('Resolved values (masking password):', {
-      VITE_GIG_BASE_URL: envAny.VITE_GIG_BASE_URL,
-      VITE_GIG_USERNAME: envAny.VITE_GIG_USERNAME,
-      VITE_GIG_PASSWORD_PRESENT: !!envAny.VITE_GIG_PASSWORD,
-    })
-    console.info('Full import.meta.env size:', Object.keys(envAny).length)
-    console.groupEnd()
-  } catch (e) {
-    console.warn('[GIG ENV CHECK] failed to log env vars', e)
-  }
-}
- 
+// Optional secrets fallback
+const SECRET_PAYSTACK_KEY = (import.meta as any)?.env?.VITE_PAYSTACK_PUBLIC_KEY
+
 function sanitizeKey(val: any): string | undefined {
   const s = typeof val === 'string' ? val.trim() : ''
   if (!s) return undefined
-  // Ignore Vite placeholders if not replaced
   if (s.startsWith('%VITE_') && s.endsWith('%')) return undefined
   return s
 }
@@ -48,7 +29,6 @@ type UICartItem = {
   image: string
 }
 
-// FIX: Proper Address type syntax (previous version missed '=' and braces)
 type Address = {
   fullName: string;
   email: string;
@@ -72,7 +52,7 @@ function useCartData() {
   const { user } = useAuth()
   const [loading, setLoading] = useState(true)
   const [items, setItems] = useState<UICartItem[]>([])
-  const [rawItems, setRawItems] = useState<any[]>([]) // store full API cart rows for logistics enrichment
+  const [rawItems, setRawItems] = useState<any[]>([])
 
   const load = async () => {
     try {
@@ -84,8 +64,7 @@ function useCartData() {
         const mapped: UICartItem[] = arr.map((item: any) => {
           const prod = (item && (item.product || item.part || item.item)) || item
           const productId = String(item?.product_id ?? prod?.id ?? item?.id ?? '')
-          const name = String(prod?.name || prod?.title || prod?.product_name || 'Part')
-            .trim()
+          const name = String(prod?.name || prod?.title || prod?.product_name || 'Part').trim()
           const price = Number(prod?.price ?? prod?.selling_price ?? prod?.amount ?? item?.price ?? 0)
           const quantity = Number(item?.quantity ?? item?.qty ?? 1) || 1
           const image = productImageFrom(prod) || normalizeApiImage(pickImage(prod) || '') || logoImg
@@ -121,7 +100,7 @@ function useCartData() {
 export default function Checkout() {
   const navigate = useNavigate()
   const { user } = useAuth()
-  const { formatPrice } = useCurrency()
+  const { currency, formatPrice, setCurrency } = useCurrency()
   const { loading, items, rawItems, reload } = useCartData()
   const [busyId, setBusyId] = useState<string | null>(null)
   const unauthenticated = !user
@@ -130,13 +109,10 @@ export default function Checkout() {
   const progress = (step / (steps.length - 1)) * 100
 
   const subtotal = useMemo(() => items.reduce((s, it) => s + it.price * it.quantity, 0), [items])
-  // VAT: 7.5% of subtotal
   const vat = useMemo(() => Math.max(0, Math.round(subtotal * 0.075)), [subtotal])
 
-  // --- Delivery pricing & method state ---------------------------------------
+  // --- Delivery pricing & method state ---
   const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethod>(() => (localStorage.getItem('checkoutDeliveryMethod') as DeliveryMethod) || 'gapa')
-
-  // Gapa pricing (previous deliveryPrice state renamed)
   const [gapaDeliveryPrice, setGapaDeliveryPrice] = useState<number>(0)
   const [deliveryLoading, setDeliveryLoading] = useState<boolean>(false)
 
@@ -144,30 +120,23 @@ export default function Checkout() {
   const [gigQuoteAmount, setGigQuoteAmount] = useState<number>(0)
   const [gigLoading, setGigLoading] = useState<boolean>(false)
   const [gigError, setGigError] = useState<string | null>(null)
-  // Remove GIG stations state (endpoints 404); use static fallback IDs
-  // const [gigStations, setGigStations] = useState<{ id:number; name:string; city:string; state:string; raw:any }[]>([])
-  // const [gigStationId, setGigStationId] = useState<number | null>(null)
-  const DEFAULT_GIG_RECEIVER_STATION_ID = 2 // fallback based on working payload example
-  // Removed unused DEFAULT_GIG_SENDER_STATION_ID constant (was causing TS 6133 warning)
-  // const [gigLastRegion, setGigLastRegion] = useState<string | number | undefined>(undefined)
-  // NEW: receiver geolocation (attempt to capture once)
+  const DEFAULT_GIG_RECEIVER_STATION_ID = 2 
+
+  // NEW: receiver geolocation
   const [receiverGeo, setReceiverGeo] = useState<{ lat?: number; lng?: number; error?: string }>({})
   useEffect(() => {
     if (!('geolocation' in navigator)) return
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setReceiverGeo(g => (g.lat || g.lng ? g : { lat: pos.coords.latitude, lng: pos.coords.longitude }))
-      },
+      (pos) => { setReceiverGeo(g => (g.lat || g.lng ? g : { lat: pos.coords.latitude, lng: pos.coords.longitude })) },
       (err) => { setReceiverGeo(g => (g.error ? g : { ...g, error: err.message })) },
       { enableHighAccuracy: false, timeout: 8000, maximumAge: 300000 }
     )
   }, [])
 
-  // Effective delivery price used in calculations
   const effectiveDeliveryPrice = useMemo(() => deliveryMethod === 'gapa' ? gapaDeliveryPrice : gigQuoteAmount, [deliveryMethod, gapaDeliveryPrice, gigQuoteAmount])
   const total = useMemo(() => subtotal + vat + (effectiveDeliveryPrice || 0), [subtotal, vat, effectiveDeliveryPrice])
 
-  // --- Address & Payment state (unchanged except references to delivery price) ---
+  // --- Address & Payment state ---
   const [address, setAddress] = useState<Address>(() => {
     const saved = localStorage.getItem('checkoutAddress')
     const base: Address = {
@@ -193,15 +162,15 @@ export default function Checkout() {
   const [states, setStates] = useState<{ id?: string | number; name?: string; state?: string; title?: string }[]>([])
   const [statesLoading, setStatesLoading] = useState(false)
   const [locations, setLocations] = useState<{ id: string | number; location: string; price: number }[]>([])
+  const [isUpdatingProfile, setIsUpdatingProfile] = useState(false)
 
-  // NEW: Allowed states for Gapa delivery only
+  // Gapa allowed states
   const GAPA_ALLOWED_STATE_TITLES = useMemo(()=>['LAGOS STATE','ABUJA FEDERAL CAPITAL TERRITORY'], [])
   const normalizeStateLabel = (s?: string) => (s||'').trim().toUpperCase()
   const isAllowedForGapa = (st: any) => {
     const label = normalizeStateLabel(st?.title || st?.name || st?.state || '')
     if (!label) return false
     if (GAPA_ALLOWED_STATE_TITLES.includes(label)) return true
-    // Accept common abbreviations for Abuja (FCT) just in case
     if (label === 'FCT' && GAPA_ALLOWED_STATE_TITLES.includes('ABUJA FEDERAL CAPITAL TERRITORY')) return true
     if (label === 'ABUJA' && GAPA_ALLOWED_STATE_TITLES.includes('ABUJA FEDERAL CAPITAL TERRITORY')) return true
     return false
@@ -218,22 +187,18 @@ export default function Checkout() {
     }
   }, [deliveryMethod, address.regionId, states])
 
-  // Persist delivery method
   useEffect(()=>{ localStorage.setItem('checkoutDeliveryMethod', deliveryMethod) }, [deliveryMethod])
 
-  // Existing effect: load states, default rate, prefill address
   useEffect(() => {
     const u = (user as any) || null
-    setAddress((prev: Address) => { // annotated prev
+    setAddress((prev: Address) => {
       const next = { ...prev }
       if (u) {
         next.fullName = next.fullName || String(u?.name || '')
         next.email = next.email || String(u?.email || '')
         next.phone = next.phone || String(u?.phone || '')
         next.address1 = next.address1 || String(u?.shipping_address || u?.address || '')
-        // city now derived from delivery location; keep if previously stored
         next.city = next.city || ''
-        // region/regionId hydrate by matching title later
         next.region = next.region || String(u?.shipping_region || u?.region || '')
         next.country = 'Nigeria'
         next.postcode = next.postcode || String(u?.shipping_postbox || u?.postbox || '')
@@ -243,7 +208,6 @@ export default function Checkout() {
     const loadStates = async () => {
       setStatesLoading(true)
       try {
-        // Prefer get-states?location=gapa; fallback to getAllStates
         let list = await getStatesByLocation('gapa')
         if (!list?.length) list = await getAllStatesApi()
         setStates(list)
@@ -252,7 +216,6 @@ export default function Checkout() {
     loadStates()
   }, [user?.id])
 
-  // Hydrate regionId from stored region name
   useEffect(() => {
     if (!address.regionId && address.region && states.length) {
       const match = states.find((s) => (s.title || s.name || s.state || '') === address.region)
@@ -260,7 +223,6 @@ export default function Checkout() {
     }
   }, [states])
 
-  // Fetch Gapa delivery locations/prices when region changes (only if using Gapa OR always to keep ready)
   useEffect(() => {
     const fetchLocations = async () => {
       setLocations([])
@@ -280,17 +242,15 @@ export default function Checkout() {
         })) as { id: string | number; location: string; price: number }[]
         setLocations(mapped)
         if (!mapped.length) {
-          // no fallback price – explicit error state
           setGapaDeliveryPrice(0)
         } else if (mapped.length === 1) {
           const only = mapped[0]
           setAddress(a => ({ ...a, deliveryLocationId: only.id, deliveryLocationName: only.location }))
           setGapaDeliveryPrice(Math.max(0, Math.round(only.price || 0)))
         } else {
-          setGapaDeliveryPrice(0) // wait for user selection
+          setGapaDeliveryPrice(0)
         }
       } catch {
-        // on error no fallback – keep at 0
         setLocations([])
         setGapaDeliveryPrice(0)
       } finally { setDeliveryLoading(false) }
@@ -298,7 +258,6 @@ export default function Checkout() {
     fetchLocations()
   }, [address.regionId])
 
-  // Reset / prepare GIG quote when user switches delivery method
   useEffect(() => {
     if (deliveryMethod === 'gig') {
       setGigQuoteAmount(0)
@@ -308,7 +267,6 @@ export default function Checkout() {
   }, [deliveryMethod])
 
   const buildGigQuoteParams = () => {
-    // Prefer enriched rawItems when available
     const source = rawItems.length ? rawItems : items
     const cartItemsForQuote = source.map((it: any) => ({
       name: it.name,
@@ -329,7 +287,6 @@ export default function Checkout() {
     const receiver_phone = address.phone || ''
     const items_count = Math.max(1, totalQty)
     const declared_value = cartItemsForQuote.reduce((sum,i)=> sum + (i.value||0), 0)
-    // Use static receiver station id (API station lookup removed)
     const receiver_station_id = DEFAULT_GIG_RECEIVER_STATION_ID
     const destination_service_centre_id = receiver_station_id
     const user_id = (user as any)?.id ? String((user as any).id) : undefined
@@ -349,31 +306,29 @@ export default function Checkout() {
     } catch (e: any) {
       console.error('GIG quote error', e)
       const msg = e?.message || 'Can\'t ship to this location'
-      toast.error(msg) // NEW: show error via toast instead of inline text
+      toast.error(msg)
       setGigError(msg)
       setGigQuoteAmount(0)
     } finally { setGigLoading(false) }
   }
 
-  // Auto refetch quote when relevant address/cart inputs change while on GIG
   useEffect(() => {
     if (deliveryMethod !== 'gig') return
     if (!address.regionId) { setGigQuoteAmount(0); setGigError(null); return }
     const t = setTimeout(() => { void requestGigQuote() }, 400)
     return () => clearTimeout(t)
-  }, [deliveryMethod, address.regionId, address.city, address.deliveryLocationName, address.address1, address.address2, address.postcode, items, receiverGeo.lat, receiverGeo.lng, states /* removed gigStationId */])
+  }, [deliveryMethod, address.regionId, address.city, address.deliveryLocationName, address.address1, address.address2, address.postcode, items, receiverGeo.lat, receiverGeo.lng, states])
 
   useEffect(() => { localStorage.setItem('checkoutAddress', JSON.stringify(address)) }, [address])
   useEffect(() => { localStorage.setItem('checkoutPayment', payment) }, [payment])
 
-  // Validation adjustments: require method-specific fields/quotes
   const addressValid = useMemo(() => {
     const req = ['fullName','email','phone','address1','region'] as (keyof Address)[]
     const baseValid = req.every((k) => String((address as any)[k] || '').trim().length > 1)
     if (!baseValid) return false
     if (deliveryMethod === 'gapa') {
       const locValid = locations.length === 0 || Boolean(address.deliveryLocationId)
-      return locValid && gapaDeliveryPrice > 0 // must have explicit price
+      return locValid && gapaDeliveryPrice > 0 
     } else {
       return gigQuoteAmount > 0 && !gigLoading && !gigError  
     }
@@ -383,17 +338,13 @@ export default function Checkout() {
     const current = items.find(i => i.productId === productId)
     if (!current) return
     const nextQty = Math.min(99, current.quantity + 1)
-    if (nextQty === current.quantity) return // Already at max
+    if (nextQty === current.quantity) return 
     
     setBusyId(productId)
     try {
       if (user && (user as any).id) {
-        // NEW LOGIC: Remove product from cart, then add it back with new quantity
         try {
-          // Step 1: Remove the product from cart
           await removeCartItem((user as any).id, productId)
-          
-          // Step 2: Add it back with the new quantity
           await addToCartApi({ 
             user_id: (user as any).id, 
             product_id: productId, 
@@ -405,7 +356,6 @@ export default function Checkout() {
           return
         }
       } else {
-        // Guest cart
         const cart = getGuestCart()
         const idx = cart.items.findIndex(it => it.product_id === productId)
         if (idx >= 0) { 
@@ -423,17 +373,13 @@ export default function Checkout() {
     const current = items.find(i => i.productId === productId)
     if (!current) return
     const nextQty = Math.max(1, current.quantity - 1)
-    if (nextQty === current.quantity) return // Already at min
+    if (nextQty === current.quantity) return 
     
     setBusyId(productId)
     try {
       if (user && (user as any).id) {
-        // NEW LOGIC: Remove item completely, then re-add with remaining quantity
         try {
-          // Step 1: Remove the item
           await removeCartItem((user as any).id, productId)
-          
-          // Step 2: Re-add with the remaining quantity (if > 0)
           if (nextQty > 0) {
             await addToCartApi({ 
               user_id: (user as any).id, 
@@ -447,7 +393,6 @@ export default function Checkout() {
           return
         }
       } else {
-        // Guest cart
         const cart = getGuestCart()
         const idx = cart.items.findIndex(it => it.product_id === productId)
         if (idx >= 0) { 
@@ -476,26 +421,20 @@ export default function Checkout() {
   }
 
   const handleContinueFromAddress = async () => {
-    // Persist address to backend if logged in
     if (user && (user as any).id) {
       const methodTag = deliveryMethod === 'gig' ? 'GIG Logistics' : 'Gapa Delivery'
       const payloadAddress = [address.address1, address.address2, address.region, address.postcode, address.deliveryLocationName, methodTag].filter(Boolean).join(', ')
       try { await updateDeliveryAddress({ user_id: (user as any).id, address: payloadAddress }) } catch {}
     }
-    // Ensure deliveryPrice is set; if still 0 and we have a default rate, use it
-    // if (deliveryMethod === 'gapa' && !gapaDeliveryPrice && defaultDeliveryRate) setGapaDeliveryPrice(defaultDeliveryRate)
     setStep((s) => s + 1)
   }
 
   // Paystack Integration
   const PAYSTACK_KEY = (
     sanitizeKey((import.meta as any)?.env?.VITE_PAYSTACK_PUBLIC_KEY)
-    || sanitizeKey((import.meta as any)?.env?.PAYSTACK_PUBLIC_KEY)
-    || sanitizeKey(typeof window !== 'undefined' ? (window as any).VITE_PAYSTACK_PUBLIC_KEY : undefined)
-    || sanitizeKey(typeof window !== 'undefined' ? (window as any).PAYSTACK_PUBLIC_KEY : undefined)
-    || sanitizeKey(typeof document !== 'undefined' ? (document.querySelector('meta[name="paystack-public-key"]') as HTMLMetaElement | null)?.content : undefined)
     || sanitizeKey(SECRET_PAYSTACK_KEY)
   ) as string | undefined
+
   async function ensurePaystackScript() {
     if ((window as any).PaystackPop) return
     await new Promise<void>((resolve, reject) => {
@@ -507,6 +446,7 @@ export default function Checkout() {
       document.body.appendChild(s)
     })
   }
+
   function buildAddressString() {
     const methodTag = deliveryMethod === 'gig' ? 'GIG Logistics' : 'Gapa Delivery'
     return [address.fullName, address.address1, address.address2, address.deliveryLocationName, address.region, address.postcode, methodTag].filter(Boolean).join(', ')
@@ -519,7 +459,7 @@ export default function Checkout() {
       const amountKobo = Math.max(0, Math.round((subtotal + vat + (effectiveDeliveryPrice || 0)) * 100))
       const email = address.email || (user as any)?.email || 'user@example.com'
       const ref = `GAPA_${Date.now()}`
-      // Use a plain function for Paystack callback; delegate to async logic inside
+      
       function paystackCallback(response: any) {
         ;(async () => {
           try {
@@ -556,82 +496,15 @@ export default function Checkout() {
     }
   }
 
-  // Flutterwave Integration
-  const FLUTTER_KEY = (
-    sanitizeKey((import.meta as any)?.env?.VITE_FLUTTER_PUBLIC_KEY)
-    || sanitizeKey(typeof window !== 'undefined' ? (window as any).VITE_FLUTTER_PUBLIC_KEY : undefined)
-    || sanitizeKey(typeof window !== 'undefined' ? (window as any).FLUTTER_PUBLIC_TEST_SK : undefined)
-    || sanitizeKey(typeof document !== 'undefined' ? (document.querySelector('meta[name="flutter-public-key"]') as HTMLMetaElement | null)?.content : undefined)
-  ) as string | undefined
-
-  async function ensureFlutterScript() {
-    if ((window as any).FlutterwaveCheckout) return
-    await new Promise<void>((resolve, reject) => {
-      const s = document.createElement('script')
-      s.src = 'https://checkout.flutterwave.com/v3.js'
-      s.async = true
-      s.onload = () => resolve()
-      s.onerror = () => reject(new Error('Failed to load Flutterwave'))
-      document.body.appendChild(s)
-    })
-  }
-
-  async function startFlutterCheckout() {
-    if (!FLUTTER_KEY) { toast.error('Payment is not configured'); return }
-    try {
-      await ensureFlutterScript()
-      const amountNgn = Math.max(0, Math.round(subtotal + vat + (effectiveDeliveryPrice || 0)))
-      const email = address.email || (user as any)?.email || 'user@example.com'
-      const ref = `GAPA_FLW_${Date.now()}`
-      ;(window as any).FlutterwaveCheckout({
-        public_key: FLUTTER_KEY,
-        tx_ref: ref,
-        amount: amountNgn,
-        currency: 'NGN',
-        payment_options: 'card,banktransfer,ussd',
-        customer: {
-          email,
-          phone_number: address.phone || '',
-          name: address.fullName || ''
-        },
-        callback: async (response: any) => {
-          try {
-            await paymentSuccessfull({
-              shipping_cost: effectiveDeliveryPrice || 0,
-              address: buildAddressString(),
-              user_id: (user as any)?.id ?? '',
-              txn_id: response?.transaction_id || response?.tx_ref || ref,
-              pickup_location_id: address.deliveryLocationId ? String(address.deliveryLocationId) : '',
-            })
-            try { setGuestCart({ items: [] }) } catch {}
-            toast.success('Payment successful')
-            navigate(`/order-success?ref=${encodeURIComponent(response?.tx_ref || ref)}&amount=${encodeURIComponent(String(amountNgn))}`)
-          } catch (e: any) {
-            toast.error(e?.message || 'Failed to confirm payment')
-          }
-        },
-        onclose: () => {
-          toast('Payment cancelled')
-        }
-      })
-    } catch (e: any) {
-      toast.error(e?.message || 'Unable to start payment')
-    }
-  }
-
   const goNext = () => {
-    // If unauthenticated and moving from Cart -> Login
     if (step === 0) {
       setStep(1)
       return
     }
-    // If on login step for unauthenticated
     if (unauthenticated && step === 1) {
-      // require user to either login or continue as guest
       setStep(2)
       return
     }
-    // Address step index differs by auth
     const addressStepIndex = unauthenticated ? 2 : 1
     const paymentStepIndex = addressStepIndex + 1
     if (step === addressStepIndex) {
@@ -641,7 +514,6 @@ export default function Checkout() {
       return
     }
     if (step === paymentStepIndex) {
-      // Only advance to Review; do not start payment here
       setStep(step + 1)
       return
     }
@@ -653,7 +525,6 @@ export default function Checkout() {
       <section className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
         <div className="mb-6">
           <h1 className="text-[20px] font-semibold text-gray-900">Checkout</h1>
-          {/* Stepper + Progress */}
           <div className="mt-4">
             <div className="flex items-center justify-between">
               {steps.map((label, i) => {
@@ -677,7 +548,6 @@ export default function Checkout() {
           </div>
         </div>
 
-        {/* Step content */}
         {step === 0 && (
           <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
             <div className="rounded-xl bg-white p-4 ring-1 ring-black/10">
@@ -711,11 +581,9 @@ export default function Checkout() {
               )}
             </div>
 
-            {/* Summary */}
             <aside className="rounded-xl bg-white p-4 ring-1 ring-black/10">
               <h3 className="text-[16px] font-semibold text-gray-900">Order Summary</h3>
               <div className="mt-3 space-y-2 text-[14px]">
-                {/* 5. Update Totals */}
                 <div className="flex items-center justify-between"><span className="text-gray-600">Subtotal</span><span className="font-semibold">{formatPrice(subtotal)}</span></div>
                 <div className="flex items-center justify-between"><span className="text-gray-600">VAT (7.5%)</span><span className="font-semibold">{formatPrice(vat)}</span></div>
                 <div className="flex items-center justify-between"><span className="text-gray-600">Delivery</span><span className="font-semibold">Calculated at next step</span></div>
@@ -726,7 +594,6 @@ export default function Checkout() {
           </div>
         )}
 
-        {/* Login step for unauthenticated users */}
         {unauthenticated && step === 1 && (
           <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
             <div className="rounded-xl bg-white p-4 ring-1 ring-black/10">
@@ -767,143 +634,158 @@ export default function Checkout() {
           </div>
         )}
 
-        {/* Address step */}
         {((unauthenticated && step === 2) || (!unauthenticated && step === 1)) && (
           <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
             <div className="rounded-xl bg-white p-4 ring-1 ring-black/10">
               <h3 className="text-[16px] font-semibold text-gray-900">Shipping Address</h3>
-              {/* Delivery Method Selector */}
-              <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
-                <label className={`flex cursor-pointer items-center gap-3 rounded-md border p-3 text-sm ${deliveryMethod==='gapa' ? 'border-brand ring-1 ring-brand/50 bg-[#FFF9E6]' : 'border-black/10 bg-gray-50'}`}>
-                  <input type="radio" name="deliveryMethod" checked={deliveryMethod==='gapa'} onChange={()=>setDeliveryMethod('gapa')} />
-                  <div>
-                    <div className="font-semibold text-gray-900">Gapa Delivery</div>
-                    <div className="text-[11px] text-gray-600">State/location based rate</div>
+              
+              {/* Currency Check: Only allow checkout in NGN */}
+              {currency !== 'NGN' ? (
+                <div className="flex flex-col items-center justify-center py-10 text-center rounded-lg bg-red-50 border border-red-100 my-4">
+                  <div className="rounded-full bg-red-100 p-3 mb-3">
+                      <svg className="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                      </svg>
                   </div>
-                </label>
-                <label className={`flex cursor-pointer items-center gap-3 rounded-md border p-3 text-sm ${deliveryMethod==='gig' ? 'border-brand ring-1 ring-brand/50 bg-[#FFF9E6]' : 'border-black/10 bg-gray-50'}`}>
-                  <input type="radio" name="deliveryMethod" checked={deliveryMethod==='gig'} onChange={()=>{ setDeliveryMethod('gig'); setGigQuoteAmount(0); setGigError(null); if(address.regionId) void requestGigQuote() }} />
-                  <div className="flex items-center gap-2">
-                    <div>
-                      <div className="font-semibold text-gray-900">GIG Logistics</div>
-                      <div className="text-[11px] text-gray-600">Dynamic nationwide rate</div>
-                    </div>
-                  </div>
-                </label>
-              </div>
-
-              <div className="mt-6 grid grid-cols-1 gap-3 md:grid-cols-2">
-                {/* Address fields (unchanged) */}
-                <label className="text-[13px] text-gray-700">Full name
-                  <input value={address.fullName} onChange={(e)=>setAddress((a: Address)=>({ ...a, fullName: e.target.value }))} className="mt-1 w-full rounded-md border border-black/10 px-3 py-2 text-[14px] outline-none focus:ring-2 focus:ring-brand" placeholder="e.g., John Doe" />
-                </label>
-                <label className="text-[13px] text-gray-700">Email
-                  <input type="email" value={address.email} onChange={(e)=>setAddress((a: Address)=>({ ...a, email: e.target.value }))} className="mt-1 w-full rounded-md border border-black/10 px-3 py-2 text-[14px] outline-none focus:ring-2 focus:ring-brand" placeholder="you@example.com" />
-                </label>
-                <label className="text-[13px] text-gray-700">Phone
-                  <input value={address.phone} onChange={(e)=>setAddress((a: Address)=>({ ...a, phone: e.target.value }))} className="mt-1 w-full rounded-md border border-black/10 px-3 py-2 text-[14px] outline-none focus:ring-2 focus:ring-brand" placeholder="08012345678" />
-                </label>
-                <span />
-                <label className="text-[13px] text-gray-700 md:col-span-2">Address line 1
-                  <AddressAutocomplete
-                    value={address.address1}
-                    onChange={(v)=>setAddress((a: Address)=>({ ...a, address1: v }))}
-                    onAddressSelect={(s)=>{
-                      setAddress((a: Address)=>({ ...a, address1: s.address1 || a.address1, city: s.city || a.city, region: s.region || a.region, postcode: s.postcode || a.postcode }))
-                    }}
-                    placeholder="Street, area"
-                    country={address.country?.toLowerCase?.() || 'ng'}
-                  />
-                </label>
-                <label className="text-[13px] text-gray-700 md:col-span-2">Address line 2 (optional)
-                  <input value={address.address2} onChange={(e)=>setAddress((a: Address)=>({ ...a, address2: e.target.value }))} className="mt-1 w-full rounded-md border border-black/10 px-3 py-2 text-[14px] outline-none focus:ring-2 focus:ring-brand" placeholder="Apartment, suite, etc." />
-                </label>
-                <label className={`text-[13px] font-medium transition-all ${!address.regionId && deliveryMethod ? 'text-brand' : 'text-gray-700'}`}>
-                  <span className="flex items-center gap-2">
-                    State
-                    {!address.regionId && deliveryMethod && (
-                      <span className="inline-flex h-5 items-center rounded-full bg-brand/10 px-2 text-[10px] font-semibold text-brand animate-pulse">
-                        Select here →
-                      </span>
-                    )}
-                  </span>
-                  <select value={String(address.regionId || '')} onChange={(e)=>{
-                    const id = e.target.value
-                    const st = states.find((s) => String(s.id ?? '') === id)
-                    const label = (st?.title || st?.name || st?.state || '') as string
-                    setAddress((a: Address)=>({ ...a, regionId: id, region: label, deliveryLocationId: undefined, deliveryLocationName: undefined }))
-                    // reset quotes / prices on state change
-                    setGigQuoteAmount(0); setGigError(null); setGapaDeliveryPrice(0)
-                  }} className={`mt-1 h-10 w-full rounded-md border bg-white px-3 text-[14px] outline-none transition-all ${
-                    !address.regionId && deliveryMethod 
-                      ? 'border-brand ring-2 ring-brand/30 shadow-md animate-pulse' 
-                      : 'border-black/10 focus:ring-2 focus:ring-brand'
-                  }`}>
-                    <option value="">{statesLoading ? 'Loading states…' : 'Select state'}</option>
-                    {(deliveryMethod==='gapa' ? states.filter(isAllowedForGapa) : states).map((s) => {
-                      const label = (s.title || s.name || s.state || '') as string
-                      const id = String(s.id ?? label)
-                      return <option key={id} value={id}>{label}</option>
-                    })}
-                  </select>
-                </label>
-                {/* Gapa delivery location selector (shown when multiple locations) */}
-                {deliveryMethod==='gapa' && address.regionId && locations.length>0 && (
-                  <label className="text-[13px] text-gray-700">Delivery location
-                    <select value={String(address.deliveryLocationId || '')} onChange={(e)=>{
-                      const val = e.target.value
-                      const loc = locations.find(l => String(l.id) === val)
-                      setAddress((a: Address)=>({ ...a, deliveryLocationId: val || undefined, deliveryLocationName: loc?.location }))
-                      if (loc) setGapaDeliveryPrice(Math.max(0, Math.round(loc.price || 0)))
-                      else setGapaDeliveryPrice(0)
-                    }} className="mt-1 h-10 w-full rounded-md border border-black/10 bg-white px-3 text-[14px] outline-none focus:ring-2 focus:ring-brand">
-                      <option value="">Select location</option>
-                      {locations.map(l => <option key={l.id} value={l.id}>{l.location}</option>)} {/* Removed price display */}
-                    </select>
-                  </label>
-                )}
-                {/* Postcode */}
-                <label className="text-[13px] text-gray-700">Zipcode
-                  <input value={address.postcode} onChange={(e)=>setAddress((a: Address)=>({ ...a, postcode: e.target.value }))} className="mt-1 w-full rounded-md border border-black/10 px-3 py-2 text-[14px] outline-none focus:ring-2 focus:ring-brand" />
-                </label>
-              </div>
-
-              {/* GIG status panel when selected */}
-              {deliveryMethod==='gig' && (
-                <div className="mt-4 rounded-md border border-dashed p-3">
-                  <div className="flex items-center gap-3">
-                    {/* <img src={deliveryGig} alt="GIG Logistics" className="h-8 w-auto" /> */}
-                    <div className="text-sm font-semibold text-gray-900">GIG Logistics Quote</div>
-                  </div>
-                  <div className="mt-2 text-[12px] text-gray-600">Live rate from GIG.</div>
-                  <div className="mt-2 flex flex-wrap items-center gap-3 text-[13px] font-medium">
-                    {gigLoading && <span className="text-gray-600">Fetching quote…</span>}
-                    {/* Inline error removed; handled via toast */}
-                    {!gigLoading && !gigError && gigQuoteAmount>0 && <span className="text-gray-900">{formatPrice(gigQuoteAmount)}</span>}
-                    {!gigLoading && !gigError && !gigQuoteAmount && address.regionId && <span className="text-gray-500">No quote yet</span>}
-                    <button type="button" disabled={gigLoading || !address.regionId} onClick={()=>void requestGigQuote()} className="inline-flex h-8 items-center justify-center rounded-md border border-brand px-3 text-[12px] font-semibold text-brand disabled:opacity-50">{gigLoading? 'Loading…' : gigQuoteAmount>0 ? 'Refresh quote' : 'Get quote'}</button>
-                    {!gigLoading && gigError && <button type="button" onClick={()=>void requestGigQuote()} className="text-[12px] text-brand underline">Retry</button>}
-                  </div>
+                  <h3 className="text-lg font-bold text-gray-900">Can't ship to current location</h3>
+                  <p className="text-sm text-gray-600 mt-2 max-w-xs mx-auto">
+                      We currently only support shipping and checkout for orders within Nigeria (NGN).
+                  </p>
+                  <button 
+                      onClick={() => setCurrency('NGN')} 
+                      className="mt-5 inline-flex items-center gap-2 rounded-md bg-[#F7CD3A] px-6 py-2.5 text-sm font-bold text-[#201A2B] shadow-sm hover:brightness-105 transition-all"
+                  >
+                      Ship within Nigeria
+                      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+                  </button>
                 </div>
-              )}
+              ) : (
+                <>
+                  {/* Delivery Method Selector */}
+                  <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+                    <label className={`flex cursor-pointer items-center gap-3 rounded-md border p-3 text-sm ${deliveryMethod==='gapa' ? 'border-brand ring-1 ring-brand/50 bg-[#FFF9E6]' : 'border-black/10 bg-gray-50'}`}>
+                      <input type="radio" name="deliveryMethod" checked={deliveryMethod==='gapa'} onChange={()=>setDeliveryMethod('gapa')} />
+                      <div>
+                        <div className="font-semibold text-gray-900">Gapa Delivery</div>
+                        <div className="text-[11px] text-gray-600">State/location based rate</div>
+                      </div>
+                    </label>
+                    <label className={`flex cursor-pointer items-center gap-3 rounded-md border p-3 text-sm ${deliveryMethod==='gig' ? 'border-brand ring-1 ring-brand/50 bg-[#FFF9E6]' : 'border-black/10 bg-gray-50'}`}>
+                      <input type="radio" name="deliveryMethod" checked={deliveryMethod==='gig'} onChange={()=>{ setDeliveryMethod('gig'); setGigQuoteAmount(0); setGigError(null); if(address.regionId) void requestGigQuote() }} />
+                      <div className="flex items-center gap-2">
+                        <div>
+                          <div className="font-semibold text-gray-900">GIG Logistics</div>
+                          <div className="text-[11px] text-gray-600">Dynamic nationwide rate</div>
+                        </div>
+                      </div>
+                    </label>
+                  </div>
 
-              {/* Gapa error message when no price */}
-              {deliveryMethod==='gapa' && address.regionId && !deliveryLoading && locations.length===0 && (
-                <div className="mt-3 rounded-md bg-red-50 px-3 py-2 text-[12px] text-red-700 ring-1 ring-red-200">Can't ship to this location</div>
-              )}
-              {deliveryMethod==='gapa' && address.regionId && locations.length>0 && !gapaDeliveryPrice && (
-                <div className="mt-3 rounded-md bg-red-50 px-3 py-2 text-[12px] text-red-700 ring-1 ring-red-200">Select a delivery location to get price</div>
-              )}
+                  <div className="mt-6 grid grid-cols-1 gap-3 md:grid-cols-2">
+                    <label className="text-[13px] text-gray-700">Full name
+                      <input value={address.fullName} onChange={(e)=>setAddress((a: Address)=>({ ...a, fullName: e.target.value }))} className="mt-1 w-full rounded-md border border-black/10 px-3 py-2 text-[14px] outline-none focus:ring-2 focus:ring-brand" placeholder="e.g., John Doe" />
+                    </label>
+                    <label className="text-[13px] text-gray-700">Email
+                      <input type="email" value={address.email} onChange={(e)=>setAddress((a: Address)=>({ ...a, email: e.target.value }))} className="mt-1 w-full rounded-md border border-black/10 px-3 py-2 text-[14px] outline-none focus:ring-2 focus:ring-brand" placeholder="you@example.com" />
+                    </label>
+                    <label className="text-[13px] text-gray-700">Phone
+                      <input value={address.phone} onChange={(e)=>setAddress((a: Address)=>({ ...a, phone: e.target.value }))} className="mt-1 w-full rounded-md border border-black/10 px-3 py-2 text-[14px] outline-none focus:ring-2 focus:ring-brand" placeholder="08012345678" />
+                    </label>
+                    <span />
+                    <label className="text-[13px] text-gray-700 md:col-span-2">Address line 1
+                      <AddressAutocomplete
+                        value={address.address1}
+                        onChange={(v)=>setAddress((a: Address)=>({ ...a, address1: v }))}
+                        onAddressSelect={(s)=>{
+                          setAddress((a: Address)=>({ ...a, address1: s.address1 || a.address1, city: s.city || a.city, region: s.region || a.region, postcode: s.postcode || a.postcode }))
+                        }}
+                        placeholder="Street, area"
+                        country={address.country?.toLowerCase?.() || 'ng'}
+                      />
+                    </label>
+                    <label className="text-[13px] text-gray-700 md:col-span-2">Address line 2 (optional)
+                      <input value={address.address2} onChange={(e)=>setAddress((a: Address)=>({ ...a, address2: e.target.value }))} className="mt-1 w-full rounded-md border border-black/10 px-3 py-2 text-[14px] outline-none focus:ring-2 focus:ring-brand" placeholder="Apartment, suite, etc." />
+                    </label>
+                    <label className={`text-[13px] font-medium transition-all ${!address.regionId && deliveryMethod ? 'text-brand' : 'text-gray-700'}`}>
+                      <span className="flex items-center gap-2">
+                        State
+                        {!address.regionId && deliveryMethod && (
+                          <span className="inline-flex h-5 items-center rounded-full bg-brand/10 px-2 text-[10px] font-semibold text-brand animate-pulse">
+                            Select here →
+                          </span>
+                        )}
+                      </span>
+                      <select value={String(address.regionId || '')} onChange={(e)=>{
+                        const id = e.target.value
+                        const st = states.find((s) => String(s.id ?? '') === id)
+                        const label = (st?.title || st?.name || st?.state || '') as string
+                        setAddress((a: Address)=>({ ...a, regionId: id, region: label, deliveryLocationId: undefined, deliveryLocationName: undefined }))
+                        setGigQuoteAmount(0); setGigError(null); setGapaDeliveryPrice(0)
+                      }} className={`mt-1 h-10 w-full rounded-md border bg-white px-3 text-[14px] outline-none transition-all ${
+                        !address.regionId && deliveryMethod 
+                          ? 'border-brand ring-2 ring-brand/30 shadow-md animate-pulse' 
+                          : 'border-black/10 focus:ring-2 focus:ring-brand'
+                      }`}>
+                        <option value="">{statesLoading ? 'Loading states…' : 'Select state'}</option>
+                        {(deliveryMethod==='gapa' ? states.filter(isAllowedForGapa) : states).map((s) => {
+                          const label = (s.title || s.name || s.state || '') as string
+                          const id = String(s.id ?? label)
+                          return <option key={id} value={id}>{label}</option>
+                        })}
+                      </select>
+                    </label>
+                    {deliveryMethod==='gapa' && address.regionId && locations.length>0 && (
+                      <label className="text-[13px] text-gray-700">Delivery location
+                        <select value={String(address.deliveryLocationId || '')} onChange={(e)=>{
+                          const val = e.target.value
+                          const loc = locations.find(l => String(l.id) === val)
+                          setAddress((a: Address)=>({ ...a, deliveryLocationId: val || undefined, deliveryLocationName: loc?.location }))
+                          if (loc) setGapaDeliveryPrice(Math.max(0, Math.round(loc.price || 0)))
+                          else setGapaDeliveryPrice(0)
+                        }} className="mt-1 h-10 w-full rounded-md border border-black/10 bg-white px-3 text-[14px] outline-none focus:ring-2 focus:ring-brand">
+                          <option value="">Select location</option>
+                          {locations.map(l => <option key={l.id} value={l.id}>{l.location}</option>)}
+                        </select>
+                      </label>
+                    )}
+                    <label className="text-[13px] text-gray-700">Zipcode
+                      <input value={address.postcode} onChange={(e)=>setAddress((a: Address)=>({ ...a, postcode: e.target.value }))} className="mt-1 w-full rounded-md border border-black/10 px-3 py-2 text-[14px] outline-none focus:ring-2 focus:ring-brand" />
+                    </label>
+                  </div>
 
-              <div className="mt-4 flex gap-2">
-                <button onClick={goBack} className="inline-flex h-10 items-center justify-center rounded-md bg-gray-100 px-4 text-[14px] font-semibold text-gray-900 ring-1 ring-black/10">Back</button>
-                <button onClick={goNext} disabled={!addressValid} className="inline-flex h-10 items-center justify-center rounded-md bg-[#F7CD3A] px-4 text-[14px] font-semibold text-gray-900 ring-1 ring-black/10 disabled:opacity-60">Continue</button>
-              </div>
+                  {deliveryMethod==='gig' && (
+                    <div className="mt-4 rounded-md border border-dashed p-3">
+                      <div className="flex items-center gap-3">
+                        <div className="text-sm font-semibold text-gray-900">GIG Logistics Quote</div>
+                      </div>
+                      <div className="mt-2 text-[12px] text-gray-600">Live rate from GIG.</div>
+                      <div className="mt-2 flex flex-wrap items-center gap-3 text-[13px] font-medium">
+                        {gigLoading && <span className="text-gray-600">Fetching quote…</span>}
+                        {!gigLoading && !gigError && gigQuoteAmount>0 && <span className="text-gray-900">{formatPrice(gigQuoteAmount)}</span>}
+                        {!gigLoading && !gigError && !gigQuoteAmount && address.regionId && <span className="text-gray-500">No quote yet</span>}
+                        <button type="button" disabled={gigLoading || !address.regionId} onClick={()=>void requestGigQuote()} className="inline-flex h-8 items-center justify-center rounded-md border border-brand px-3 text-[12px] font-semibold text-brand disabled:opacity-50">{gigLoading? 'Loading…' : gigQuoteAmount>0 ? 'Refresh quote' : 'Get quote'}</button>
+                        {!gigLoading && gigError && <button type="button" onClick={()=>void requestGigQuote()} className="text-[12px] text-brand underline">Retry</button>}
+                      </div>
+                    </div>
+                  )}
+
+                  {deliveryMethod==='gapa' && address.regionId && !deliveryLoading && locations.length===0 && (
+                    <div className="mt-3 rounded-md bg-red-50 px-3 py-2 text-[12px] text-red-700 ring-1 ring-red-200">Can't ship to this location</div>
+                  )}
+                  {deliveryMethod==='gapa' && address.regionId && locations.length>0 && !gapaDeliveryPrice && (
+                    <div className="mt-3 rounded-md bg-red-50 px-3 py-2 text-[12px] text-red-700 ring-1 ring-red-200">Select a delivery location to get price</div>
+                  )}
+
+                  <div className="mt-4 flex gap-2">
+                    <button onClick={goBack} className="inline-flex h-10 items-center justify-center rounded-md bg-gray-100 px-4 text-[14px] font-semibold text-gray-900 ring-1 ring-black/10">Back</button>
+                    <button onClick={goNext} disabled={!addressValid} className="inline-flex h-10 items-center justify-center rounded-md bg-[#F7CD3A] px-4 text-[14px] font-semibold text-gray-900 ring-1 ring-black/10 disabled:opacity-60">Continue</button>
+                  </div>
+                </>
+              )}
             </div>
             <aside className="rounded-xl bg-white p-4 ring-1 ring-black/10">
               <h3 className="text-[16px] font-semibold text-gray-900">Summary</h3>
               <div className="mt-3 space-y-2 text-[14px]">
-                {/* 7. Update Summary Sidebar (Address Step) */}
                 <div className="flex items-center justify-between"><span className="text-gray-600">Items</span><span className="font-semibold">{items.length}</span></div>
                 <div className="flex items-center justify-between"><span className="text-gray-600">Subtotal</span><span className="font-semibold">{formatPrice(subtotal)}</span></div>
                 <div className="flex items-center justify-between"><span className="text-gray-600">VAT (7.5%)</span><span className="font-semibold">{formatPrice(vat)}</span></div>
@@ -914,12 +796,10 @@ export default function Checkout() {
           </div>
         )}
 
-        {/* Payment step (replace deliveryPrice refs) */}
         {((unauthenticated && step === 3) || (!unauthenticated && step === 2)) && (
           <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
             <div className="rounded-xl bg-white p-4 ring-1 ring-black/10">
               <h3 className="text-[16px] font-semibold text-gray-900">Payment</h3>
-              {/* Payment method: only Paystack or Flutterwave */}
               <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
                 <label className={`flex cursor-pointer items-center gap-3 rounded-md border p-3 ${payment==='paystack' ? 'border-brand ring-1 ring-brand/50 bg-[#FFF9E6]' : 'border-black/10 bg-gray-50'}`}>
                   <input type="radio" name="pay" checked={payment==='paystack'} onChange={()=>setPayment('paystack')} />
@@ -941,7 +821,6 @@ export default function Checkout() {
                 <span className="font-semibold">{formatPrice(total)}</span>
               </div>
               <div className="mt-2 space-y-1 text-[12px] text-gray-600">
-                {/* 9. Update Payment Small Details */}
                 <div className="flex items-center justify-between"><span>Subtotal</span><span>{formatPrice(subtotal)}</span></div>
                 <div className="flex items-center justify-between"><span>VAT (7.5%)</span><span>{formatPrice(vat)}</span></div>
                 <div className="flex items-center justify-between"><span>Delivery ({deliveryMethod==='gig' ? 'GIG' : 'Gapa'})</span><span>{effectiveDeliveryPrice > 0 ? formatPrice(effectiveDeliveryPrice) : '-'}</span></div>
@@ -964,7 +843,6 @@ export default function Checkout() {
           </div>
         )}
 
-        {/* Review step (replace deliveryPrice refs) */}
         {((unauthenticated && step === 4) || (!unauthenticated && step === 3)) && (
           <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
             <div className="rounded-xl bg-white p-4 ring-1 ring-black/10">
@@ -1119,4 +997,4 @@ function SignupInline({ onSuccess }: { onSuccess: () => void }) {
       <button disabled={loading} className="w-full rounded-md bg-brand py-2 text-[12px] font-semibold text-white disabled:opacity-60">{loading? 'Creating account…' : 'Create account'}</button>
     </form>
   )
-}
+  }
