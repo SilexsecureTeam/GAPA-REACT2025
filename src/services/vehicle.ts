@@ -53,15 +53,15 @@ export function vehicleMatches(product: any, state: VehicleFilterState): boolean
   // If product has NO suitability data array at all, assume it fits everything (Universal).
   // If it has an empty array [], it fits nothing specific (unless filter is empty).
   if (!suitability) return true
-  if (Array.isArray(suitability) && suitability.length === 0) return true // Treat empty array as universal for now to avoid hiding too much
+  if (Array.isArray(suitability) && suitability.length === 0) return true 
 
   // 4. Prepare Filter Tokens (Year-Insensitive)
   const searchBrand = normalize(brandName || '')
+  // Strip years for model to ensure strict name match doesn't fail on "2010"
   const searchModel = stripYears(normalize(modelName || '')) 
   const cleanEngine = stripYears(normalize(engineName || ''))
   
-  // Split engine into tokens (e.g. "4", "7", "v8"). 
-  // We keep ALL tokens (even single chars) to support "2.0", "3", "L" etc.
+  // Split engine into tokens for fuzzy matching
   const engineTokens = cleanEngine.split(' ').filter(t => t.length > 0)
 
   // 5. Check against Suitability Array
@@ -70,7 +70,7 @@ export function vehicleMatches(product: any, state: VehicleFilterState): boolean
     const entryBrandId = String(entry.brand_id || '')
     const entryBrandStr = normalize(entry.model || entry.brand_name || '')
 
-    // Match by ID if available, else strict Name match
+    // Strict ID or Strict Name Inclusion
     const brandMatches = (brandId && entryBrandId === String(brandId)) || 
                          (searchBrand && entryBrandStr.includes(searchBrand))
     
@@ -92,42 +92,48 @@ export function vehicleMatches(product: any, state: VehicleFilterState): boolean
       const rawSubStr = normalize(sub.sub_model || sub.model || '')
       const cleanSubStr = stripYears(rawSubStr)
 
-      // A. Model Match
+      // A. Model Match (Strict 100% requirement as requested)
       let modelMatches = false
       if (modelId && subMainId === String(modelId)) {
         modelMatches = true
-      } else if (searchModel && cleanSubStr.includes(searchModel)) {
-        modelMatches = true
+      } else if (searchModel) {
+        // Strict text check: The product string MUST contain the model name 
+        // (after years are stripped).
+        if (cleanSubStr.includes(searchModel)) {
+            modelMatches = true
+        }
       } else if (!modelId && !modelName) {
         modelMatches = true
       }
 
       if (!modelMatches) return false
+      
+      // If no engine selected, the strict model match is sufficient (100% match condition met)
       if (!engineId && !engineName) return true
 
       // B. Engine Match
+      let engineMatches = false
+      
+      // 1. Strict ID Match
       if (engineId && subEngineId === String(engineId)) {
         return true
       }
 
-      // Fuzzy Token Match for Engine
+      // 2. Fuzzy Token Match for Engine (90% threshold as requested)
       if (engineTokens.length > 0) {
         // Check how many tokens from the filter appear in the product string
         const tokensFound = engineTokens.filter(token => cleanSubStr.includes(token))
+        const matchRatio = tokensFound.length / engineTokens.length
         
-        // Strictness logic:
-        // If filter is simple (1-2 words e.g. "V8"), require ALL to match.
-        // If filter is complex (e.g. "3.5L V6 Gas"), allow some mismatch (e.g. missing "Gas").
-        if (engineTokens.length <= 2) {
-             return tokensFound.length === engineTokens.length
-        } else {
-             // For longer strings, require 90% match
-             return (tokensFound.length / engineTokens.length) >= 0.90
-        }
-      } 
-      
-      // If we are here, we had engine text but no tokens (unlikely), or match failed.
-      return true // If engineTokens empty (only years were stripped), assume match.
+        // If 90% or more of the words match, allow it.
+        // This allows very minor differences but enforces the specific engine code.
+        if (matchRatio >= 0.9) return true
+      } else {
+        // If engine filter was only years (and we stripped them), ignore engine constraint
+        return true
+      }
+
+      return false
     })
   })
-}
+        }
