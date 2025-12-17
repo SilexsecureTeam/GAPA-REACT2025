@@ -495,6 +495,69 @@ export default function Checkout() {
       toast.error(e?.message || 'Unable to start payment')
     }
   }
+  
+  // Flutterwave Integration
+  const FLUTTER_KEY = (
+    sanitizeKey((import.meta as any)?.env?.VITE_FLUTTER_PUBLIC_KEY)
+    || sanitizeKey(typeof window !== 'undefined' ? (window as any).VITE_FLUTTER_PUBLIC_KEY : undefined)
+    || sanitizeKey(typeof window !== 'undefined' ? (window as any).FLUTTER_PUBLIC_TEST_SK : undefined)
+    || sanitizeKey(typeof document !== 'undefined' ? (document.querySelector('meta[name="flutter-public-key"]') as HTMLMetaElement | null)?.content : undefined)
+  ) as string | undefined
+
+  async function ensureFlutterScript() {
+    if ((window as any).FlutterwaveCheckout) return
+    await new Promise<void>((resolve, reject) => {
+      const s = document.createElement('script')
+      s.src = 'https://checkout.flutterwave.com/v3.js'
+      s.async = true
+      s.onload = () => resolve()
+      s.onerror = () => reject(new Error('Failed to load Flutterwave'))
+      document.body.appendChild(s)
+    })
+  }
+
+  async function startFlutterCheckout() {
+    if (!FLUTTER_KEY) { toast.error('Payment is not configured'); return }
+    try {
+      await ensureFlutterScript()
+      const amountNgn = Math.max(0, Math.round(subtotal + vat + (effectiveDeliveryPrice || 0)))
+      const email = address.email || (user as any)?.email || 'user@example.com'
+      const ref = `GAPA_FLW_${Date.now()}`
+      ;(window as any).FlutterwaveCheckout({
+        public_key: FLUTTER_KEY,
+        tx_ref: ref,
+        amount: amountNgn,
+        currency: 'NGN',
+        payment_options: 'card,banktransfer,ussd',
+        customer: {
+          email,
+          phone_number: address.phone || '',
+          name: address.fullName || ''
+        },
+        callback: async (response: any) => {
+          try {
+            await paymentSuccessfull({
+              shipping_cost: effectiveDeliveryPrice || 0,
+              address: buildAddressString(),
+              user_id: (user as any)?.id ?? '',
+              txn_id: response?.transaction_id || response?.tx_ref || ref,
+              pickup_location_id: address.deliveryLocationId ? String(address.deliveryLocationId) : '',
+            })
+            try { setGuestCart({ items: [] }) } catch {}
+            toast.success('Payment successful')
+            navigate(`/order-success?ref=${encodeURIComponent(response?.tx_ref || ref)}&amount=${encodeURIComponent(String(amountNgn))}`)
+          } catch (e: any) {
+            toast.error(e?.message || 'Failed to confirm payment')
+          }
+        },
+        onclose: () => {
+          toast('Payment cancelled')
+        }
+      })
+    } catch (e: any) {
+      toast.error(e?.message || 'Unable to start payment')
+    }
+  }
 
   const goNext = () => {
     if (step === 0) {
@@ -997,4 +1060,4 @@ function SignupInline({ onSuccess }: { onSuccess: () => void }) {
       <button disabled={loading} className="w-full rounded-md bg-brand py-2 text-[12px] font-semibold text-white disabled:opacity-60">{loading? 'Creating account…' : 'Create account'}</button>
     </form>
   )
-  }
+    }
