@@ -776,7 +776,7 @@ export default function CarPartDetails() {
           <aside className="rounded-lg bg-white col-span-2 px-1">
             <div className="text-right">
               <div className="text-[22px] font-bold text-gray-900">{formatPrice(ui.price)}</div>
-              <div className="mt-1 text-[10px] text-gray-600">Incl. 20% VAT, excl delivery cost</div>
+              <div className="mt-1 text-[10px] text-gray-600">Incl. 7.5% VAT, excl delivery cost</div>
             </div>
             <div className="mt-4 flex items-center justify-center gap-2">
               <button aria-label="Decrease" onClick={dec} disabled={Boolean(isSelected && pairsYes)} className="inline-flex h-7 w-7 items-center justify-center rounded-md ring-1 ring-black/10 text-gray-700 disabled:opacity-50">‹</button>
