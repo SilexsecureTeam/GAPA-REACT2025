@@ -2,13 +2,12 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useCurrency } from '../context/CurrencyContext'
 import { useAuth } from '../services/auth'
-import { getCartForUser, removeCartItem, addToCartApi, getProductById, getAllStatesApi, getStatesByLocation, updateDeliveryAddress, /* getUserCartTotal, */ getPriceByState, paymentSuccessfull, getGigQuote, getUserProfileById, updateUserProfile, type GigQuoteParams } from '../services/api'
+import { getCartForUser, removeCartItem, addToCartApi, getProductById, getAllStatesApi, getStatesByLocation, updateDeliveryAddress, /* getUserCartTotal, */ getPriceByState, paymentSuccessfull, getGigQuote } from '../services/api'
 import { getGuestCart, setGuestCart, type GuestCart } from '../services/cart'
 import { normalizeApiImage, pickImage, productImageFrom } from '../services/images'
 import logoImg from '../assets/gapa-logo.png'
 import toast from 'react-hot-toast'
 import AddressAutocomplete from '../components/AddressAutocomplete'
-import FallbackLoader from '../components/FallbackLoader'
 // import deliveryGig from '../assets/deliveryGig.png'
 // Add optional secrets fallback (dev convenience only)
 import { PAYSTACK_PUBLIC_KEY as SECRET_PAYSTACK_KEY } from '../secrets'
@@ -122,7 +121,7 @@ function useCartData() {
 export default function Checkout() {
   const navigate = useNavigate()
   const { user } = useAuth()
-  const { currency, formatPrice, setCurrency } = useCurrency() // Added setCurrency
+  const { formatPrice } = useCurrency()
   const { loading, items, rawItems, reload } = useCartData()
   const [busyId, setBusyId] = useState<string | null>(null)
   const unauthenticated = !user
@@ -145,9 +144,12 @@ export default function Checkout() {
   const [gigQuoteAmount, setGigQuoteAmount] = useState<number>(0)
   const [gigLoading, setGigLoading] = useState<boolean>(false)
   const [gigError, setGigError] = useState<string | null>(null)
-  
+  // Remove GIG stations state (endpoints 404); use static fallback IDs
+  // const [gigStations, setGigStations] = useState<{ id:number; name:string; city:string; state:string; raw:any }[]>([])
+  // const [gigStationId, setGigStationId] = useState<number | null>(null)
   const DEFAULT_GIG_RECEIVER_STATION_ID = 2 // fallback based on working payload example
-  
+  // Removed unused DEFAULT_GIG_SENDER_STATION_ID constant (was causing TS 6133 warning)
+  // const [gigLastRegion, setGigLastRegion] = useState<string | number | undefined>(undefined)
   // NEW: receiver geolocation (attempt to capture once)
   const [receiverGeo, setReceiverGeo] = useState<{ lat?: number; lng?: number; error?: string }>({})
   useEffect(() => {
@@ -191,7 +193,6 @@ export default function Checkout() {
   const [states, setStates] = useState<{ id?: string | number; name?: string; state?: string; title?: string }[]>([])
   const [statesLoading, setStatesLoading] = useState(false)
   const [locations, setLocations] = useState<{ id: string | number; location: string; price: number }[]>([])
-  const [isUpdatingProfile, setIsUpdatingProfile] = useState(false)
 
   // NEW: Allowed states for Gapa delivery only
   const GAPA_ALLOWED_STATE_TITLES = useMemo(()=>['LAGOS STATE','ABUJA FEDERAL CAPITAL TERRITORY'], [])
@@ -771,158 +772,133 @@ export default function Checkout() {
           <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
             <div className="rounded-xl bg-white p-4 ring-1 ring-black/10">
               <h3 className="text-[16px] font-semibold text-gray-900">Shipping Address</h3>
-              
-              {/* Currency Check: Only allow checkout in NGN */}
-              {currency !== 'NGN' ? (
-                <div className="flex flex-col items-center justify-center py-10 text-center rounded-lg bg-red-50 border border-red-100 my-4">
-                  <div className="rounded-full bg-red-100 p-3 mb-3">
-                      <svg className="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                      </svg>
+              {/* Delivery Method Selector */}
+              <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+                <label className={`flex cursor-pointer items-center gap-3 rounded-md border p-3 text-sm ${deliveryMethod==='gapa' ? 'border-brand ring-1 ring-brand/50 bg-[#FFF9E6]' : 'border-black/10 bg-gray-50'}`}>
+                  <input type="radio" name="deliveryMethod" checked={deliveryMethod==='gapa'} onChange={()=>setDeliveryMethod('gapa')} />
+                  <div>
+                    <div className="font-semibold text-gray-900">Gapa Delivery</div>
+                    <div className="text-[11px] text-gray-600">State/location based rate</div>
                   </div>
-                  <h3 className="text-lg font-bold text-gray-900">Can't ship to current location</h3>
-                  <p className="text-sm text-gray-600 mt-2 max-w-xs mx-auto">
-                      We currently only support shipping and checkout for orders within Nigeria (NGN).
-                  </p>
-                  <button 
-                      onClick={() => setCurrency('NGN')} 
-                      className="mt-5 inline-flex items-center gap-2 rounded-md bg-[#F7CD3A] px-6 py-2.5 text-sm font-bold text-[#201A2B] shadow-sm hover:brightness-105 transition-all"
-                  >
-                      Ship within Nigeria
-                      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
-                  </button>
-                </div>
-              ) : (
-                <>
-                  {/* Delivery Method Selector */}
-                  <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
-                    <label className={`flex cursor-pointer items-center gap-3 rounded-md border p-3 text-sm ${deliveryMethod==='gapa' ? 'border-brand ring-1 ring-brand/50 bg-[#FFF9E6]' : 'border-black/10 bg-gray-50'}`}>
-                      <input type="radio" name="deliveryMethod" checked={deliveryMethod==='gapa'} onChange={()=>setDeliveryMethod('gapa')} />
-                      <div>
-                        <div className="font-semibold text-gray-900">Gapa Delivery</div>
-                        <div className="text-[11px] text-gray-600">State/location based rate</div>
-                      </div>
-                    </label>
-                    <label className={`flex cursor-pointer items-center gap-3 rounded-md border p-3 text-sm ${deliveryMethod==='gig' ? 'border-brand ring-1 ring-brand/50 bg-[#FFF9E6]' : 'border-black/10 bg-gray-50'}`}>
-                      <input type="radio" name="deliveryMethod" checked={deliveryMethod==='gig'} onChange={()=>{ setDeliveryMethod('gig'); setGigQuoteAmount(0); setGigError(null); if(address.regionId) void requestGigQuote() }} />
-                      <div className="flex items-center gap-2">
-                        <div>
-                          <div className="font-semibold text-gray-900">GIG Logistics</div>
-                          <div className="text-[11px] text-gray-600">Dynamic nationwide rate</div>
-                        </div>
-                      </div>
-                    </label>
-                  </div>
-
-                  <div className="mt-6 grid grid-cols-1 gap-3 md:grid-cols-2">
-                    {/* Address fields (unchanged) */}
-                    <label className="text-[13px] text-gray-700">Full name
-                      <input value={address.fullName} onChange={(e)=>setAddress((a: Address)=>({ ...a, fullName: e.target.value }))} className="mt-1 w-full rounded-md border border-black/10 px-3 py-2 text-[14px] outline-none focus:ring-2 focus:ring-brand" placeholder="e.g., John Doe" />
-                    </label>
-                    <label className="text-[13px] text-gray-700">Email
-                      <input type="email" value={address.email} onChange={(e)=>setAddress((a: Address)=>({ ...a, email: e.target.value }))} className="mt-1 w-full rounded-md border border-black/10 px-3 py-2 text-[14px] outline-none focus:ring-2 focus:ring-brand" placeholder="you@example.com" />
-                    </label>
-                    <label className="text-[13px] text-gray-700">Phone
-                      <input value={address.phone} onChange={(e)=>setAddress((a: Address)=>({ ...a, phone: e.target.value }))} className="mt-1 w-full rounded-md border border-black/10 px-3 py-2 text-[14px] outline-none focus:ring-2 focus:ring-brand" placeholder="08012345678" />
-                    </label>
-                    <span />
-                    <label className="text-[13px] text-gray-700 md:col-span-2">Address line 1
-                      <AddressAutocomplete
-                        value={address.address1}
-                        onChange={(v)=>setAddress((a: Address)=>({ ...a, address1: v }))}
-                        onAddressSelect={(s)=>{
-                          setAddress((a: Address)=>({ ...a, address1: s.address1 || a.address1, city: s.city || a.city, region: s.region || a.region, postcode: s.postcode || a.postcode }))
-                        }}
-                        placeholder="Street, area"
-                        country={address.country?.toLowerCase?.() || 'ng'}
-                      />
-                    </label>
-                    <label className="text-[13px] text-gray-700 md:col-span-2">Address line 2 (optional)
-                      <input value={address.address2} onChange={(e)=>setAddress((a: Address)=>({ ...a, address2: e.target.value }))} className="mt-1 w-full rounded-md border border-black/10 px-3 py-2 text-[14px] outline-none focus:ring-2 focus:ring-brand" placeholder="Apartment, suite, etc." />
-                    </label>
-                    <label className={`text-[13px] font-medium transition-all ${!address.regionId && deliveryMethod ? 'text-brand' : 'text-gray-700'}`}>
-                      <span className="flex items-center gap-2">
-                        State
-                        {!address.regionId && deliveryMethod && (
-                          <span className="inline-flex h-5 items-center rounded-full bg-brand/10 px-2 text-[10px] font-semibold text-brand animate-pulse">
-                            Select here →
-                          </span>
-                        )}
-                      </span>
-                      <select value={String(address.regionId || '')} onChange={(e)=>{
-                        const id = e.target.value
-                        const st = states.find((s) => String(s.id ?? '') === id)
-                        const label = (st?.title || st?.name || st?.state || '') as string
-                        setAddress((a: Address)=>({ ...a, regionId: id, region: label, deliveryLocationId: undefined, deliveryLocationName: undefined }))
-                        // reset quotes / prices on state change
-                        setGigQuoteAmount(0); setGigError(null); setGapaDeliveryPrice(0)
-                      }} className={`mt-1 h-10 w-full rounded-md border bg-white px-3 text-[14px] outline-none transition-all ${
-                        !address.regionId && deliveryMethod 
-                          ? 'border-brand ring-2 ring-brand/30 shadow-md animate-pulse' 
-                          : 'border-black/10 focus:ring-2 focus:ring-brand'
-                      }`}>
-                        <option value="">{statesLoading ? 'Loading states…' : 'Select state'}</option>
-                        {(deliveryMethod==='gapa' ? states.filter(isAllowedForGapa) : states).map((s) => {
-                          const label = (s.title || s.name || s.state || '') as string
-                          const id = String(s.id ?? label)
-                          return <option key={id} value={id}>{label}</option>
-                        })}
-                      </select>
-                    </label>
-                    {/* Gapa delivery location selector (shown when multiple locations) */}
-                    {deliveryMethod==='gapa' && address.regionId && locations.length>0 && (
-                      <label className="text-[13px] text-gray-700">Delivery location
-                        <select value={String(address.deliveryLocationId || '')} onChange={(e)=>{
-                          const val = e.target.value
-                          const loc = locations.find(l => String(l.id) === val)
-                          setAddress((a: Address)=>({ ...a, deliveryLocationId: val || undefined, deliveryLocationName: loc?.location }))
-                          if (loc) setGapaDeliveryPrice(Math.max(0, Math.round(loc.price || 0)))
-                          else setGapaDeliveryPrice(0)
-                        }} className="mt-1 h-10 w-full rounded-md border border-black/10 bg-white px-3 text-[14px] outline-none focus:ring-2 focus:ring-brand">
-                          <option value="">Select location</option>
-                          {locations.map(l => <option key={l.id} value={l.id}>{l.location}</option>)} {/* Removed price display */}
-                        </select>
-                      </label>
-                    )}
-                    {/* Postcode */}
-                    <label className="text-[13px] text-gray-700">Zipcode
-                      <input value={address.postcode} onChange={(e)=>setAddress((a: Address)=>({ ...a, postcode: e.target.value }))} className="mt-1 w-full rounded-md border border-black/10 px-3 py-2 text-[14px] outline-none focus:ring-2 focus:ring-brand" />
-                    </label>
-                  </div>
-
-                  {/* GIG status panel when selected */}
-                  {deliveryMethod==='gig' && (
-                    <div className="mt-4 rounded-md border border-dashed p-3">
-                      <div className="flex items-center gap-3">
-                        {/* <img src={deliveryGig} alt="GIG Logistics" className="h-8 w-auto" /> */}
-                        <div className="text-sm font-semibold text-gray-900">GIG Logistics Quote</div>
-                      </div>
-                      <div className="mt-2 text-[12px] text-gray-600">Live rate from GIG.</div>
-                      <div className="mt-2 flex flex-wrap items-center gap-3 text-[13px] font-medium">
-                        {gigLoading && <span className="text-gray-600">Fetching quote…</span>}
-                        {/* Inline error removed; handled via toast */}
-                        {!gigLoading && !gigError && gigQuoteAmount>0 && <span className="text-gray-900">{formatPrice(gigQuoteAmount)}</span>}
-                        {!gigLoading && !gigError && !gigQuoteAmount && address.regionId && <span className="text-gray-500">No quote yet</span>}
-                        <button type="button" disabled={gigLoading || !address.regionId} onClick={()=>void requestGigQuote()} className="inline-flex h-8 items-center justify-center rounded-md border border-brand px-3 text-[12px] font-semibold text-brand disabled:opacity-50">{gigLoading? 'Loading…' : gigQuoteAmount>0 ? 'Refresh quote' : 'Get quote'}</button>
-                        {!gigLoading && gigError && <button type="button" onClick={()=>void requestGigQuote()} className="text-[12px] text-brand underline">Retry</button>}
-                      </div>
+                </label>
+                <label className={`flex cursor-pointer items-center gap-3 rounded-md border p-3 text-sm ${deliveryMethod==='gig' ? 'border-brand ring-1 ring-brand/50 bg-[#FFF9E6]' : 'border-black/10 bg-gray-50'}`}>
+                  <input type="radio" name="deliveryMethod" checked={deliveryMethod==='gig'} onChange={()=>{ setDeliveryMethod('gig'); setGigQuoteAmount(0); setGigError(null); if(address.regionId) void requestGigQuote() }} />
+                  <div className="flex items-center gap-2">
+                    <div>
+                      <div className="font-semibold text-gray-900">GIG Logistics</div>
+                      <div className="text-[11px] text-gray-600">Dynamic nationwide rate</div>
                     </div>
-                  )}
-
-                  {/* Gapa error message when no price */}
-                  {deliveryMethod==='gapa' && address.regionId && !deliveryLoading && locations.length===0 && (
-                    <div className="mt-3 rounded-md bg-red-50 px-3 py-2 text-[12px] text-red-700 ring-1 ring-red-200">Can't ship to this location</div>
-                  )}
-                  {deliveryMethod==='gapa' && address.regionId && locations.length>0 && !gapaDeliveryPrice && (
-                    <div className="mt-3 rounded-md bg-red-50 px-3 py-2 text-[12px] text-red-700 ring-1 ring-red-200">Select a delivery location to get price</div>
-                  )}
-
-                  <div className="mt-4 flex gap-2">
-                    <button onClick={goBack} className="inline-flex h-10 items-center justify-center rounded-md bg-gray-100 px-4 text-[14px] font-semibold text-gray-900 ring-1 ring-black/10">Back</button>
-                    <button onClick={goNext} disabled={!addressValid} className="inline-flex h-10 items-center justify-center rounded-md bg-[#F7CD3A] px-4 text-[14px] font-semibold text-gray-900 ring-1 ring-black/10 disabled:opacity-60">Continue</button>
                   </div>
-                </>
+                </label>
+              </div>
+
+              <div className="mt-6 grid grid-cols-1 gap-3 md:grid-cols-2">
+                {/* Address fields (unchanged) */}
+                <label className="text-[13px] text-gray-700">Full name
+                  <input value={address.fullName} onChange={(e)=>setAddress((a: Address)=>({ ...a, fullName: e.target.value }))} className="mt-1 w-full rounded-md border border-black/10 px-3 py-2 text-[14px] outline-none focus:ring-2 focus:ring-brand" placeholder="e.g., John Doe" />
+                </label>
+                <label className="text-[13px] text-gray-700">Email
+                  <input type="email" value={address.email} onChange={(e)=>setAddress((a: Address)=>({ ...a, email: e.target.value }))} className="mt-1 w-full rounded-md border border-black/10 px-3 py-2 text-[14px] outline-none focus:ring-2 focus:ring-brand" placeholder="you@example.com" />
+                </label>
+                <label className="text-[13px] text-gray-700">Phone
+                  <input value={address.phone} onChange={(e)=>setAddress((a: Address)=>({ ...a, phone: e.target.value }))} className="mt-1 w-full rounded-md border border-black/10 px-3 py-2 text-[14px] outline-none focus:ring-2 focus:ring-brand" placeholder="08012345678" />
+                </label>
+                <span />
+                <label className="text-[13px] text-gray-700 md:col-span-2">Address line 1
+                  <AddressAutocomplete
+                    value={address.address1}
+                    onChange={(v)=>setAddress((a: Address)=>({ ...a, address1: v }))}
+                    onAddressSelect={(s)=>{
+                      setAddress((a: Address)=>({ ...a, address1: s.address1 || a.address1, city: s.city || a.city, region: s.region || a.region, postcode: s.postcode || a.postcode }))
+                    }}
+                    placeholder="Street, area"
+                    country={address.country?.toLowerCase?.() || 'ng'}
+                  />
+                </label>
+                <label className="text-[13px] text-gray-700 md:col-span-2">Address line 2 (optional)
+                  <input value={address.address2} onChange={(e)=>setAddress((a: Address)=>({ ...a, address2: e.target.value }))} className="mt-1 w-full rounded-md border border-black/10 px-3 py-2 text-[14px] outline-none focus:ring-2 focus:ring-brand" placeholder="Apartment, suite, etc." />
+                </label>
+                <label className={`text-[13px] font-medium transition-all ${!address.regionId && deliveryMethod ? 'text-brand' : 'text-gray-700'}`}>
+                  <span className="flex items-center gap-2">
+                    State
+                    {!address.regionId && deliveryMethod && (
+                      <span className="inline-flex h-5 items-center rounded-full bg-brand/10 px-2 text-[10px] font-semibold text-brand animate-pulse">
+                        Select here →
+                      </span>
+                    )}
+                  </span>
+                  <select value={String(address.regionId || '')} onChange={(e)=>{
+                    const id = e.target.value
+                    const st = states.find((s) => String(s.id ?? '') === id)
+                    const label = (st?.title || st?.name || st?.state || '') as string
+                    setAddress((a: Address)=>({ ...a, regionId: id, region: label, deliveryLocationId: undefined, deliveryLocationName: undefined }))
+                    // reset quotes / prices on state change
+                    setGigQuoteAmount(0); setGigError(null); setGapaDeliveryPrice(0)
+                  }} className={`mt-1 h-10 w-full rounded-md border bg-white px-3 text-[14px] outline-none transition-all ${
+                    !address.regionId && deliveryMethod 
+                      ? 'border-brand ring-2 ring-brand/30 shadow-md animate-pulse' 
+                      : 'border-black/10 focus:ring-2 focus:ring-brand'
+                  }`}>
+                    <option value="">{statesLoading ? 'Loading states…' : 'Select state'}</option>
+                    {(deliveryMethod==='gapa' ? states.filter(isAllowedForGapa) : states).map((s) => {
+                      const label = (s.title || s.name || s.state || '') as string
+                      const id = String(s.id ?? label)
+                      return <option key={id} value={id}>{label}</option>
+                    })}
+                  </select>
+                </label>
+                {/* Gapa delivery location selector (shown when multiple locations) */}
+                {deliveryMethod==='gapa' && address.regionId && locations.length>0 && (
+                  <label className="text-[13px] text-gray-700">Delivery location
+                    <select value={String(address.deliveryLocationId || '')} onChange={(e)=>{
+                      const val = e.target.value
+                      const loc = locations.find(l => String(l.id) === val)
+                      setAddress((a: Address)=>({ ...a, deliveryLocationId: val || undefined, deliveryLocationName: loc?.location }))
+                      if (loc) setGapaDeliveryPrice(Math.max(0, Math.round(loc.price || 0)))
+                      else setGapaDeliveryPrice(0)
+                    }} className="mt-1 h-10 w-full rounded-md border border-black/10 bg-white px-3 text-[14px] outline-none focus:ring-2 focus:ring-brand">
+                      <option value="">Select location</option>
+                      {locations.map(l => <option key={l.id} value={l.id}>{l.location}</option>)} {/* Removed price display */}
+                    </select>
+                  </label>
+                )}
+                {/* Postcode */}
+                <label className="text-[13px] text-gray-700">Zipcode
+                  <input value={address.postcode} onChange={(e)=>setAddress((a: Address)=>({ ...a, postcode: e.target.value }))} className="mt-1 w-full rounded-md border border-black/10 px-3 py-2 text-[14px] outline-none focus:ring-2 focus:ring-brand" />
+                </label>
+              </div>
+
+              {/* GIG status panel when selected */}
+              {deliveryMethod==='gig' && (
+                <div className="mt-4 rounded-md border border-dashed p-3">
+                  <div className="flex items-center gap-3">
+                    {/* <img src={deliveryGig} alt="GIG Logistics" className="h-8 w-auto" /> */}
+                    <div className="text-sm font-semibold text-gray-900">GIG Logistics Quote</div>
+                  </div>
+                  <div className="mt-2 text-[12px] text-gray-600">Live rate from GIG.</div>
+                  <div className="mt-2 flex flex-wrap items-center gap-3 text-[13px] font-medium">
+                    {gigLoading && <span className="text-gray-600">Fetching quote…</span>}
+                    {/* Inline error removed; handled via toast */}
+                    {!gigLoading && !gigError && gigQuoteAmount>0 && <span className="text-gray-900">{formatPrice(gigQuoteAmount)}</span>}
+                    {!gigLoading && !gigError && !gigQuoteAmount && address.regionId && <span className="text-gray-500">No quote yet</span>}
+                    <button type="button" disabled={gigLoading || !address.regionId} onClick={()=>void requestGigQuote()} className="inline-flex h-8 items-center justify-center rounded-md border border-brand px-3 text-[12px] font-semibold text-brand disabled:opacity-50">{gigLoading? 'Loading…' : gigQuoteAmount>0 ? 'Refresh quote' : 'Get quote'}</button>
+                    {!gigLoading && gigError && <button type="button" onClick={()=>void requestGigQuote()} className="text-[12px] text-brand underline">Retry</button>}
+                  </div>
+                </div>
               )}
+
+              {/* Gapa error message when no price */}
+              {deliveryMethod==='gapa' && address.regionId && !deliveryLoading && locations.length===0 && (
+                <div className="mt-3 rounded-md bg-red-50 px-3 py-2 text-[12px] text-red-700 ring-1 ring-red-200">Can't ship to this location</div>
+              )}
+              {deliveryMethod==='gapa' && address.regionId && locations.length>0 && !gapaDeliveryPrice && (
+                <div className="mt-3 rounded-md bg-red-50 px-3 py-2 text-[12px] text-red-700 ring-1 ring-red-200">Select a delivery location to get price</div>
+              )}
+
+              <div className="mt-4 flex gap-2">
+                <button onClick={goBack} className="inline-flex h-10 items-center justify-center rounded-md bg-gray-100 px-4 text-[14px] font-semibold text-gray-900 ring-1 ring-black/10">Back</button>
+                <button onClick={goNext} disabled={!addressValid} className="inline-flex h-10 items-center justify-center rounded-md bg-[#F7CD3A] px-4 text-[14px] font-semibold text-gray-900 ring-1 ring-black/10 disabled:opacity-60">Continue</button>
+              </div>
             </div>
             <aside className="rounded-xl bg-white p-4 ring-1 ring-black/10">
               <h3 className="text-[16px] font-semibold text-gray-900">Summary</h3>
@@ -1143,4 +1119,4 @@ function SignupInline({ onSuccess }: { onSuccess: () => void }) {
       <button disabled={loading} className="w-full rounded-md bg-brand py-2 text-[12px] font-semibold text-white disabled:opacity-60">{loading? 'Creating account…' : 'Create account'}</button>
     </form>
   )
-            }
+}
