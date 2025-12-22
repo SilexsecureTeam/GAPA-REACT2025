@@ -2,14 +2,12 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useCurrency } from '../context/CurrencyContext'
 import { useAuth } from '../services/auth'
-import { getCartForUser, removeCartItem, addToCartApi, getProductById, getAllStatesApi, getStatesByLocation, updateDeliveryAddress, /* getUserCartTotal, */ getPriceByState, paymentSuccessfull, getGigQuote, type GigQuoteParams, getUserProfileById, updateUserProfile } from '../services/api'
+import { getCartForUser, removeCartItem, addToCartApi, getProductById, getAllStatesApi, getStatesByLocation, updateDeliveryAddress, /* getUserCartTotal, */ getPriceByState, paymentSuccessfull, getGigQuote } from '../services/api'
 import { getGuestCart, setGuestCart, type GuestCart } from '../services/cart'
 import { normalizeApiImage, pickImage, productImageFrom } from '../services/images'
 import logoImg from '../assets/gapa-logo.png'
 import toast from 'react-hot-toast'
 import AddressAutocomplete from '../components/AddressAutocomplete'
-import FallbackLoader from '../components/FallbackLoader'
-import { PaystackButton } from 'react-paystack'
 // import deliveryGig from '../assets/deliveryGig.png'
 // Add optional secrets fallback (dev convenience only)
 import { PAYSTACK_PUBLIC_KEY as SECRET_PAYSTACK_KEY } from '../secrets'
@@ -123,8 +121,8 @@ function useCartData() {
 export default function Checkout() {
   const navigate = useNavigate()
   const { user } = useAuth()
-  // Updated hook destructuring to include setCurrency
-  const { currency, formatPrice, setCurrency } = useCurrency()
+  // Added setCurrency here
+  const { formatPrice, currency, setCurrency } = useCurrency()
   const { loading, items, rawItems, reload } = useCartData()
   const [busyId, setBusyId] = useState<string | null>(null)
   const unauthenticated = !user
@@ -210,8 +208,6 @@ export default function Checkout() {
     return false
   }
 
-  const [isUpdatingProfile, setIsUpdatingProfile] = useState(false)
-
   // When switching to Gapa, if current state not allowed, clear it.
   useEffect(() => {
     if (deliveryMethod !== 'gapa') return
@@ -255,23 +251,6 @@ export default function Checkout() {
       } catch { setStates([]) } finally { setStatesLoading(false) }
     }
     loadStates()
-    
-    // Load profile explicitly to get phone/address if not in context
-    if (user?.id) {
-       getUserProfileById(user.id).then(u => {
-          if (u) {
-             setAddress(prev => ({
-                ...prev,
-                fullName: prev.fullName || u.name || '',
-                phone: prev.phone || u.phone || '',
-                address1: prev.address1 || u.address || '',
-                city: prev.city || u.city || '',
-                // If user has region/state, we might match it later in the hydration effect
-                region: prev.region || u.region || u.state || ''
-             }))
-          }
-       }).catch(()=>{})
-    }
   }, [user?.id])
 
   // Hydrate regionId from stored region name
@@ -502,16 +481,7 @@ export default function Checkout() {
     if (user && (user as any).id) {
       const methodTag = deliveryMethod === 'gig' ? 'GIG Logistics' : 'Gapa Delivery'
       const payloadAddress = [address.address1, address.address2, address.region, address.postcode, address.deliveryLocationName, methodTag].filter(Boolean).join(', ')
-      try { 
-         // Update both generic address and structured profile
-         await updateDeliveryAddress({ user_id: (user as any).id, address: payloadAddress })
-         await updateUserProfile({
-           user_id: (user as any).id,
-           name: address.fullName,
-           phone: address.phone,
-           address: payloadAddress
-         })
-      } catch {}
+      try { await updateDeliveryAddress({ user_id: (user as any).id, address: payloadAddress }) } catch {}
     }
     // Ensure deliveryPrice is set; if still 0 and we have a default rate, use it
     // if (deliveryMethod === 'gapa' && !gapaDeliveryPrice && defaultDeliveryRate) setGapaDeliveryPrice(defaultDeliveryRate)
@@ -586,7 +556,7 @@ export default function Checkout() {
       toast.error(e?.message || 'Unable to start payment')
     }
   }
-
+  
   // Flutterwave Integration
   const FLUTTER_KEY = (
     sanitizeKey((import.meta as any)?.env?.VITE_FLUTTER_PUBLIC_KEY)
@@ -746,7 +716,6 @@ export default function Checkout() {
             <aside className="rounded-xl bg-white p-4 ring-1 ring-black/10">
               <h3 className="text-[16px] font-semibold text-gray-900">Order Summary</h3>
               <div className="mt-3 space-y-2 text-[14px]">
-                {/* 5. Update Totals */}
                 <div className="flex items-center justify-between"><span className="text-gray-600">Subtotal</span><span className="font-semibold">{formatPrice(subtotal)}</span></div>
                 <div className="flex items-center justify-between"><span className="text-gray-600">VAT (7.5%)</span><span className="font-semibold">{formatPrice(vat)}</span></div>
                 <div className="flex items-center justify-between"><span className="text-gray-600">Delivery</span><span className="font-semibold">Calculated at next step</span></div>
@@ -757,7 +726,6 @@ export default function Checkout() {
           </div>
         )}
 
-        {/* Login step for unauthenticated users */}
         {unauthenticated && step === 1 && (
           <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
             <div className="rounded-xl bg-white p-4 ring-1 ring-black/10">
@@ -806,24 +774,24 @@ export default function Checkout() {
               
               {/* Currency Check: Only allow checkout in NGN */}
               {currency !== 'NGN' ? (
-                <div className="flex flex-col items-center justify-center py-10 text-center rounded-lg bg-red-50 border border-red-100 my-4">
-                  <div className="rounded-full bg-red-100 p-3 mb-3">
-                      <svg className="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                      </svg>
-                  </div>
-                  <h3 className="text-lg font-bold text-gray-900">Can't ship to current location</h3>
-                  <p className="text-sm text-gray-600 mt-2 max-w-xs mx-auto">
-                      We currently only support shipping and checkout for orders within Nigeria (NGN).
-                  </p>
-                  <button 
-                      onClick={() => setCurrency('NGN')} 
-                      className="mt-5 inline-flex items-center gap-2 rounded-md bg-[#F7CD3A] px-6 py-2.5 text-sm font-bold text-[#201A2B] shadow-sm hover:brightness-105 transition-all"
-                  >
-                      Ship within Nigeria
-                      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
-                  </button>
-                </div>
+                 <div className="flex flex-col items-center justify-center py-10 text-center rounded-lg bg-red-50 border border-red-100 my-4">
+                    <div className="rounded-full bg-red-100 p-3 mb-3">
+                       <svg className="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                       </svg>
+                    </div>
+                    <h3 className="text-lg font-bold text-gray-900">Can't ship to current location</h3>
+                    <p className="text-sm text-gray-600 mt-2 max-w-xs mx-auto">
+                       We currently only support shipping and checkout for orders within Nigeria (NGN).
+                    </p>
+                    <button 
+                       onClick={() => setCurrency('NGN')} 
+                       className="mt-5 inline-flex items-center gap-2 rounded-md bg-[#F7CD3A] px-6 py-2.5 text-sm font-bold text-[#201A2B] shadow-sm hover:brightness-105 transition-all"
+                    >
+                       Ship within Nigeria
+                       <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+                    </button>
+                 </div>
               ) : (
                 <>
                   {/* Delivery Method Selector */}
@@ -847,7 +815,6 @@ export default function Checkout() {
                   </div>
 
                   <div className="mt-6 grid grid-cols-1 gap-3 md:grid-cols-2">
-                    {/* Address fields (unchanged) */}
                     <label className="text-[13px] text-gray-700">Full name
                       <input value={address.fullName} onChange={(e)=>setAddress((a: Address)=>({ ...a, fullName: e.target.value }))} className="mt-1 w-full rounded-md border border-black/10 px-3 py-2 text-[14px] outline-none focus:ring-2 focus:ring-brand" placeholder="e.g., John Doe" />
                     </label>
