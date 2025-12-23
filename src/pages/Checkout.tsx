@@ -2,40 +2,20 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useCurrency } from '../context/CurrencyContext'
 import { useAuth } from '../services/auth'
-import { getCartForUser, removeCartItem, addToCartApi, getProductById, getAllStatesApi, getStatesByLocation, updateDeliveryAddress, /* getUserCartTotal, */ getPriceByState, paymentSuccessfull, getGigQuote } from '../services/api'
+import { getCartForUser, removeCartItem, addToCartApi, getProductById, getAllStatesApi, getStatesByLocation, updateDeliveryAddress, getPriceByState, paymentSuccessfull, getGigQuote, type GigQuoteParams, getUserProfileById, updateUserProfile } from '../services/api'
 import { getGuestCart, setGuestCart, type GuestCart } from '../services/cart'
 import { normalizeApiImage, pickImage, productImageFrom } from '../services/images'
 import logoImg from '../assets/gapa-logo.png'
-import toast from 'react-hot-toast'
+import FallbackLoader from '../components/FallbackLoader'
+import { toast } from 'react-hot-toast'
 import AddressAutocomplete from '../components/AddressAutocomplete'
-// import deliveryGig from '../assets/deliveryGig.png'
-// Add optional secrets fallback (dev convenience only)
-import { PAYSTACK_PUBLIC_KEY as SECRET_PAYSTACK_KEY } from '../secrets'
 
-// One-time GIG env diagnostic logging (added per debugging requirement)
-if (typeof window !== 'undefined' && !(window as any).__GIG_ENV_LOGGED__) {
-  (window as any).__GIG_ENV_LOGGED__ = true
-  try {
-    const envAny: any = (import.meta as any)?.env || {}
-    const gigSnapshot = Object.fromEntries(Object.entries(envAny).filter(([k]) => k.includes('GIG')))
-    console.group('[GIG ENV CHECK]')
-    console.info('Raw GIG-related keys:', Object.keys(gigSnapshot))
-    console.info('Resolved values (masking password):', {
-      VITE_GIG_BASE_URL: envAny.VITE_GIG_BASE_URL,
-      VITE_GIG_USERNAME: envAny.VITE_GIG_USERNAME,
-      VITE_GIG_PASSWORD_PRESENT: !!envAny.VITE_GIG_PASSWORD,
-    })
-    console.info('Full import.meta.env size:', Object.keys(envAny).length)
-    console.groupEnd()
-  } catch (e) {
-    console.warn('[GIG ENV CHECK] failed to log env vars', e)
-  }
-}
- 
+// Optional secrets fallback
+const SECRET_PAYSTACK_KEY = (import.meta as any)?.env?.VITE_PAYSTACK_PUBLIC_KEY
+
 function sanitizeKey(val: any): string | undefined {
   const s = typeof val === 'string' ? val.trim() : ''
   if (!s) return undefined
-  // Ignore Vite placeholders if not replaced
   if (s.startsWith('%VITE_') && s.endsWith('%')) return undefined
   return s
 }
@@ -71,7 +51,7 @@ function useCartData() {
   const { user } = useAuth()
   const [loading, setLoading] = useState(true)
   const [items, setItems] = useState<UICartItem[]>([])
-  const [rawItems, setRawItems] = useState<any[]>([]) // store full API cart rows for logistics enrichment
+  const [rawItems, setRawItems] = useState<any[]>([])
 
   const load = async () => {
     try {
@@ -83,8 +63,7 @@ function useCartData() {
         const mapped: UICartItem[] = arr.map((item: any) => {
           const prod = (item && (item.product || item.part || item.item)) || item
           const productId = String(item?.product_id ?? prod?.id ?? item?.id ?? '')
-          const name = String(prod?.name || prod?.title || prod?.product_name || 'Part')
-            .trim()
+          const name = String(prod?.name || prod?.title || prod?.product_name || 'Part').trim()
           const price = Number(prod?.price ?? prod?.selling_price ?? prod?.amount ?? item?.price ?? 0)
           const quantity = Number(item?.quantity ?? item?.qty ?? 1) || 1
           const image = productImageFrom(prod) || normalizeApiImage(pickImage(prod) || '') || logoImg
@@ -120,8 +99,7 @@ function useCartData() {
 export default function Checkout() {
   const navigate = useNavigate()
   const { user } = useAuth()
-  // Updated: Added setCurrency
-  const { formatPrice, currency, setCurrency } = useCurrency()
+  const { currency, formatPrice, setCurrency } = useCurrency()
   const { loading, items, rawItems, reload } = useCartData()
   const [busyId, setBusyId] = useState<string | null>(null)
   const unauthenticated = !user
@@ -130,13 +108,10 @@ export default function Checkout() {
   const progress = (step / (steps.length - 1)) * 100
 
   const subtotal = useMemo(() => items.reduce((s, it) => s + it.price * it.quantity, 0), [items])
-  // VAT: 7.5% of subtotal
   const vat = useMemo(() => Math.max(0, Math.round(subtotal * 0.075)), [subtotal])
 
-  // --- Delivery pricing & method state ---------------------------------------
+  // --- Delivery pricing & method state ---
   const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethod>(() => (localStorage.getItem('checkoutDeliveryMethod') as DeliveryMethod) || 'gapa')
-
-  // Gapa pricing (previous deliveryPrice state renamed)
   const [gapaDeliveryPrice, setGapaDeliveryPrice] = useState<number>(0)
   const [deliveryLoading, setDeliveryLoading] = useState<boolean>(false)
 
@@ -144,30 +119,23 @@ export default function Checkout() {
   const [gigQuoteAmount, setGigQuoteAmount] = useState<number>(0)
   const [gigLoading, setGigLoading] = useState<boolean>(false)
   const [gigError, setGigError] = useState<string | null>(null)
-  // Remove GIG stations state (endpoints 404); use static fallback IDs
-  // const [gigStations, setGigStations] = useState<{ id:number; name:string; city:string; state:string; raw:any }[]>([])
-  // const [gigStationId, setGigStationId] = useState<number | null>(null)
-  const DEFAULT_GIG_RECEIVER_STATION_ID = 2 // fallback based on working payload example
-  // Removed unused DEFAULT_GIG_SENDER_STATION_ID constant (was causing TS 6133 warning)
-  // const [gigLastRegion, setGigLastRegion] = useState<string | number | undefined>(undefined)
-  // NEW: receiver geolocation (attempt to capture once)
+  const DEFAULT_GIG_RECEIVER_STATION_ID = 2 
+
+  // NEW: receiver geolocation
   const [receiverGeo, setReceiverGeo] = useState<{ lat?: number; lng?: number; error?: string }>({})
   useEffect(() => {
     if (!('geolocation' in navigator)) return
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setReceiverGeo(g => (g.lat || g.lng ? g : { lat: pos.coords.latitude, lng: pos.coords.longitude }))
-      },
+      (pos) => { setReceiverGeo(g => (g.lat || g.lng ? g : { lat: pos.coords.latitude, lng: pos.coords.longitude })) },
       (err) => { setReceiverGeo(g => (g.error ? g : { ...g, error: err.message })) },
       { enableHighAccuracy: false, timeout: 8000, maximumAge: 300000 }
     )
   }, [])
 
-  // Effective delivery price used in calculations
   const effectiveDeliveryPrice = useMemo(() => deliveryMethod === 'gapa' ? gapaDeliveryPrice : gigQuoteAmount, [deliveryMethod, gapaDeliveryPrice, gigQuoteAmount])
   const total = useMemo(() => subtotal + vat + (effectiveDeliveryPrice || 0), [subtotal, vat, effectiveDeliveryPrice])
 
-  // --- Address & Payment state (unchanged except references to delivery price) ---
+  // --- Address & Payment state ---
   const [address, setAddress] = useState<Address>(() => {
     const saved = localStorage.getItem('checkoutAddress')
     const base: Address = {
@@ -193,15 +161,15 @@ export default function Checkout() {
   const [states, setStates] = useState<{ id?: string | number; name?: string; state?: string; title?: string }[]>([])
   const [statesLoading, setStatesLoading] = useState(false)
   const [locations, setLocations] = useState<{ id: string | number; location: string; price: number }[]>([])
+  const [isUpdatingProfile, setIsUpdatingProfile] = useState(false)
 
-  // NEW: Allowed states for Gapa delivery only
+  // Gapa allowed states
   const GAPA_ALLOWED_STATE_TITLES = useMemo(()=>['LAGOS STATE','ABUJA FEDERAL CAPITAL TERRITORY'], [])
   const normalizeStateLabel = (s?: string) => (s||'').trim().toUpperCase()
   const isAllowedForGapa = (st: any) => {
     const label = normalizeStateLabel(st?.title || st?.name || st?.state || '')
     if (!label) return false
     if (GAPA_ALLOWED_STATE_TITLES.includes(label)) return true
-    // Accept common abbreviations for Abuja (FCT) just in case
     if (label === 'FCT' && GAPA_ALLOWED_STATE_TITLES.includes('ABUJA FEDERAL CAPITAL TERRITORY')) return true
     if (label === 'ABUJA' && GAPA_ALLOWED_STATE_TITLES.includes('ABUJA FEDERAL CAPITAL TERRITORY')) return true
     return false
@@ -218,22 +186,18 @@ export default function Checkout() {
     }
   }, [deliveryMethod, address.regionId, states])
 
-  // Persist delivery method
   useEffect(()=>{ localStorage.setItem('checkoutDeliveryMethod', deliveryMethod) }, [deliveryMethod])
 
-  // Existing effect: load states, default rate, prefill address
   useEffect(() => {
     const u = (user as any) || null
-    setAddress((prev: Address) => { // annotated prev
+    setAddress((prev: Address) => {
       const next = { ...prev }
       if (u) {
         next.fullName = next.fullName || String(u?.name || '')
         next.email = next.email || String(u?.email || '')
         next.phone = next.phone || String(u?.phone || '')
         next.address1 = next.address1 || String(u?.shipping_address || u?.address || '')
-        // city now derived from delivery location; keep if previously stored
         next.city = next.city || ''
-        // region/regionId hydrate by matching title later
         next.region = next.region || String(u?.shipping_region || u?.region || '')
         next.country = 'Nigeria'
         next.postcode = next.postcode || String(u?.shipping_postbox || u?.postbox || '')
@@ -243,16 +207,29 @@ export default function Checkout() {
     const loadStates = async () => {
       setStatesLoading(true)
       try {
-        // Prefer get-states?location=gapa; fallback to getAllStates
         let list = await getStatesByLocation('gapa')
         if (!list?.length) list = await getAllStatesApi()
         setStates(list)
       } catch { setStates([]) } finally { setStatesLoading(false) }
     }
     loadStates()
+    
+    if (user?.id) {
+       getUserProfileById(user.id).then(u => {
+          if (u) {
+             setAddress(prev => ({
+                ...prev,
+                fullName: prev.fullName || u.name || '',
+                phone: prev.phone || u.phone || '',
+                address1: prev.address1 || u.address || '',
+                city: prev.city || u.city || '',
+                region: prev.region || u.region || u.state || ''
+             }))
+          }
+       }).catch(()=>{})
+    }
   }, [user?.id])
 
-  // Hydrate regionId from stored region name
   useEffect(() => {
     if (!address.regionId && address.region && states.length) {
       const match = states.find((s) => (s.title || s.name || s.state || '') === address.region)
@@ -260,7 +237,6 @@ export default function Checkout() {
     }
   }, [states])
 
-  // Fetch Gapa delivery locations/prices when region changes (only if using Gapa OR always to keep ready)
   useEffect(() => {
     const fetchLocations = async () => {
       setLocations([])
@@ -280,17 +256,15 @@ export default function Checkout() {
         })) as { id: string | number; location: string; price: number }[]
         setLocations(mapped)
         if (!mapped.length) {
-          // no fallback price – explicit error state
           setGapaDeliveryPrice(0)
         } else if (mapped.length === 1) {
           const only = mapped[0]
           setAddress(a => ({ ...a, deliveryLocationId: only.id, deliveryLocationName: only.location }))
           setGapaDeliveryPrice(Math.max(0, Math.round(only.price || 0)))
         } else {
-          setGapaDeliveryPrice(0) // wait for user selection
+          setGapaDeliveryPrice(0)
         }
       } catch {
-        // on error no fallback – keep at 0
         setLocations([])
         setGapaDeliveryPrice(0)
       } finally { setDeliveryLoading(false) }
@@ -298,7 +272,6 @@ export default function Checkout() {
     fetchLocations()
   }, [address.regionId])
 
-  // Reset / prepare GIG quote when user switches delivery method
   useEffect(() => {
     if (deliveryMethod === 'gig') {
       setGigQuoteAmount(0)
@@ -308,7 +281,6 @@ export default function Checkout() {
   }, [deliveryMethod])
 
   const buildGigQuoteParams = () => {
-    // Prefer enriched rawItems when available
     const source = rawItems.length ? rawItems : items
     const cartItemsForQuote = source.map((it: any) => ({
       name: it.name,
@@ -329,7 +301,6 @@ export default function Checkout() {
     const receiver_phone = address.phone || ''
     const items_count = Math.max(1, totalQty)
     const declared_value = cartItemsForQuote.reduce((sum,i)=> sum + (i.value||0), 0)
-    // Use static receiver station id (API station lookup removed)
     const receiver_station_id = DEFAULT_GIG_RECEIVER_STATION_ID
     const destination_service_centre_id = receiver_station_id
     const user_id = (user as any)?.id ? String((user as any).id) : undefined
@@ -349,31 +320,29 @@ export default function Checkout() {
     } catch (e: any) {
       console.error('GIG quote error', e)
       const msg = e?.message || 'Can\'t ship to this location'
-      toast.error(msg) // NEW: show error via toast instead of inline text
+      toast.error(msg)
       setGigError(msg)
       setGigQuoteAmount(0)
     } finally { setGigLoading(false) }
   }
 
-  // Auto refetch quote when relevant address/cart inputs change while on GIG
   useEffect(() => {
     if (deliveryMethod !== 'gig') return
     if (!address.regionId) { setGigQuoteAmount(0); setGigError(null); return }
     const t = setTimeout(() => { void requestGigQuote() }, 400)
     return () => clearTimeout(t)
-  }, [deliveryMethod, address.regionId, address.city, address.deliveryLocationName, address.address1, address.address2, address.postcode, items, receiverGeo.lat, receiverGeo.lng, states /* removed gigStationId */])
+  }, [deliveryMethod, address.regionId, address.city, address.deliveryLocationName, address.address1, address.address2, address.postcode, items, receiverGeo.lat, receiverGeo.lng, states])
 
   useEffect(() => { localStorage.setItem('checkoutAddress', JSON.stringify(address)) }, [address])
   useEffect(() => { localStorage.setItem('checkoutPayment', payment) }, [payment])
 
-  // Validation adjustments: require method-specific fields/quotes
   const addressValid = useMemo(() => {
     const req = ['fullName','email','phone','address1','region'] as (keyof Address)[]
     const baseValid = req.every((k) => String((address as any)[k] || '').trim().length > 1)
     if (!baseValid) return false
     if (deliveryMethod === 'gapa') {
       const locValid = locations.length === 0 || Boolean(address.deliveryLocationId)
-      return locValid && gapaDeliveryPrice > 0 // must have explicit price
+      return locValid && gapaDeliveryPrice > 0 
     } else {
       return gigQuoteAmount > 0 && !gigLoading && !gigError  
     }
@@ -383,17 +352,13 @@ export default function Checkout() {
     const current = items.find(i => i.productId === productId)
     if (!current) return
     const nextQty = Math.min(99, current.quantity + 1)
-    if (nextQty === current.quantity) return // Already at max
+    if (nextQty === current.quantity) return 
     
     setBusyId(productId)
     try {
       if (user && (user as any).id) {
-        // NEW LOGIC: Remove product from cart, then add it back with new quantity
         try {
-          // Step 1: Remove the product from cart
           await removeCartItem((user as any).id, productId)
-          
-          // Step 2: Add it back with the new quantity
           await addToCartApi({ 
             user_id: (user as any).id, 
             product_id: productId, 
@@ -405,7 +370,6 @@ export default function Checkout() {
           return
         }
       } else {
-        // Guest cart
         const cart = getGuestCart()
         const idx = cart.items.findIndex(it => it.product_id === productId)
         if (idx >= 0) { 
@@ -423,17 +387,13 @@ export default function Checkout() {
     const current = items.find(i => i.productId === productId)
     if (!current) return
     const nextQty = Math.max(1, current.quantity - 1)
-    if (nextQty === current.quantity) return // Already at min
+    if (nextQty === current.quantity) return 
     
     setBusyId(productId)
     try {
       if (user && (user as any).id) {
-        // NEW LOGIC: Remove item completely, then re-add with remaining quantity
         try {
-          // Step 1: Remove the item
           await removeCartItem((user as any).id, productId)
-          
-          // Step 2: Re-add with the remaining quantity (if > 0)
           if (nextQty > 0) {
             await addToCartApi({ 
               user_id: (user as any).id, 
@@ -447,7 +407,6 @@ export default function Checkout() {
           return
         }
       } else {
-        // Guest cart
         const cart = getGuestCart()
         const idx = cart.items.findIndex(it => it.product_id === productId)
         if (idx >= 0) { 
@@ -476,26 +435,28 @@ export default function Checkout() {
   }
 
   const handleContinueFromAddress = async () => {
-    // Persist address to backend if logged in
     if (user && (user as any).id) {
       const methodTag = deliveryMethod === 'gig' ? 'GIG Logistics' : 'Gapa Delivery'
       const payloadAddress = [address.address1, address.address2, address.region, address.postcode, address.deliveryLocationName, methodTag].filter(Boolean).join(', ')
-      try { await updateDeliveryAddress({ user_id: (user as any).id, address: payloadAddress }) } catch {}
+      try { 
+         await updateDeliveryAddress({ user_id: (user as any).id, address: payloadAddress })
+         await updateUserProfile({
+           user_id: (user as any).id,
+           name: address.fullName,
+           phone: address.phone,
+           address: payloadAddress
+         })
+      } catch {}
     }
-    // Ensure deliveryPrice is set; if still 0 and we have a default rate, use it
-    // if (deliveryMethod === 'gapa' && !gapaDeliveryPrice && defaultDeliveryRate) setGapaDeliveryPrice(defaultDeliveryRate)
     setStep((s) => s + 1)
   }
 
   // Paystack Integration
   const PAYSTACK_KEY = (
     sanitizeKey((import.meta as any)?.env?.VITE_PAYSTACK_PUBLIC_KEY)
-    || sanitizeKey((import.meta as any)?.env?.PAYSTACK_PUBLIC_KEY)
-    || sanitizeKey(typeof window !== 'undefined' ? (window as any).VITE_PAYSTACK_PUBLIC_KEY : undefined)
-    || sanitizeKey(typeof window !== 'undefined' ? (window as any).PAYSTACK_PUBLIC_KEY : undefined)
-    || sanitizeKey(typeof document !== 'undefined' ? (document.querySelector('meta[name="paystack-public-key"]') as HTMLMetaElement | null)?.content : undefined)
     || sanitizeKey(SECRET_PAYSTACK_KEY)
   ) as string | undefined
+
   async function ensurePaystackScript() {
     if ((window as any).PaystackPop) return
     await new Promise<void>((resolve, reject) => {
@@ -507,6 +468,7 @@ export default function Checkout() {
       document.body.appendChild(s)
     })
   }
+
   function buildAddressString() {
     const methodTag = deliveryMethod === 'gig' ? 'GIG Logistics' : 'Gapa Delivery'
     return [address.fullName, address.address1, address.address2, address.deliveryLocationName, address.region, address.postcode, methodTag].filter(Boolean).join(', ')
@@ -519,7 +481,7 @@ export default function Checkout() {
       const amountKobo = Math.max(0, Math.round((subtotal + vat + (effectiveDeliveryPrice || 0)) * 100))
       const email = address.email || (user as any)?.email || 'user@example.com'
       const ref = `GAPA_${Date.now()}`
-      // Use a plain function for Paystack callback; delegate to async logic inside
+      
       function paystackCallback(response: any) {
         ;(async () => {
           try {
@@ -773,7 +735,7 @@ export default function Checkout() {
               <h3 className="text-[16px] font-semibold text-gray-900">Shipping Address</h3>
               
               {/* Currency Check: Only allow checkout in NGN */}
-              {currency !== 'NGN' ? (
+              {String(currency) !== 'NGN' ? (
                 <div className="flex flex-col items-center justify-center py-10 text-center rounded-lg bg-red-50 border border-red-100 my-4">
                   <div className="rounded-full bg-red-100 p-3 mb-3">
                       <svg className="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">

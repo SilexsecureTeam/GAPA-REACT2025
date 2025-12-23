@@ -12,6 +12,8 @@ export type Currency = {
 
 type CurrencyContextType = {
   currency: Currency
+  // Added setCurrency to match checkout usage (allows switching by code 'NGN')
+  setCurrency: (code: string) => void
   setCurrencyByCountry: (countryCode: string) => void
   formatPrice: (amountInNaira: number) => string
   availableCurrencies: Currency[]
@@ -31,7 +33,7 @@ const DEFAULT_CURRENCY: Currency = {
 }
 
 export function CurrencyProvider({ children }: { children: React.ReactNode }) {
-  const [currency, setCurrency] = useState<Currency>(DEFAULT_CURRENCY)
+  const [currency, setCurrencyState] = useState<Currency>(DEFAULT_CURRENCY)
   const [rates, setRates] = useState<Record<string, number>>({ NGN: 1 })
   const [availableCurrencies, setAvailableCurrencies] = useState<Currency[]>([DEFAULT_CURRENCY])
   const [loading, setLoading] = useState(true)
@@ -62,12 +64,12 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
         const nigeria = countriesData.find((c: any) => c.cca2 === 'NG')
         if (nigeria && nigeria.currencies && nigeria.currencies.NGN) {
            list.push({
-            code: 'NGN',
-            name: 'Nigerian Naira',
-            symbol: '₦',
-            flag: nigeria.flags.png,
-            countryName: 'Nigeria',
-            countryCode: 'NG',
+             code: 'NGN',
+             name: 'Nigerian Naira',
+             symbol: '₦',
+             flag: nigeria.flags.png,
+             countryName: 'Nigeria',
+             countryCode: 'NG',
            })
         } else {
            list.push(DEFAULT_CURRENCY)
@@ -100,7 +102,7 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
         const savedCode = localStorage.getItem('gapa_currency_country')
         if (savedCode) {
           const found = list.find(c => c.countryCode === savedCode)
-          if (found) setCurrency(found)
+          if (found) setCurrencyState(found)
         }
 
       } catch (error) {
@@ -113,16 +115,27 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
     init()
   }, [])
 
-  // 2. Change Handler
+  // 2. Change Handler (By Country Code - Default behavior)
   const setCurrencyByCountry = useCallback((countryCode: string) => {
     const found = availableCurrencies.find(c => c.countryCode === countryCode)
     if (found) {
-      setCurrency(found)
+      setCurrencyState(found)
       localStorage.setItem('gapa_currency_country', countryCode)
     }
   }, [availableCurrencies])
 
-  // 3. Formatter Function
+  // 3. Change Handler (By Currency Code - Direct setter needed for checkout)
+  const setCurrency = useCallback((code: string) => {
+    // Find matching currency object (prefer primary country for that currency if possible)
+    const found = availableCurrencies.find(c => c.code === code)
+    if (found) {
+      setCurrencyState(found)
+      // Save the country code associated with this currency to maintain consistency
+      localStorage.setItem('gapa_currency_country', found.countryCode)
+    }
+  }, [availableCurrencies])
+
+  // 4. Formatter Function
   const formatPrice = useCallback((amountInNaira: number) => {
     const isNaira = currency.code === 'NGN'
     const rate = isNaira ? 1 : (rates[currency.code] || 1)
@@ -140,7 +153,7 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
   }, [currency, rates])
 
   return (
-    <CurrencyContext.Provider value={{ currency, setCurrencyByCountry, formatPrice, availableCurrencies, loading }}>
+    <CurrencyContext.Provider value={{ currency, setCurrency, setCurrencyByCountry, formatPrice, availableCurrencies, loading }}>
       {children}
     </CurrencyContext.Provider>
   )
