@@ -8,41 +8,10 @@ import cartImg from '../assets/cart.svg'
 
 // Removed unused icons h2-h7
 import { useAuth } from '../services/auth'
-import { getAllCategories, type ApiCategory, getAllBrands, type ApiBrand, getSubCategories, getSubSubCategories, getCartForUser, logout as apiLogout } from '../services/api'
+import { getAllCategories, type ApiCategory, getAllBrands, type ApiBrand, getSubCategories, getSubSubCategories, getCartForUser, logout as apiLogout, getAllProducts } from '../services/api'
 // added getCartForUser import
 import { categoryImageFrom, normalizeApiImage, pickImage, brandImageFrom, subCategoryImageFrom, subSubCategoryImageFrom } from '../services/images'
 import { getGuestCart } from '../services/cart'
-
-// Search suggestions data
-const SEARCH_SUGGESTIONS = [
-  'Air Freshener',
-  'Brake Pad',
-  'Brake Disc',
-  'Brake Caliper',
-  'Brake Shoe',
-  'Compressor, air conditioning',
-  'Condenser, air conditioning',
-  'Stabilizers & Components> Stabilizer Linkage',
-  'Wiper Blade',
-  'Wheel Speed Sensor',
-  'Tire Pressure Monitoring sensor',
-  'Speed Sensor',
-  'Upper Arm',
-  'Water Pump',
-  'Spark Plug',
-  'Pedal to steering wheel lock',
-  'Spray',
-  'Phone & Tablet Holder',
-  'Sponge',
-  'Jumper Cable',
-  'Glow Plug',
-  'Fuel Pump',
-  'Piston Ring',
-  // 'STARK Brake pad set',
-  'V-Ribbed Belt',
-  'Oil Filter',
-  'Panasonic CR2025EL/2B Lithium Power Lithium 3V/165mAh Blister',
-]
 
 export default function Header() {
   // Live timer to Dec 1, 12am displayed as HH:MM:SS (no labels)
@@ -59,6 +28,8 @@ export default function Header() {
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [filteredSuggestions, setFilteredSuggestions] = useState<string[]>([])
   const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(-1)
+  const [productNames, setProductNames] = useState<string[]>([]) // Dynamic names from catalog
+
   const searchRef = useRef<HTMLDivElement>(null)
   const mobileSearchRef = useRef<HTMLDivElement>(null)
   const { user, logout: authLogout } = useAuth()
@@ -114,6 +85,37 @@ export default function Header() {
   // Close mobile panels on route change
   useEffect(() => { closeAllMobile() }, [location.pathname, location.hash])
 
+  // Load product names for search suggestions on mount
+  useEffect(() => {
+    let alive = true
+    ;(async () => {
+      try {
+        // getAllProducts uses caching internally, so this won't spam the API
+        const prods = await getAllProducts()
+        if (!alive) return
+        
+        const list = Array.isArray(prods) ? prods : (prods as any)?.data || []
+        const names = new Set<string>()
+        
+        // Extract unique product names
+        list.forEach((p: any) => {
+           const raw = p?.part || p
+           const name = raw?.part_name || raw?.name || raw?.title || raw?.product_name
+           if (name && typeof name === 'string' && name.trim().length > 2) {
+              names.add(name.trim())
+           }
+        })
+        
+        // Convert to array and take a reasonable subset if massive to keep memory low
+        // (though browser can handle thousands of strings easily)
+        setProductNames(Array.from(names))
+      } catch (e) {
+        console.error('Failed to load search suggestions', e)
+      }
+    })()
+    return () => { alive = false }
+  }, [])
+
   // Hover-delay timer for category dropdown (1 seconds)
   const hoverTimerRef = useRef<number | null>(null)
   const clearHoverTimer = () => { if (hoverTimerRef.current) { window.clearTimeout(hoverTimerRef.current); hoverTimerRef.current = null } }
@@ -141,8 +143,6 @@ export default function Header() {
     return () => clearInterval(id)
   }, [])
 
-  // Removed static categories; we now render Car Brands + dynamic API categories
-
   // Filter suggestions based on query
   useEffect(() => {
     const term = query.trim().toLowerCase()
@@ -153,8 +153,11 @@ export default function Header() {
       return
     }
 
+    // Use dynamic product names instead of hardcoded list
+    const source = productNames.length > 0 ? productNames : []
+    
     // Smart filtering: prioritize matches at start of string, then word boundaries
-    const matches = SEARCH_SUGGESTIONS.filter(suggestion => {
+    const matches = source.filter(suggestion => {
       const lower = suggestion.toLowerCase()
       return lower.includes(term)
     }).sort((a, b) => {
@@ -180,7 +183,7 @@ export default function Header() {
     setFilteredSuggestions(matches)
     setShowSuggestions(matches.length > 0)
     setActiveSuggestionIndex(-1)
-  }, [query])
+  }, [query, productNames])
 
   // Close suggestions when clicking outside
   useEffect(() => {
@@ -1167,4 +1170,4 @@ export default function Header() {
      
     </header>
   )
-}
+        }
