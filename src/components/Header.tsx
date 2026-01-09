@@ -21,6 +21,7 @@ const SEARCH_SUGGESTIONS = [
   'Brake Caliper',
   'Brake Shoe',
   'HVAC > A/C Compressor',
+  'HVAC > A/C Condenser',
   'Stabilizers & Components> Stabilizer Linkage',
   'Wiper Blade',
   'Wheel Speed Sensor',
