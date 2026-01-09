@@ -89,27 +89,38 @@ export default function Header() {
   useEffect(() => {
     let alive = true
     ;(async () => {
-      try {
-        // getAllProducts uses caching internally, so this won't spam the API
-        const prods = await getAllProducts()
-        if (!alive) return
-        
-        const list = Array.isArray(prods) ? prods : (prods as any)?.data || []
-        const names = new Set<string>()
-        
-        // Extract unique product names
-        list.forEach((p: any) => {
-           const raw = p?.part || p
-           const name = raw?.part_name || raw?.name || raw?.title || raw?.product_name
-           if (name && typeof name === 'string' && name.trim().length > 2) {
-              names.add(name.trim())
-           }
-        })
-        
-        // Convert to array and take a reasonable subset if massive to keep memory low
-        // (though browser can handle thousands of strings easily)
-        setProductNames(Array.from(names))
-      } catch (e) {
+      // ... inside the useEffect ...
+try {
+  const prods = await getAllProducts()
+  if (!alive) return
+  
+  const list = Array.isArray(prods) ? prods : (prods as any)?.data || []
+  
+  // CHANGE STARTS HERE
+  const seenLower = new Set<string>() // To track lowercase versions
+  const finalNames: string[] = []     // To store the display names
+
+  list.forEach((p: any) => {
+     const raw = p?.part || p
+     const name = raw?.part_name || raw?.name || raw?.title || raw?.product_name
+     
+     if (name && typeof name === 'string' && name.trim().length > 2) {
+        const originalName = name.trim()
+        const lowerName = originalName.toLowerCase()
+
+        // Only add if we haven't seen this name (case-insensitive) yet
+        if (!seenLower.has(lowerName)) {
+           seenLower.add(lowerName)
+           finalNames.push(originalName) // Keep the original casing for display
+        }
+     }
+  })
+  
+  setProductNames(finalNames)
+  // CHANGE ENDS HERE
+
+} catch (e) {
+
         console.error('Failed to load search suggestions', e)
       }
     })()
