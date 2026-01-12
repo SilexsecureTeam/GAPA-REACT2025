@@ -7,8 +7,28 @@ import gapafix from '../assets/gapa-fix.svg'
 import cartImg from '../assets/cart.svg'
 
 import { useAuth } from '../services/auth'
-import { getAllCategories, type ApiCategory, getAllBrands, type ApiBrand, getSubCategories, getSubSubCategories, getCartForUser, logout as apiLogout, getAllProducts } from '../services/api'
-import { categoryImageFrom, normalizeApiImage, pickImage, brandImageFrom, subCategoryImageFrom, subSubCategoryImageFrom } from '../services/images'
+import { 
+  getAllCategories, 
+  type ApiCategory, 
+  getAllBrands, 
+  type ApiBrand, 
+  getSubCategories, 
+  getSubSubCategories, 
+  getCartForUser, 
+  logout as apiLogout, 
+  getAllProducts 
+} from '../services/api'
+
+import { 
+  categoryImageFrom, 
+  normalizeApiImage, 
+  pickImage, 
+  brandImageFrom, 
+  subCategoryImageFrom, 
+  subSubCategoryImageFrom 
+  // productImageFrom removed to prevent import errors if missing in images.ts
+} from '../services/images'
+
 import { getGuestCart } from '../services/cart'
 
 // Type for a suggestion item containing name, image, and type (for sorting/badges)
@@ -130,7 +150,8 @@ export default function Header() {
         list.forEach((p: any) => {
            const raw = p?.part || p
            const name = String(raw?.part_name || raw?.name || raw?.title || raw?.product_name || '')
-           // Get the best image for this product
+           
+           // Use pickImage as fallback since productImageFrom might not be exported
            const image = normalizeApiImage(pickImage(raw) || '') || logoImg
            
            // 1. Add exact product name
@@ -1158,19 +1179,6 @@ export default function Header() {
 
                 {/* Help & Sign Out */}
                 <div className="space-y-2">
-                  {/* <Link
-                    to="/help"
-                    onClick={closeAllMobile}
-                    className="flex items-center justify-center gap-2 rounded-lg bg-white px-4 py-2.5 text-[13px] font-semibold text-gray-900 ring-1 ring-black/5 hover:bg-gray-50 transition-colors"
-                  >
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-brand">
-                      <circle cx="12" cy="12" r="10" />
-                      <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
-                      <line x1="12" y1="17" x2="12.01" y2="17" />
-                    </svg>
-                    <span>Help & Support</span>
-                  </Link> */}
-
                   <button
                     onClick={() => {
                       closeAllMobile()
