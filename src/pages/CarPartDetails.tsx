@@ -202,8 +202,6 @@ export default function CarPartDetails() {
   const { manufacturers, loading: manufacturersLoading } = useManufacturers()
   const [selectedManufacturerId, setSelectedManufacturerId] = useState<string>('')
 
-  const [isMobileFilterOpen, setMobileFilterOpen] = useState(false)
-  
   // Reviews
   const [reviews, setReviews] = useState<ApiReview[]>([])
   const [reviewsLoading, setReviewsLoading] = useState(false)
@@ -896,82 +894,53 @@ export default function CarPartDetails() {
       </nav>
 
       <div className="grid min-w-0 gap-6 lg:grid-cols-[280px_1fr]">
-        <aside className="hidden lg:block">
-          <div className="space-y-4 self-start">
-            {/* Vehicle Filter Card */}
-            <div className="rounded-xl bg-gradient-to-br from-[#201A2B] via-[#2d2436] to-[#201A2B] p-[2px] shadow-xl">
-              <div className="rounded-[10px] bg-white p-2">
-                <div className="rounded-lg bg-gradient-to-br from-white to-[#FFFBF0]">
-                  {/* Constrain height so the filter stays visible and scrolls internally on long pages */}
-                  <div className="overflow-auto pr-2">
-                  <div className="mb-3 flex items-center gap-2">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-[#F7CD3A] to-[#e6bd2a] shadow-md">
-                      <svg className="h-5 w-5 text-[#201A2B]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-                      </svg>
-                    </div>
-                    <h3 className="text-[12px] font-black uppercase tracking-wide text-gray-900">
-                      Filter by Vehicle
-                    </h3>
-                  </div>
-                  
-                  <VehicleFilter onChange={handleVehFilterChange} />
-                  
-                  {/* Active Selection Badge */}
-                  {hasVehicleFilter && (
-                    <div className="mt-3 rounded-lg bg-gradient-to-r from-green-50 to-emerald-50 p-3 ring-1 ring-green-500/20">
-                      <div className="flex items-start gap-2">
-                        <svg className="h-4 w-4 text-green-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                        </svg>
-                        <div className="flex-1 min-w-0">
-                          <div className="text-[10px] font-bold text-green-700 uppercase tracking-wide">Active Filter</div>
-                          <div className="text-[11px] font-bold text-gray-900 break-words">{selectedVehicleLabel}</div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-                </div>
-              </div>
+        
+        {/* LEFT COLUMN: Vehicle Filter */}
+        {/* We removed the <aside className="hidden lg:block"> wrapper. 
+            The VehicleFilter component now handles hiding/showing the card vs button. */}
+        <div className="space-y-4 self-start">
+          
+          <VehicleFilter onChange={handleVehFilterChange} />
+          
+          {/* Active Selection Badge (Optional: You can keep or remove, usually VehicleFilter handles indication) */}
+          {hasVehicleFilter && (
+             <div className="hidden lg:block mt-3 rounded-lg bg-gradient-to-r from-green-50 to-emerald-50 p-3 ring-1 ring-green-500/20">
+               <div className="flex items-start gap-2">
+                 <svg className="h-4 w-4 text-green-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                 </svg>
+                 <div className="flex-1 min-w-0">
+                   <div className="text-[10px] font-bold text-green-700 uppercase tracking-wide">Active Filter</div>
+                   <div className="text-[11px] font-bold text-gray-900 break-words">{selectedVehicleLabel}</div>
+                 </div>
+               </div>
+             </div>
+          )}
+
+          {/* Category Image (Desktop Only) */}
+          {categoryImage && (
+            <div className="hidden lg:block rounded-xl bg-white p-3 ring-1 ring-black/10 shadow-sm">
+              <ImageWithFallback src={categoryImage} alt="Category" className="mx-auto h-28 w-auto object-contain" showFallback={true} />
             </div>
+          )}
+        </div>
 
-            {categoryImage && (
-              <div className="rounded-xl bg-white p-3 ring-1 ring-black/10 shadow-sm">
-                <ImageWithFallback src={categoryImage} alt="Category" className="mx-auto h-28 w-auto object-contain" showFallback={true} />
-              </div>
-            )}
-          </div>
-        </aside>
-
+        {/* RIGHT COLUMN: Main Content */}
         <main className="space-y-6 min-w-0">
+          
+          {/* Mobile Category Image (Since we removed the old sticky header) */}
           <div className="lg:hidden">
-            <div className="sticky top-16 z-20 mb-4 flex items-center justify-between rounded-full bg-white/90 px-3 py-2 shadow-sm backdrop-blur">
-              <button
-                type="button"
-                onClick={() => setMobileFilterOpen(true)}
-                className="inline-flex items-center gap-2 rounded-full bg-brand px-3 py-2 text-[12px] font-semibold uppercase tracking-wide text-white shadow"
-                aria-expanded={isMobileFilterOpen}
-                aria-controls="vehicle-filter-drawer"
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="opacity-90">
-                  <path d="M3 6h18" />
-                  <path d="M3 12h18" />
-                  <path d="M3 18h10" />
-                </svg>
-                Vehicle filter
-              </button>
-              <span className="ml-3 line-clamp-1 text-[12px] font-medium text-gray-700">{selectedVehicleLabel}</span>
-            </div>
             {categoryImage && (
               <div className="mb-4 rounded-lg bg-[#F6F5FA] p-3 ring-1 ring-black/10">
                 <ImageWithFallback src={categoryImage} alt="Category" className="mx-auto h-24 w-auto object-contain" showFallback={true} />
               </div>
             )}
           </div>
-          {/* Manufacturer filter UI (image pills/buttons, name on hover) */}
+
+          {/* Manufacturer Filter & Products List (Keep existing code below) */}
+          {/* ... (Keep the rest of your main content logic: manufacturer filter, ProductPanel, etc.) ... */}
           {(() => {
-            // Extract unique manufacturer IDs and info from related products and manufacturers list
+            // ... manufacturer logic ...
             const manufacturerMap = new Map();
             products.forEach((p) => {
               const makerId = makerIdOf(p);
@@ -1026,11 +995,14 @@ export default function CarPartDetails() {
               </div>
             );
           })()}
+
+          {/* ... Product Details / Reviews / Related ... */}
           {selected && selectedRaw ? (
-            <>
-              <ProductPanel ui={selected} isSelected raw={selectedRaw} />
-              
-              {/* Product Reviews Section */}
+             /* ... existing product view logic ... */
+             <>
+               <ProductPanel ui={selected} isSelected raw={selectedRaw} />
+               
+               {/* Product Reviews Section */}
               <section className="rounded-xl bg-white p-6 ring-1 ring-black/10">
                 <div className="mb-6 flex items-center justify-between">
                   <div>
@@ -1130,10 +1102,11 @@ export default function CarPartDetails() {
                   </div>
                 )}
               </section>
-            </>
+             </>
           ) : (
-            <section className="rounded-xl bg-white p-4 ring-1 ring-black/10">
-              <div className="mb-3 flex items-center justify-between">
+             /* ... existing list view logic ... */
+             <section className="rounded-xl bg-white p-4 ring-1 ring-black/10">
+                <div className="mb-3 flex items-center justify-between">
                 <h3 className="text-[14px] font-semibold text-gray-900">Results</h3>
                 <span className="text-[12px] text-gray-600">{results.length} items</span>
               </div>
@@ -1172,7 +1145,7 @@ export default function CarPartDetails() {
                   </div>
                 </>
               )}
-            </section>
+             </section>
           )}
 
           {/* Compatible alternatives first if available */}
@@ -1232,38 +1205,6 @@ export default function CarPartDetails() {
           )}
         </main>
       </div>
-      {isMobileFilterOpen && (
-        <div className="fixed inset-0 z-50 flex lg:hidden" role="dialog" aria-modal="true">
-          <button
-            type="button"
-            className="absolute inset-0 bg-black/50"
-            onClick={() => setMobileFilterOpen(false)}
-            aria-label="Close vehicle filter"
-          />
-          <div
-            id="vehicle-filter-drawer"
-            className="relative ml-auto flex h-full w-full max-w-sm flex-col rounded-l-3xl bg-white shadow-xl"
-          >
-            <div className="flex items-center justify-between border-b border-black/5 px-4 py-3">
-              <h2 className="text-[14px] font-semibold text-gray-900">Select your vehicle</h2>
-              <button
-                type="button"
-                onClick={() => setMobileFilterOpen(false)}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 text-gray-600"
-                aria-label="Close vehicle filter"
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="18" y1="6" x2="6" y2="18" />
-                  <line x1="6" y1="6" x2="18" y2="18" />
-                </svg>
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto px-4 py-4">
-              <VehicleFilter onChange={handleVehFilterChange} className="shadow-none ring-0" />
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
