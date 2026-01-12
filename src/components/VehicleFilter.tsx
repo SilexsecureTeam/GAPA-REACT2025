@@ -302,26 +302,35 @@ export default function VehicleFilter({ onSearch, onChange, className = '' }: Ve
 
   return (
     <>
-      {/* MOBILE VIEW: Trigger Button (Hidden on Desktop) */}
-      <div className="lg:hidden w-full mb-6">
+      <div className="lg:hidden w-full mb-6 px-1">
          <button
             onClick={() => setMobileOpen(true)}
-            className={`flex w-full items-center justify-between rounded-xl bg-gradient-to-br from-[#201A2B] to-[#2d2436] p-4 text-white shadow-lg ring-1 ring-white/10 active:scale-[0.98] transition-transform ${className}`}
+            className={`group relative flex w-full items-center justify-between overflow-hidden rounded-2xl bg-[#201A2B] p-4 text-left shadow-xl shadow-[#201A2B]/20 ring-1 ring-white/10 transition-all active:scale-[0.98] ${className}`}
          >
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#F7CD3A] text-[#201A2B] shadow-sm">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></svg>
+            {/* Decorator background element */}
+            <div className="absolute top-0 right-0 -mt-4 -mr-4 h-24 w-24 rounded-full bg-white/5 blur-xl transition-all group-hover:bg-white/10"></div>
+            
+            <div className="relative flex items-center gap-4">
+              <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-[#F7CD3A] text-[#201A2B] shadow-sm ring-2 ring-[#201A2B] ring-offset-2 ring-offset-[#F7CD3A]/50">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></svg>
               </div>
-              <div className="text-left">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-[#F7CD3A]">Vehicle Filter</div>
-                <div className="text-sm font-semibold text-white/90 truncate max-w-[200px]">
-                  {brandName ? `${brandName} ${modelName}` : 'Select your vehicle'}
-                </div>
+              <div className="flex flex-col">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-[#F7CD3A]">Vehicle Filter</span>
+                <span className="font-bold text-white text-[15px] leading-tight truncate max-w-[200px]">
+                   {brandName ? (
+                     <span className="flex items-center gap-1">
+                       {brandName} <span className="opacity-50">•</span> {modelName || 'Any Model'}
+                     </span>
+                   ) : 'Select your vehicle'}
+                </span>
               </div>
             </div>
-            <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-            </svg>
+            
+            <div className="relative rounded-full bg-white/10 p-2 text-white/70 transition-colors group-hover:bg-white/20 group-hover:text-white">
+               <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                 <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+               </svg>
+            </div>
          </button>
       </div>
 
@@ -342,7 +351,6 @@ export default function VehicleFilter({ onSearch, onChange, className = '' }: Ve
           </div>
         </div>
       )}
-
       {/* DESKTOP VIEW: Sidebar Card (Hidden on Mobile) */}
       <div className={`hidden lg:block rounded-xl bg-gradient-to-br from-white via-[#FFFBF0] to-white p-5 ring-2 ring-[#F7CD3A]/40 shadow-md ${className}`}>
         {FilterForm()}
