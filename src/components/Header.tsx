@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useCurrency } from '../context/CurrencyContext'
 import logo from '../assets/gapa-logo.png';
@@ -713,6 +713,19 @@ export default function Header() {
                         <span className="font-medium">Settings</span>
                       </Link>
 
+                      {/* <Link
+                        to="/help"
+                        onClick={() => setProfileDropdownOpen(false)}
+                        className="flex items-center gap-3 px-4 py-2.5 text-[14px] text-gray-700 hover:bg-gray-50 transition-colors"
+                      >
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-brand">
+                          <circle cx="12" cy="12" r="10" />
+                          <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+                          <line x1="12" y1="17" x2="12.01" y2="17" />
+                        </svg>
+                        <span className="font-medium">Help & Support</span>
+                      </Link> */}
+
                       <div className="my-2 border-t border-gray-100" />
 
                       <button
@@ -808,18 +821,14 @@ export default function Header() {
                     type="button"
                     onClick={() => { handleSuggestionClick(suggestion.name); setMobileSearchOpen(false) }}
                     onMouseEnter={() => setActiveSuggestionIndex(index)}
-                    className={`w-full text-left px-3 py-2 text-[14px] hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-b-0 ${index === activeSuggestionIndex ? 'bg-gray-50' : ''
+                    className={`w-full text-left px-4 py-2.5 text-[14px] hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-b-0 ${index === activeSuggestionIndex ? 'bg-gray-50' : ''
                       }`}
                   >
-                    <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 flex-shrink-0 rounded bg-gray-50 border border-gray-100 overflow-hidden flex items-center justify-center">
+                    <div className="flex items-center gap-2">
+                       <div className="h-8 w-8 flex-shrink-0 rounded bg-gray-50 border border-gray-100 overflow-hidden flex items-center justify-center">
                         <img src={suggestion.image} alt="" className="w-full h-full object-contain" onError={(e)=>{ (e.target as HTMLImageElement).src = logoImg }} />
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <span className="block text-gray-900 font-medium truncate">{suggestion.name}</span>
-                        {suggestion.type === 'common' && <span className="block text-[10px] text-gray-500 uppercase tracking-wide">Popular</span>}
-                        {suggestion.type === 'category' && <span className="block text-[10px] text-gray-500 uppercase tracking-wide">Category</span>}
-                      </div>
+                      <span className="text-gray-700">{suggestion.name}</span>
                     </div>
                   </button>
                 ))}
@@ -828,7 +837,7 @@ export default function Header() {
           </div>
         </div>
       </div>
-
+      
       {/* Category bar hidden on mobile */}
       <nav className="relative bg-brand overflow-visible text-white hidden md:block" onMouseLeave={() => { clearHoverTimer(); setCarPartsOpen(false); setBrandsOpen(false) }}>
         <div
@@ -1198,4 +1207,4 @@ export default function Header() {
      
     </header>
   )
-                                                 } 
+          }
