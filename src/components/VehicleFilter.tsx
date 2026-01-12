@@ -9,6 +9,9 @@ export type VehicleFilterProps = {
 }
 
 export default function VehicleFilter({ onSearch, onChange, className = '' }: VehicleFilterProps) {
+  // Mobile drawer state
+  const [mobileOpen, setMobileOpen] = useState(false)
+
   const [loadingBrands, setLoadingBrands] = useState(true)
   const [brands, setBrands] = useState<any[]>([])
   const [models, setModels] = useState<any[]>([])
@@ -172,8 +175,7 @@ export default function VehicleFilter({ onSearch, onChange, className = '' }: Ve
   }
 
   const handleSearch = async () => {
-    // Navigate to the root category drilldown view.
-    // This clears any specific category/product selection in CarParts page.
+    setMobileOpen(false) // Close drawer on mobile search
     const url = `/parts?drill=1`
     if (onSearch) onSearch(url)
   }
@@ -187,26 +189,26 @@ export default function VehicleFilter({ onSearch, onChange, className = '' }: Ve
     return Math.round(completed)
   }, [brandId, modelId, engineId])
 
-  return (
-    <div className={`rounded-xl bg-gradient-to-br from-white via-[#FFFBF0] to-white p-5 ring-2 ring-[#F7CD3A]/40 shadow-md ${className}`}>
-      <div className="mb-4">
-        <div className="flex items-center justify-between mb-2">
-          <h4 className="text-[13px] font-extrabold tracking-wide text-[#201A2B] uppercase">
-            SELECT YOUR VEHICLE
-          </h4>
-          <span className="text-[11px] font-bold text-gray-600">{progress}%</span>
+  // Reusable Form Logic
+  const FilterForm = () => (
+    <div className="space-y-3">
+        <div className="mb-4">
+          <div className="flex items-center justify-between mb-2">
+            <h4 className="text-[13px] font-extrabold tracking-wide text-[#201A2B] uppercase">
+              SELECT YOUR VEHICLE
+            </h4>
+            <span className="text-[11px] font-bold text-gray-600">{progress}%</span>
+          </div>
+          
+          {/* Progress Bar */}
+          <div className="relative h-2 w-full overflow-hidden rounded-full bg-gray-200">
+            <div 
+              className="h-full bg-gradient-to-r from-[#F7CD3A] to-[#e6bd2a] transition-all duration-500 ease-out"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
         </div>
-        
-        {/* Progress Bar */}
-        <div className="relative h-2 w-full overflow-hidden rounded-full bg-gray-200">
-          <div 
-            className="h-full bg-gradient-to-r from-[#F7CD3A] to-[#e6bd2a] transition-all duration-500 ease-out"
-            style={{ width: `${progress}%` }}
-          />
-        </div>
-      </div>
-      
-      <div className="space-y-3">
+
         {/* Step 1: Maker */}
         <div className="relative group">
           <label className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-gray-700">
@@ -274,7 +276,6 @@ export default function VehicleFilter({ onSearch, onChange, className = '' }: Ve
         </div>
 
         {/* Action Buttons */}
-        {/* Action Buttons */}
         <div className="flex gap-2 pt-2">
           {onSearch && (
             <button 
@@ -282,20 +283,7 @@ export default function VehicleFilter({ onSearch, onChange, className = '' }: Ve
               disabled={busy || !brandId || !modelId} 
               className="flex-1 inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-[#F7CD3A] to-[#e6bd2a] text-[13px] font-bold uppercase tracking-wide text-[#201A2B] shadow-md ring-1 ring-[#F7CD3A]/50 transition-all hover:shadow-lg hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
             >
-              {busy ? (
-                <>
-                  <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  Loading…
-                </>
-              ) : (
-                <>
-                  
-                  Select Category
-                </>
-              )}
+              {busy ? 'Loading…' : 'Select Category'}
             </button>
           )}
           
@@ -309,7 +297,56 @@ export default function VehicleFilter({ onSearch, onChange, className = '' }: Ve
             </svg>
           </button>
         </div>
-      </div>
     </div>
+  )
+
+  return (
+    <>
+      {/* MOBILE VIEW: Trigger Button (Hidden on Desktop) */}
+      <div className="lg:hidden w-full mb-6">
+         <button
+            onClick={() => setMobileOpen(true)}
+            className={`flex w-full items-center justify-between rounded-xl bg-gradient-to-br from-[#201A2B] to-[#2d2436] p-4 text-white shadow-lg ring-1 ring-white/10 active:scale-[0.98] transition-transform ${className}`}
+         >
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#F7CD3A] text-[#201A2B] shadow-sm">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></svg>
+              </div>
+              <div className="text-left">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-[#F7CD3A]">Vehicle Filter</div>
+                <div className="text-sm font-semibold text-white/90 truncate max-w-[200px]">
+                  {brandName ? `${brandName} ${modelName}` : 'Select your vehicle'}
+                </div>
+              </div>
+            </div>
+            <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+         </button>
+      </div>
+
+      {/* MOBILE DRAWER: Fixed Overlay (Hidden on Desktop) */}
+      {mobileOpen && (
+        <div className="fixed inset-0 z-[60] lg:hidden" role="dialog" aria-modal="true">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity" onClick={() => setMobileOpen(false)} />
+          <div className="absolute bottom-0 left-0 right-0 flex max-h-[85vh] flex-col rounded-t-3xl bg-white shadow-2xl animate-in slide-in-from-bottom duration-300">
+             <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
+               <h3 className="text-lg font-bold text-gray-900">Select Vehicle</h3>
+               <button onClick={() => setMobileOpen(false)} className="rounded-full bg-gray-100 p-2 text-gray-500 hover:bg-gray-200">
+                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
+               </button>
+             </div>
+             <div className="flex-1 overflow-y-auto px-5 py-6">
+                {FilterForm()}
+             </div>
+          </div>
+        </div>
+      )}
+
+      {/* DESKTOP VIEW: Sidebar Card (Hidden on Mobile) */}
+      <div className={`hidden lg:block rounded-xl bg-gradient-to-br from-white via-[#FFFBF0] to-white p-5 ring-2 ring-[#F7CD3A]/40 shadow-md ${className}`}>
+        {FilterForm()}
+      </div>
+    </>
   )
 }
