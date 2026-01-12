@@ -173,20 +173,28 @@ export default function Header() {
            const raw = p?.part || p
            let name = String(raw?.part_name || raw?.name || raw?.title || raw?.product_name || '')
            
-           // --- START CHANGE: Clean up name ---
-           // 1. Remove text inside brackets (e.g., "(600ml)")
-           name = name.replace(/\s*\(.*?\)/g, '').trim()
+           // --- CLEANING LOGIC START ---
+           // 1. Remove content in brackets e.g. (600ml)
+           name = name.replace(/\s*\(.*?\)/g, '')
+           
+           // 2. Remove punctuation (replace with space to keep words separate)
+           // Keep alphanumeric and spaces. 
+           name = name.replace(/[^\w\s]/g, ' ')
+           
+           // 3. Normalize spaces (trim and remove double spaces)
+           name = name.replace(/\s+/g, ' ').trim()
 
-           // 2. Truncate to 4 words
-           const nameParts = name.split(/\s+/)
+           // 4. Truncate to 4 words
+           const nameParts = name.split(' ')
            if (nameParts.length > 4) {
              name = nameParts.slice(0, 4).join(' ')
            }
-           // --- END CHANGE ---
+           // --- CLEANING LOGIC END ---
 
+           // Get the best image for this product
            const image = productImageFrom(raw) || normalizeApiImage(pickImage(raw) || '') || logo
            
-           // 1. Add cleaned product name
+           // 1. Add exact (cleaned) product name
            add(name, image, 'product')
 
            // 2. Extract Category Name if present
@@ -194,26 +202,18 @@ export default function Header() {
            if (cat) add(cat, image, 'category')
 
            // 3. Extract common phrases for suggestions
-           // (Use the cleaned 'name' variable here so suggestions are also cleaner)
-           const words = name.split(/\s+/).map(w => w.replace(/[^a-zA-Z0-9]/g, ''))
+           // Split name into words, filter out empty strings
+           const words = name.split(/\s+/).filter(w => w.length > 0)
            
            if (words.length >= 2) {
-              // Get last 2 words
+              // Get last 2 words (e.g. "Pad Set")
               const last2 = words.slice(-2).join(' ')
               if (last2.length > 3) {
                   const current2 = phraseCounts.get(last2.toLowerCase()) || { count: 0, image }
                   phraseCounts.set(last2.toLowerCase(), { count: current2.count + 1, image })
               }
 
-              // Get last 3 words (if long enough)
-              if (words.length >= 3) {
-                  const last3 = words.slice(-3).join(' ')
-                   if (last3.length > 5) {
-                      const current3 = phraseCounts.get(last3.toLowerCase()) || { count: 0, image }
-                      phraseCounts.set(last3.toLowerCase(), { count: current3.count + 1, image })
-                   }
-              }
-              
+              // Get first 2 words (e.g. "Brake Pad") - often the generic name
               const first2 = words.slice(0, 2).join(' ')
               if (first2.length > 3) {
                   const currentF2 = phraseCounts.get(first2.toLowerCase()) || { count: 0, image }
@@ -221,7 +221,7 @@ export default function Header() {
               }
            }
         })
-
+        
         // Add common phrases that appear frequently (e.g. >= 3 times)
         for (const [phrase, data] of phraseCounts.entries()) {
             // Only add if it's frequent enough and not already added as a full product/category
