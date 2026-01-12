@@ -179,7 +179,7 @@ export default function Header() {
            
            // 2. Remove punctuation (replace with space to keep words separate)
            // Keep alphanumeric and spaces. 
-           name = name.replace(/[^\w\s]/g, ' ')
+           
            
            // 3. Normalize spaces (trim and remove double spaces)
            name = name.replace(/\s+/g, ' ').trim()
