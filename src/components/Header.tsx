@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useCurrency } from '../context/CurrencyContext'
 import logo from '../assets/gapa-logo.png';
-import logoImg from '../assets/gapa-logo.png';
 import icon1 from '../assets/h1.png'
 import gapafix from '../assets/gapa-fix.svg'
 import cartImg from '../assets/cart.svg'
@@ -97,6 +96,28 @@ export default function Header() {
   const [mobileCatsOpen, setMobileCatsOpen] = useState(true)
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false)
   const profileDropdownRef = useRef<HTMLDivElement>(null)
+
+  // Hover-delay timer refs and functions
+  const hoverTimerRef = useRef<number | null>(null)
+
+  const clearHoverTimer = () => { 
+    if (hoverTimerRef.current) { 
+      window.clearTimeout(hoverTimerRef.current); 
+      hoverTimerRef.current = null 
+    } 
+  }
+
+  const openCategoryWithDelay = (idx: number, catId: string | number) => {
+    clearHoverTimer()
+    hoverTimerRef.current = window.setTimeout(async () => {
+      setBrandsOpen(false)
+      setCarPartsOpen(true)
+      setActiveCatIdx(idx)
+      await fetchSubCats(catId)
+    }, 1000)
+  }
+
+  // --- END OF ADDITION ---
 
   // Lock body scroll when overlays open
   useEffect(() => {
