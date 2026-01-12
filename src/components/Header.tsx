@@ -6,13 +6,12 @@ import icon1 from '../assets/h1.png'
 import gapafix from '../assets/gapa-fix.svg'
 import cartImg from '../assets/cart.svg'
 
-// Removed unused icons h2-h7
 import { useAuth } from '../services/auth'
 import { getAllCategories, type ApiCategory, getAllBrands, type ApiBrand, getSubCategories, getSubSubCategories, getCartForUser, logout as apiLogout, getAllProducts } from '../services/api'
 import { categoryImageFrom, normalizeApiImage, pickImage, brandImageFrom, subCategoryImageFrom, subSubCategoryImageFrom, productImageFrom } from '../services/images'
 import { getGuestCart } from '../services/cart'
 
-// Type for a suggestion item
+// Type for a suggestion item containing name, image, and type (for sorting/badges)
 type SuggestionItem = {
   name: string
   image: string
@@ -20,7 +19,7 @@ type SuggestionItem = {
 }
 
 export default function Header() {
-  // Live timer
+  // Live timer to Dec 1, 12am displayed as HH:MM:SS
   const [timeLeft, setTimeLeft] = useState(() => {
     const now = new Date()
     const target = new Date(now.getFullYear(), 11, 1, 0, 0, 0, 0)
@@ -30,15 +29,14 @@ export default function Header() {
     const s = Math.floor((diff % (60 * 1000)) / 1000)
     return { h, m, s }
   })
-  
+
+  // Search State
   const [query, setQuery] = useState('')
   const [showSuggestions, setShowSuggestions] = useState(false)
-  
-  // Changed: filteredSuggestions now stores objects with image
   const [filteredSuggestions, setFilteredSuggestions] = useState<SuggestionItem[]>([])
   const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(-1)
   
-  // Changed: Pool of all searchable items (Products + Categories + Common Terms)
+  // Pool of all searchable items (Products + Categories + Common Terms)
   const [suggestionPool, setSuggestionPool] = useState<SuggestionItem[]>([])
 
   const searchRef = useRef<HTMLDivElement>(null)
@@ -52,7 +50,7 @@ export default function Header() {
   const [currencyOpen, setCurrencyOpen] = useState(false)
   const currencyRef = useRef<HTMLDivElement>(null)
 
-  // Mega menu state
+  // Mega menu state for Category drill-down
   const [carPartsOpen, setCarPartsOpen] = useState(false)
   const [catMenuLoading, setCatMenuLoading] = useState(false)
   const [catMenu, setCatMenu] = useState<Array<{ id: string; name: string; image: string }>>([])
@@ -79,7 +77,7 @@ export default function Header() {
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false)
   const profileDropdownRef = useRef<HTMLDivElement>(null)
 
-  // Lock body scroll
+  // Lock body scroll when overlays open
   useEffect(() => {
     if (mobileMenuOpen || mobileSearchOpen) {
       document.documentElement.style.overflow = 'hidden'
@@ -93,7 +91,7 @@ export default function Header() {
     setMobileSearchOpen(false)
     setMobileBrandsOpen(false)
   }
-  
+  // Close mobile panels on route change
   useEffect(() => { closeAllMobile() }, [location.pathname, location.hash])
 
   // --- DATA LOADING FOR SUGGESTIONS ---
@@ -107,23 +105,32 @@ export default function Header() {
         const list = Array.isArray(prods) ? prods : (prods as any)?.data || []
         
         // Use a Map to ensure uniqueness by lowercase name
+        // Key: lowercase name, Value: SuggestionItem
         const uniqueItems = new Map<string, SuggestionItem>()
         
-        // Helper to add item
+        // Helper to safely add item
         const add = (name: string, image: string, type: 'product' | 'category' | 'common') => {
             if (!name || name.trim().length < 2) return
             const key = name.trim().toLowerCase()
-            if (!uniqueItems.has(key)) {
+            // Only add if not already present. 
+            // Priority: If we encounter a "Common" term that already exists as a "Product", keep Product.
+            // But if we encounter a "Product" that exists as "Common", overwrite with Product.
+            const existing = uniqueItems.get(key)
+            if (!existing) {
+                uniqueItems.set(key, { name: name.trim(), image, type })
+            } else if (existing.type === 'common' && type === 'product') {
+                // Upgrade common term to concrete product if names match exactly
                 uniqueItems.set(key, { name: name.trim(), image, type })
             }
         }
 
-        // Logic to find common terms (e.g. "Brake Pad Set")
+        // Logic to count phrases for "Common Terms" (e.g. "Brake Pad Set")
         const phraseCounts = new Map<string, { count: number; image: string }>()
 
         list.forEach((p: any) => {
            const raw = p?.part || p
            const name = String(raw?.part_name || raw?.name || raw?.title || raw?.product_name || '')
+           // Get the best image for this product
            const image = productImageFrom(raw) || normalizeApiImage(pickImage(raw) || '') || logoImg
            
            // 1. Add exact product name
@@ -133,27 +140,42 @@ export default function Header() {
            const cat = String(raw?.category?.name || raw?.category_name || '')
            if (cat) add(cat, image, 'category')
 
-           // 3. Extract common phrases (last 2-3 words of title often describe the item, e.g. "Brake Pad Set")
+           // 3. Extract common phrases for suggestions
+           // Split name into words, remove non-alphanumeric chars
            const words = name.split(/\s+/).map(w => w.replace(/[^a-zA-Z0-9]/g, ''))
+           
            if (words.length >= 2) {
-              // Get last 2 words
+              // Get last 2 words (e.g. "Pad Set" from "Brake Pad Set")
               const last2 = words.slice(-2).join(' ')
-              const current2 = phraseCounts.get(last2.toLowerCase()) || { count: 0, image }
-              phraseCounts.set(last2.toLowerCase(), { count: current2.count + 1, image })
+              if (last2.length > 3) {
+                  const current2 = phraseCounts.get(last2.toLowerCase()) || { count: 0, image }
+                  phraseCounts.set(last2.toLowerCase(), { count: current2.count + 1, image })
+              }
 
               // Get last 3 words (if long enough)
               if (words.length >= 3) {
                   const last3 = words.slice(-3).join(' ')
-                  const current3 = phraseCounts.get(last3.toLowerCase()) || { count: 0, image }
-                  phraseCounts.set(last3.toLowerCase(), { count: current3.count + 1, image })
+                   if (last3.length > 5) {
+                      const current3 = phraseCounts.get(last3.toLowerCase()) || { count: 0, image }
+                      phraseCounts.set(last3.toLowerCase(), { count: current3.count + 1, image })
+                   }
+              }
+              
+              // Also consider the *first* 2 words if it's not a brand name (heuristic)
+              // This helps capture "Brake Pad" if it appears at start "Brake Pad Set..."
+              const first2 = words.slice(0, 2).join(' ')
+              if (first2.length > 3) {
+                  const currentF2 = phraseCounts.get(first2.toLowerCase()) || { count: 0, image }
+                  phraseCounts.set(first2.toLowerCase(), { count: currentF2.count + 1, image })
               }
            }
         })
 
-        // Add common phrases that appear at least 3 times
+        // Add common phrases that appear frequently (e.g. >= 3 times)
         for (const [phrase, data] of phraseCounts.entries()) {
+            // Only add if it's frequent enough and not already added as a full product/category
             if (data.count >= 3 && !uniqueItems.has(phrase)) {
-                // Capitalize phrase for display
+                // Capitalize phrase for display (Simple Title Case)
                 const display = phrase.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
                 add(display, data.image, 'common')
             }
@@ -167,21 +189,8 @@ export default function Header() {
     })()
     return () => { alive = false }
   }, [])
-  // -------------------------------------
 
-  // Hover-delay timer
-  const hoverTimerRef = useRef<number | null>(null)
-  const clearHoverTimer = () => { if (hoverTimerRef.current) { window.clearTimeout(hoverTimerRef.current); hoverTimerRef.current = null } }
-  const openCategoryWithDelay = (idx: number, catId: string | number) => {
-    clearHoverTimer()
-    hoverTimerRef.current = window.setTimeout(async () => {
-      setBrandsOpen(false)
-      setCarPartsOpen(true)
-      setActiveCatIdx(idx)
-      await fetchSubCats(catId)
-    }, 1000)
-  }
-
+  // Timer effect
   useEffect(() => {
     const id = setInterval(() => {
       const now = new Date()
@@ -196,7 +205,7 @@ export default function Header() {
     return () => clearInterval(id)
   }, [])
 
-  // Filter suggestions
+  // Filter suggestions based on query
   useEffect(() => {
     const term = query.trim().toLowerCase()
     if (!term || term.length < 2) {
@@ -215,26 +224,27 @@ export default function Header() {
       const aStarts = aLower.startsWith(term)
       const bStarts = bLower.startsWith(term)
 
-      // 1. Starts with query
+      // 1. Prioritize matches starting with the query
       if (aStarts && !bStarts) return -1
       if (!aStarts && bStarts) return 1
 
       // 2. Type priority: Common > Category > Product
+      // We want generic terms (Common/Category) to appear before specific long product names
       const typeScore = { common: 3, category: 2, product: 1 }
       const aScore = typeScore[a.type] || 0
       const bScore = typeScore[b.type] || 0
       if (aScore !== bScore) return bScore - aScore // Higher score first
 
-      // 3. Alphabetical
+      // 3. Alphabetical fallback
       return a.name.localeCompare(b.name)
-    }).slice(0, 8)
+    }).slice(0, 8) // Limit to 8 suggestions
 
     setFilteredSuggestions(matches)
     setShowSuggestions(matches.length > 0)
     setActiveSuggestionIndex(-1)
   }, [query, suggestionPool])
 
-  // Close suggestions
+  // Close suggestions when clicking outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (
@@ -246,7 +256,11 @@ export default function Header() {
       if (profileDropdownRef.current && !profileDropdownRef.current.contains(e.target as Node)) {
         setProfileDropdownOpen(false)
       }
+      if (currencyRef.current && !currencyRef.current.contains(e.target as Node)) {
+        setCurrencyOpen(false)
+      }
     }
+
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
@@ -261,10 +275,10 @@ export default function Header() {
     navigate(`/parts?q=${encodeURIComponent(term)}`)
   }
 
-  const handleSuggestionClick = (suggestion: string) => {
-    setQuery(suggestion)
+  const handleSuggestionClick = (suggestionName: string) => {
+    setQuery(suggestionName)
     setShowSuggestions(false)
-    navigate(`/parts?q=${encodeURIComponent(suggestion)}`)
+    navigate(`/parts?q=${encodeURIComponent(suggestionName)}`)
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -311,6 +325,7 @@ export default function Header() {
       setActiveCatIdx(0)
       if (list.length) void fetchSubCats(list[0].id)
     } catch (_) {
+      // ignore
     } finally {
       setCatMenuLoading(false)
     }
@@ -369,11 +384,13 @@ export default function Header() {
       }).sort((a, b) => a.name.localeCompare(b.name))
       setBrandsMenu(menu)
     } catch (_) {
+      // ignore
     } finally {
       setBrandsLoading(false)
     }
   }
 
+  // Load and update cart count (API for logged-in, local for guest)
   useEffect(() => {
     let cancelled = false
     async function recompute() {
@@ -412,6 +429,7 @@ export default function Header() {
     }, 50)
   }, [brandsOpen])
 
+  // Close menus on route change using location instead of navigate.listen
   useEffect(() => {
     clearHoverTimer()
     setCarPartsOpen(false)
@@ -436,15 +454,18 @@ export default function Header() {
 
   return (
     <header className="fixed w-full top-0 z-50 shadow-sm" onKeyDown={(e) => { if (e.key === 'Escape') { closeMenus(); closeAllMobile() } }}>
+      {/* Mobile backdrop */}
       {(mobileMenuOpen || mobileSearchOpen) && (
         <div onClick={closeAllMobile} className="md:hidden fixed inset-0 z-30 bg-black/40 backdrop-blur-sm" />
       )}
+      {/* Top promo strip */}
       <div className="bg-brand text-white py-1">
         <div className="mx-auto flex h-10 max-w-7xl items-center justify-between px-4 sm:px-6">
           <p className="text-[14px] font-normal tracking-wide hidden md:block">
             Free Delivery on Orders Over {formatPrice(amount)} – Limited Time!
           </p>
 
+          {/* Timer (Right Aligned) */}
           <div className="flex items-center gap-3" aria-live="polite">
             <span className="hidden lg:inline text-[12px] font-semibold tracking-wider text-white/90">OFFER ENDS IN:</span>
             <div className="flex items-center gap-1.5">
@@ -461,8 +482,10 @@ export default function Header() {
         </div>
       </div>
 
+      {/* Main bar: logo + search + actions (mobile redesigned) */}
       <div className="bg-[#F7CD3A] py-5 relative">
         <div className="mx-auto grid max-w-7xl grid-cols-3 items-center gap-3 px-3 sm:px-6 md:grid-cols-[auto_minmax(0,1fr)_auto]">
+          {/* Mobile: Hamburger */}
           <div className="flex items-center md:hidden">
             <button
               type="button"
@@ -477,6 +500,7 @@ export default function Header() {
               )}
             </button>
           </div>
+          {/* Logo (center on mobile) */}
           <Link to="/" className="flex items-center gap-2 justify-center md:justify-start" aria-label="Gapa Naija home">
             <img
               src={logo}
@@ -536,12 +560,15 @@ export default function Header() {
             )}
           </div>
 
+          {/* Actions (desktop) */}
           <div className="hidden md:flex items-center justify-end gap-3 sm:gap-4">
+            {/* Gapa Fix */}
             <a href="https://gapafix.com.ng/" rel='noreferrer' target='_blank' className="hidden md:inline-flex items-center gap-2 text-[14px] text-gray-900">
               <img src={gapafix} alt="" className='w-[22px]' />
               <span className="font-medium">Gapa Fix</span>
               <span className="mx-2 inline-block h-5 w-px bg-black/20" aria-hidden />
             </a>
+            {/* Cart */}
             <Link to={{ pathname: location.pathname, search: location.search, hash: '#cart' }} replace className="hidden md:inline-flex items-center gap-2 text-[14px] text-gray-900 relative">
               <img src={cartImg} alt="" className='w-[22px]' />
               <span className="font-medium">My Cart</span>
@@ -552,46 +579,49 @@ export default function Header() {
               )}
             </Link>
 
+            {/* Country Selector (Left Aligned) */}
             <div className="relative" ref={currencyRef}>
-            <button
-              onClick={() => setCurrencyOpen(!currencyOpen)}
-              className="flex items-center gap-2 rounded-full bg-white/10 px-2 py-1 text-[12px] font-semibold text-white hover:bg-white/20 transition-colors"
-            >
-              <img src={currency.flag} alt={currency.countryCode} className="h-4 w-6 rounded-sm object-cover" />
-              
-              <span className="inline sm:hidden">{currency.code}</span>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="6 9 12 15 18 9" />
-              </svg>
-            </button>
+              <button
+                onClick={() => setCurrencyOpen(!currencyOpen)}
+                className="flex items-center gap-2 rounded-full bg-white/10 px-2 py-1 text-[12px] font-semibold text-white hover:bg-white/20 transition-colors"
+              >
+                <img src={currency.flag} alt={currency.countryCode} className="h-4 w-6 rounded-sm object-cover" />
+                
+                <span className="inline sm:hidden">{currency.code}</span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+              </button>
 
-            {currencyOpen && (
-              <div className="absolute left-0 top-full mt-2 max-h-[60vh] w-64 overflow-y-auto rounded-lg bg-white p-1 shadow-xl ring-1 ring-black/10 z-50">
-                <div className="px-3 py-2 text-xs font-bold text-gray-500 uppercase tracking-wider border-b border-gray-100 mb-1">Select Region</div>
-                {availableCurrencies.map((c) => (
-                  <button
-                    key={c.countryCode}
-                    onClick={() => { setCurrencyByCountry(c.countryCode); setCurrencyOpen(false) }}
-                    className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-[13px] transition-colors ${
-                      currency.countryCode === c.countryCode ? 'bg-brand/10 text-brand font-semibold' : 'text-gray-700 hover:bg-gray-50'
-                    }`}
-                  >
-                    <img src={c.flag} alt="" className="h-4 w-6 rounded-sm shadow-sm object-cover" />
-                    <div className="flex-1 min-w-0">
-                      <div className="truncate">{c.countryName}</div>
-                      <div className="text-[10px] text-gray-500">{c.code} ({c.symbol})</div>
-                    </div>
-                    {currency.countryCode === c.countryCode && (
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="20 6 9 17 4 12" />
-                      </svg>
-                    )}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+              {/* Dropdown */}
+              {currencyOpen && (
+                <div className="absolute left-0 top-full mt-2 max-h-[60vh] w-64 overflow-y-auto rounded-lg bg-white p-1 shadow-xl ring-1 ring-black/10 z-50">
+                  <div className="px-3 py-2 text-xs font-bold text-gray-500 uppercase tracking-wider border-b border-gray-100 mb-1">Select Region</div>
+                  {availableCurrencies.map((c) => (
+                    <button
+                      key={c.countryCode}
+                      onClick={() => { setCurrencyByCountry(c.countryCode); setCurrencyOpen(false) }}
+                      className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-[13px] transition-colors ${
+                        currency.countryCode === c.countryCode ? 'bg-brand/10 text-brand font-semibold' : 'text-gray-700 hover:bg-gray-50'
+                      }`}
+                    >
+                      <img src={c.flag} alt="" className="h-4 w-6 rounded-sm shadow-sm object-cover" />
+                      <div className="flex-1 min-w-0">
+                        <div className="truncate">{c.countryName}</div>
+                        <div className="text-[10px] text-gray-500">{c.code} ({c.symbol})</div>
+                      </div>
+                      {currency.countryCode === c.countryCode && (
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
 
+            {/* Auth - Desktop Dropdown */}
             {user ? (
               <div ref={profileDropdownRef} className="relative">
                 <button
@@ -617,8 +647,10 @@ export default function Header() {
                   </svg>
                 </button>
 
+                {/* Dropdown Menu */}
                 {profileDropdownOpen && (
                   <div className="absolute right-0 top-full mt-2 w-64 rounded-xl bg-white shadow-2xl ring-1 ring-black/10 overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                    {/* User Info Header */}
                     <div className="bg-gradient-to-br from-brand/10 to-yellow-50 p-4 border-b border-gray-100">
                       <div className="flex items-center gap-3">
                         <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-brand to-yellow-500 text-white font-bold text-[16px] ring-2 ring-white shadow-md">
@@ -631,6 +663,7 @@ export default function Header() {
                       </div>
                     </div>
 
+                    {/* Menu Items */}
                     <div className="py-2">
                       <Link
                         to="/profile"
@@ -714,7 +747,7 @@ export default function Header() {
             )}
           </div>
 
-          
+          {/* Mobile right actions */}
           <div className="flex md:hidden items-center justify-end gap-2">
             <button onClick={() => { setMobileSearchOpen(o => !o); if (!mobileSearchOpen) setTimeout(() => { const inp = document.getElementById('mobile-search-input') as HTMLInputElement | null; inp?.focus() }, 50) }} aria-label={mobileSearchOpen ? 'Close search' : 'Open search'} className="relative inline-flex h-10 w-10 items-center justify-center rounded-md bg-white/70 ring-1 ring-black/10 text-gray-700 hover:bg-white">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
@@ -739,6 +772,7 @@ export default function Header() {
           </div>
         </div>
 
+        {/* Mobile sliding search */}
         <div className={`md:hidden absolute left-0 right-0 z-40 origin-top transition-all duration-300 ${mobileSearchOpen ? 'translate-y-0 opacity-100' : '-translate-y-3 opacity-0 pointer-events-none'}`}>
           <div ref={mobileSearchRef} className="px-3 pb-3">
             <form onSubmit={(e) => { onSearch(e); setMobileSearchOpen(false) }} className="relative">
@@ -774,14 +808,18 @@ export default function Header() {
                     type="button"
                     onClick={() => { handleSuggestionClick(suggestion.name); setMobileSearchOpen(false) }}
                     onMouseEnter={() => setActiveSuggestionIndex(index)}
-                    className={`w-full text-left px-4 py-2.5 text-[14px] hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-b-0 ${index === activeSuggestionIndex ? 'bg-gray-50' : ''
+                    className={`w-full text-left px-3 py-2 text-[14px] hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-b-0 ${index === activeSuggestionIndex ? 'bg-gray-50' : ''
                       }`}
                   >
-                    <div className="flex items-center gap-2">
-                       <div className="h-8 w-8 flex-shrink-0 rounded bg-gray-50 border border-gray-100 overflow-hidden flex items-center justify-center">
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 flex-shrink-0 rounded bg-gray-50 border border-gray-100 overflow-hidden flex items-center justify-center">
                         <img src={suggestion.image} alt="" className="w-full h-full object-contain" onError={(e)=>{ (e.target as HTMLImageElement).src = logoImg }} />
                       </div>
-                      <span className="text-gray-700">{suggestion.name}</span>
+                      <div className="flex-1 min-w-0">
+                        <span className="block text-gray-900 font-medium truncate">{suggestion.name}</span>
+                        {suggestion.type === 'common' && <span className="block text-[10px] text-gray-500 uppercase tracking-wide">Popular</span>}
+                        {suggestion.type === 'category' && <span className="block text-[10px] text-gray-500 uppercase tracking-wide">Category</span>}
+                      </div>
                     </div>
                   </button>
                 ))}
@@ -790,7 +828,64 @@ export default function Header() {
           </div>
         </div>
       </div>
-      
+
+      {/* Category bar hidden on mobile */}
+      <nav className="relative bg-brand overflow-visible text-white hidden md:block" onMouseLeave={() => { clearHoverTimer(); setCarPartsOpen(false); setBrandsOpen(false) }}>
+        <div
+          className="mx-auto flex h-11 sm:h-12 max-w-7xl items-center justify-between gap-4 overflow-x-auto px-2 sm:px-4"
+        >
+          {/* Car Brands first */}
+          <div className="relative">
+            <button
+              onMouseEnter={async () => { clearHoverTimer(); setBrandsOpen(true); setCarPartsOpen(false); await ensureBrandsMenuLoaded() }}
+              onFocus={async () => { clearHoverTimer(); setBrandsOpen(true); setCarPartsOpen(false); await ensureBrandsMenuLoaded() }}
+              onClick={async (e) => { e.preventDefault(); clearHoverTimer(); const willOpen = !brandsOpen; setBrandsOpen(willOpen); setCarPartsOpen(false); if (willOpen) await ensureBrandsMenuLoaded() }}
+              className={`group inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-md px-2.5 py-1.5 text-[13px] sm:text-[14px] font-medium ${brandsOpen ? 'bg-white/10 text-white' : 'text-white/90 hover:text-white hover:bg-white/10'
+                }`}
+              aria-haspopup
+              aria-expanded={brandsOpen}
+            >
+              <img src={icon1} alt="" className="h-4 w-4 sm:h-5 sm:w-5" />
+              <span>Car Brands</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="opacity-80 group-hover:opacity-100">
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Dynamic categories from API */}
+          {catMenu.map((c, idx) => {
+            const nameLower = c.name.toLowerCase()
+            const isBrakes = /brakes?/.test(nameLower)
+            const isTyres = /tyres?|tires?/.test(nameLower)
+            const isActive = carPartsOpen && activeCatIdx === idx
+            return (
+              <div key={c.id} className="relative">
+                <button
+                  onMouseEnter={() => { openCategoryWithDelay(idx, c.id) }}
+                  onFocus={() => { openCategoryWithDelay(idx, c.id) }}
+                  onClick={(e) => {
+                    e.preventDefault()
+                    clearHoverTimer()
+                    setBrandsOpen(false)
+                    // Brakes and Tyres keep special routes; others use drilldown
+                    if (isBrakes) navigate('/brakes')
+                    else if (isTyres) navigate('/tyres')
+                    else navigate(`/parts?catId=${encodeURIComponent(c.id)}`)
+                    setCarPartsOpen(false)
+                  }}
+                  className={`group capitalized inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-md px-2.5 py-1.5 text-[13px] sm:text-[14px] font-medium ${isActive ? 'bg-white/10 text-white' : 'text-white/90 hover:text-white hover:bg-white/10'
+                    }`}
+                  aria-haspopup
+                  aria-expanded={isActive}
+                >
+                  <span className='capitalized'>{c.name}</span>
+                </button>
+              </div>
+            )
+          })}
+        </div>
+
         {/* Mega dropdown for Category drill-down */}
         {carPartsOpen && (
           <div className="absolute inset-x-0 top-full z-40">
@@ -1067,19 +1162,6 @@ export default function Header() {
 
                 {/* Help & Sign Out */}
                 <div className="space-y-2">
-                  {/* <Link
-                    to="/help"
-                    onClick={closeAllMobile}
-                    className="flex items-center justify-center gap-2 rounded-lg bg-white px-4 py-2.5 text-[13px] font-semibold text-gray-900 ring-1 ring-black/5 hover:bg-gray-50 transition-colors"
-                  >
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-brand">
-                      <circle cx="12" cy="12" r="10" />
-                      <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
-                      <line x1="12" y1="17" x2="12.01" y2="17" />
-                    </svg>
-                    <span>Help & Support</span>
-                  </Link> */}
-
                   <button
                     onClick={() => {
                       closeAllMobile()
@@ -1116,4 +1198,4 @@ export default function Header() {
      
     </header>
   )
-        }
+                                                 } 
