@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useCurrency } from '../context/CurrencyContext'
 import logo from '../assets/gapa-logo.png';
+import logoImg from '../assets/gapa-logo.png';
 import icon1 from '../assets/h1.png'
 import gapafix from '../assets/gapa-fix.svg'
 import cartImg from '../assets/cart.svg'
