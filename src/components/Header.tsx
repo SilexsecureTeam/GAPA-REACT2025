@@ -171,13 +171,22 @@ export default function Header() {
 
         list.forEach((p: any) => {
            const raw = p?.part || p
-           const name = String(raw?.part_name || raw?.name || raw?.title || raw?.product_name || '')
+           let name = String(raw?.part_name || raw?.name || raw?.title || raw?.product_name || '')
            
-           // Get the best image for this product
-           // Using productImageFrom as requested, with fallbacks
+           // --- START CHANGE: Clean up name ---
+           // 1. Remove text inside brackets (e.g., "(600ml)")
+           name = name.replace(/\s*\(.*?\)/g, '').trim()
+
+           // 2. Truncate to 4 words
+           const nameParts = name.split(/\s+/)
+           if (nameParts.length > 4) {
+             name = nameParts.slice(0, 4).join(' ')
+           }
+           // --- END CHANGE ---
+
            const image = productImageFrom(raw) || normalizeApiImage(pickImage(raw) || '') || logo
            
-           // 1. Add exact product name
+           // 1. Add cleaned product name
            add(name, image, 'product')
 
            // 2. Extract Category Name if present
@@ -185,11 +194,11 @@ export default function Header() {
            if (cat) add(cat, image, 'category')
 
            // 3. Extract common phrases for suggestions
-           // Split name into words, remove non-alphanumeric chars
+           // (Use the cleaned 'name' variable here so suggestions are also cleaner)
            const words = name.split(/\s+/).map(w => w.replace(/[^a-zA-Z0-9]/g, ''))
            
            if (words.length >= 2) {
-              // Get last 2 words (e.g. "Pad Set" from "Brake Pad Set")
+              // Get last 2 words
               const last2 = words.slice(-2).join(' ')
               if (last2.length > 3) {
                   const current2 = phraseCounts.get(last2.toLowerCase()) || { count: 0, image }
@@ -205,8 +214,6 @@ export default function Header() {
                    }
               }
               
-              // Also consider the *first* 2 words if it's not a brand name (heuristic)
-              // This helps capture "Brake Pad" if it appears at start "Brake Pad Set..."
               const first2 = words.slice(0, 2).join(' ')
               if (first2.length > 3) {
                   const currentF2 = phraseCounts.get(first2.toLowerCase()) || { count: 0, image }
