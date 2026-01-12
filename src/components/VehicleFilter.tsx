@@ -313,7 +313,7 @@ export default function VehicleFilter({ onSearch, onChange, className = '' }: Ve
   return (
     <>
       {/* MOBILE VIEW: Trigger Button (Hidden on Desktop) - Updated Design */}
-      <div className="lg:hidden w-full mb-6 px-1">
+      <div className="lg:hidden w-full mb-6">
          <button
             onClick={() => setMobileOpen(true)}
             className={`group relative flex w-full items-center justify-between overflow-hidden rounded-2xl bg-[#201A2B] p-4 text-left shadow-xl shadow-[#201A2B]/20 ring-1 ring-white/10 transition-all active:scale-[0.98] ${className}`}
