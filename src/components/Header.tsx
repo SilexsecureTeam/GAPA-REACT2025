@@ -714,7 +714,7 @@ export default function Header() {
             )}
           </div>
 
-               <div className="relative" ref={currencyRef}>
+          <div className="relative" >
             <button
               onClick={() => setCurrencyOpen(!currencyOpen)}
               className="flex sm:hidden items-center gap-2 rounded-full bg-white/10 px-2 py-1 text-[12px] font-semibold text-white hover:bg-white/20 transition-colors"
