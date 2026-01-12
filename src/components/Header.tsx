@@ -601,8 +601,8 @@ export default function Header() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <span className="block text-gray-900 font-medium truncate">{suggestion.name}</span>
-                        {suggestion.type === 'common' && <span className="block text-[10px] text-gray-500 uppercase tracking-wide">Popular</span>}
-                        {suggestion.type === 'category' && <span className="block text-[10px] text-gray-500 uppercase tracking-wide">Category</span>}
+                        {suggestion.type === 'common' && <span className="block text-[10px] text-gray-500 capitalize tracking-wide">Popular</span>}
+                        {suggestion.type === 'category' && <span className="block text-[10px] text-gray-500 capitalize tracking-wide">Category</span>}
                       </div>
                     </div>
                   </button>
