@@ -1,15 +1,33 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useCurrency } from '../context/CurrencyContext'
 import logo from '../assets/gapa-logo.png';
-import logoImg from '../assets/gapa-logo.png';
 import icon1 from '../assets/h1.png'
 import gapafix from '../assets/gapa-fix.svg'
 import cartImg from '../assets/cart.svg'
 
 import { useAuth } from '../services/auth'
-import { getAllCategories, type ApiCategory, getAllBrands, type ApiBrand, getSubCategories, getSubSubCategories, getCartForUser, logout as apiLogout, getAllProducts } from '../services/api'
-import { categoryImageFrom, normalizeApiImage, pickImage, brandImageFrom, subCategoryImageFrom, subSubCategoryImageFrom, productImageFrom } from '../services/images'
+import { 
+  getAllCategories, 
+  type ApiCategory, 
+  getAllBrands, 
+  type ApiBrand, 
+  getSubCategories, 
+  getSubSubCategories, 
+  getCartForUser, 
+  logout as apiLogout, 
+  getAllProducts 
+} from '../services/api'
+
+import { 
+  categoryImageFrom, 
+  normalizeApiImage, 
+  pickImage, 
+  brandImageFrom, 
+  subCategoryImageFrom, 
+  subSubCategoryImageFrom 
+} from '../services/images'
+
 import { getGuestCart } from '../services/cart'
 
 // Type for a suggestion item containing name, image, and type (for sorting/badges)
@@ -131,8 +149,8 @@ export default function Header() {
         list.forEach((p: any) => {
            const raw = p?.part || p
            const name = String(raw?.part_name || raw?.name || raw?.title || raw?.product_name || '')
-           // Get the best image for this product
-           const image = productImageFrom(raw) || normalizeApiImage(pickImage(raw) || '') || logoImg
+           // Get the best image for this product. Using pickImage + normalize for maximum compatibility.
+           const image = normalizeApiImage(pickImage(raw) || '') || logo
            
            // 1. Add exact product name
            add(name, image, 'product')
@@ -142,7 +160,7 @@ export default function Header() {
            if (cat) add(cat, image, 'category')
 
            // 3. Extract common phrases for suggestions
-           // Split name into words, remove non-alphanumeric chars
+           // Split name into words, remove non-alphanumeric chars (keep spaces)
            const words = name.split(/\s+/).map(w => w.replace(/[^a-zA-Z0-9]/g, ''))
            
            if (words.length >= 2) {
@@ -505,7 +523,7 @@ export default function Header() {
           <Link to="/" className="flex items-center gap-2 justify-center md:justify-start" aria-label="Gapa Naija home">
             <img
               src={logo}
-              onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/gapa-logo.png' }}
+              onError={(e) => { (e.currentTarget as HTMLImageElement).src = logo }}
               alt="Gapa Naija"
               className="h-8 w-auto md:h-10"
             />
@@ -547,7 +565,7 @@ export default function Header() {
                   >
                     <div className="flex items-center gap-3">
                       <div className="h-10 w-10 flex-shrink-0 rounded bg-gray-50 border border-gray-100 overflow-hidden flex items-center justify-center">
-                        <img src={suggestion.image} alt="" className="w-full h-full object-contain" onError={(e)=>{ (e.target as HTMLImageElement).src = logoImg }} />
+                        <img src={suggestion.image} alt="" className="w-full h-full object-contain" onError={(e)=>{ (e.target as HTMLImageElement).src = logo }} />
                       </div>
                       <div className="flex-1 min-w-0">
                         <span className="block text-gray-900 font-medium truncate">{suggestion.name}</span>
@@ -714,19 +732,6 @@ export default function Header() {
                         <span className="font-medium">Settings</span>
                       </Link>
 
-                      {/* <Link
-                        to="/help"
-                        onClick={() => setProfileDropdownOpen(false)}
-                        className="flex items-center gap-3 px-4 py-2.5 text-[14px] text-gray-700 hover:bg-gray-50 transition-colors"
-                      >
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-brand">
-                          <circle cx="12" cy="12" r="10" />
-                          <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
-                          <line x1="12" y1="17" x2="12.01" y2="17" />
-                        </svg>
-                        <span className="font-medium">Help & Support</span>
-                      </Link> */}
-
                       <div className="my-2 border-t border-gray-100" />
 
                       <button
@@ -827,7 +832,7 @@ export default function Header() {
                   >
                     <div className="flex items-center gap-2">
                        <div className="h-8 w-8 flex-shrink-0 rounded bg-gray-50 border border-gray-100 overflow-hidden flex items-center justify-center">
-                        <img src={suggestion.image} alt="" className="w-full h-full object-contain" onError={(e)=>{ (e.target as HTMLImageElement).src = logoImg }} />
+                        <img src={suggestion.image} alt="" className="w-full h-full object-contain" onError={(e)=>{ (e.target as HTMLImageElement).src = logo }} />
                       </div>
                       <span className="text-gray-700">{suggestion.name}</span>
                     </div>
@@ -919,7 +924,7 @@ export default function Header() {
                             aria-current={activeCatIdx === idx}
                           >
                             <span className="flex h-8 w-8 items-center justify-center overflow-hidden rounded bg-[#F6F5FA] ring-1 ring-black/10">
-                              <img src={c.image} alt="" className="h-full w-full object-contain" onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/gapa-logo.png' }} />
+                              <img src={c.image} alt="" className="h-full w-full object-contain" onError={(e) => { (e.currentTarget as HTMLImageElement).src = logo }} />
                             </span>
                             <span className="truncate">{c.name}</span>
                           </button>
@@ -949,7 +954,7 @@ export default function Header() {
                                   className="group flex items-center gap-3 rounded-md p-2 ring-1 ring-black/5 hover:bg-gray-50 w-full text-left"
                                 >
                                   <span className="flex h-10 w-10 items-center justify-center overflow-hidden rounded bg-[#F6F5FA] ring-1 ring-black/10">
-                                    <img src={sc.image} alt="" className="h-full w-full object-contain" onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/gapa-logo.png' }} />
+                                    <img src={sc.image} alt="" className="h-full w-full object-contain" onError={(e) => { (e.currentTarget as HTMLImageElement).src = logo }} />
                                   </span>
                                   <span className="text-[14px] text-brand group-hover:underline truncate">{sc.name}</span>
                                 </button>
@@ -985,7 +990,7 @@ export default function Header() {
                                       onClick={() => setCarPartsOpen(false)}
                                     >
                                       <span className="flex h-10 w-10 items-center justify-center overflow-hidden rounded bg-[#F6F5FA] ring-1 ring-black/10">
-                                        <img src={ssc.image} alt="" className="h-full w-full object-contain" onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/gapa-logo.png' }} />
+                                        <img src={ssc.image} alt="" className="h-full w-full object-contain" onError={(e) => { (e.currentTarget as HTMLImageElement).src = logo }} />
                                       </span>
                                       <span className="text-[14px] text-brand group-hover:underline truncate">{ssc.name}</span>
                                     </Link>
@@ -1026,7 +1031,7 @@ export default function Header() {
                               onClick={() => setBrandsOpen(false)}
                             >
                               <span className="flex h-10 w-10 items-center justify-center overflow-hidden rounded bg-[#F6F5FA] ring-1 ring-black/10">
-                                <img src={b.image} alt={b.name} className="h-full w-full object-contain" onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/gapa-logo.png' }} />
+                                <img src={b.image} alt={b.name} className="h-full w-full object-contain" onError={(e) => { (e.currentTarget as HTMLImageElement).src = logo }} />
                               </span>
                               <span className="truncate text-[14px] text-gray-800">{b.name}</span>
                             </Link>
@@ -1208,4 +1213,4 @@ export default function Header() {
      
     </header>
   )
-                  }
+        }
