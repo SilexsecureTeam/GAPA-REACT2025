@@ -1,34 +1,15 @@
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useCurrency } from '../context/CurrencyContext'
 import logo from '../assets/gapa-logo.png';
+import logoImg from '../assets/gapa-logo.png';
 import icon1 from '../assets/h1.png'
 import gapafix from '../assets/gapa-fix.svg'
 import cartImg from '../assets/cart.svg'
 
 import { useAuth } from '../services/auth'
-import { 
-  getAllCategories, 
-  type ApiCategory, 
-  getAllBrands, 
-  type ApiBrand, 
-  getSubCategories, 
-  getSubSubCategories, 
-  getCartForUser, 
-  logout as apiLogout, 
-  getAllProducts 
-} from '../services/api'
-
-import { 
-  categoryImageFrom, 
-  normalizeApiImage, 
-  pickImage, 
-  brandImageFrom, 
-  subCategoryImageFrom, 
-  subSubCategoryImageFrom 
-  // productImageFrom removed to prevent import errors if missing in images.ts
-} from '../services/images'
-
+import { getAllCategories, type ApiCategory, getAllBrands, type ApiBrand, getSubCategories, getSubSubCategories, getCartForUser, logout as apiLogout, getAllProducts } from '../services/api'
+import { categoryImageFrom, normalizeApiImage, pickImage, brandImageFrom, subCategoryImageFrom, subSubCategoryImageFrom, productImageFrom } from '../services/images'
 import { getGuestCart } from '../services/cart'
 
 // Type for a suggestion item containing name, image, and type (for sorting/badges)
@@ -150,9 +131,8 @@ export default function Header() {
         list.forEach((p: any) => {
            const raw = p?.part || p
            const name = String(raw?.part_name || raw?.name || raw?.title || raw?.product_name || '')
-           
-           // Use pickImage as fallback since productImageFrom might not be exported
-           const image = normalizeApiImage(pickImage(raw) || '') || logoImg
+           // Get the best image for this product
+           const image = productImageFrom(raw) || normalizeApiImage(pickImage(raw) || '') || logoImg
            
            // 1. Add exact product name
            add(name, image, 'product')
@@ -734,6 +714,19 @@ export default function Header() {
                         <span className="font-medium">Settings</span>
                       </Link>
 
+                      {/* <Link
+                        to="/help"
+                        onClick={() => setProfileDropdownOpen(false)}
+                        className="flex items-center gap-3 px-4 py-2.5 text-[14px] text-gray-700 hover:bg-gray-50 transition-colors"
+                      >
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-brand">
+                          <circle cx="12" cy="12" r="10" />
+                          <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+                          <line x1="12" y1="17" x2="12.01" y2="17" />
+                        </svg>
+                        <span className="font-medium">Help & Support</span>
+                      </Link> */}
+
                       <div className="my-2 border-t border-gray-100" />
 
                       <button
@@ -1215,4 +1208,4 @@ export default function Header() {
      
     </header>
   )
-}
+                  }
