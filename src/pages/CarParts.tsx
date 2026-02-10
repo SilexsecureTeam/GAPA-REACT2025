@@ -1011,3 +1011,584 @@ function CarPartsInner() {
       </div>
     )
   }
+// --- Render ---
+  if (loading) return <FallbackLoader />
+
+  return (
+    <div className="min-h-screen bg-gray-50 pb-20">
+      {/* Search Header */}
+      <div className="sticky top-0 z-30 border-b border-gray-200 bg-white px-4 py-3 shadow-sm">
+        <div className="mx-auto flex max-w-7xl items-center gap-4">
+          <Link to="/" className="flex-shrink-0">
+            <img src={logoImg} alt="Gapa" className="h-8 w-auto" />
+          </Link>
+          <div className="flex-1">
+            <div className="relative">
+              <input
+                type="text"
+                className="w-full rounded-lg border border-gray-300 py-2 pl-10 pr-4 text-sm focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
+                placeholder="Search within car parts..."
+                value={pageSearch}
+                onChange={(e) => setPageSearch(e.target.value)}
+              />
+              <svg className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="mx-auto max-w-7xl px-4 pt-4 sm:px-6 lg:px-8">
+        <Crumb />
+        
+        <div className="mt-6 flex flex-col gap-6 lg:flex-row lg:items-start lg:gap-8">
+          {/* Sidebar Filters */}
+          <aside className="w-full flex-shrink-0 lg:w-64">
+            <div className="sticky top-24 space-y-6">
+              {/* Vehicle Filter - Fixed prop to onChange */}
+              <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-black/5">
+                <h3 className="mb-3 text-sm font-semibold text-gray-900">Vehicle Compatibility</h3>
+                <VehicleFilter 
+                  variant="sidebar"
+                  onChange={(f) => {
+                    setVehFilter(f)
+                    setPersistedVehicleFilter(f)
+                  }}
+                />
+              </div>
+
+              {/* Categories Sidebar */}
+              <div className="hidden rounded-xl bg-white p-4 shadow-sm ring-1 ring-black/5 lg:block">
+                <h3 className="mb-3 text-sm font-semibold text-gray-900">Categories</h3>
+                <ul className="space-y-2 text-sm">
+                  {topCats.map((c) => (
+                    <li key={c.name}>
+                      <button 
+                        onClick={() => scrollToCat(c.name)}
+                        className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-gray-600 hover:bg-gray-50 hover:text-brand"
+                      >
+                        <span>{c.name}</span>
+                        <span className="text-xs text-gray-400">{c.count}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </aside>
+
+          {/* Main Content Area */}
+          <main className="flex-1 min-w-0">
+            {/* Page Title */}
+            <div className="mb-6">
+              <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">Car Parts Catalogue</h1>
+              <p className="mt-2 text-gray-600">
+                Browse our extensive collection of car parts and accessories. 
+                {hasVehicleFilter ? (
+                  <span className="font-medium text-brand"> Showing parts compatible with {vehicleEcho}.</span>
+                ) : (
+                  <span> Select your vehicle to see compatible parts.</span>
+                )}
+              </p>
+            </div>
+
+            {/* Top Brands Carousel */}
+            <div className="mb-8 overflow-hidden rounded-xl bg-white p-6 shadow-sm ring-1 ring-black/5">
+               <h2 className="mb-4 text-lg font-bold text-gray-900">Popular Brands</h2>
+               <TopBrands />
+            </div>
+
+            {/* Active Filters Summary */}
+            {(hasVehicleFilter || selectedManufacturerId) && (
+              <div className="mb-6 flex flex-wrap items-center gap-2 rounded-lg bg-blue-50 p-3 text-sm text-blue-800 ring-1 ring-blue-100">
+                <span className="font-medium">Active Filters:</span>
+                {vehFilter.brandName && (
+                  <span className="inline-flex items-center gap-1 rounded bg-white px-2 py-0.5 text-xs font-medium text-gray-700 ring-1 ring-black/10">
+                    {vehFilter.brandName}
+                  </span>
+                )}
+                {vehFilter.modelName && (
+                  <span className="inline-flex items-center gap-1 rounded bg-white px-2 py-0.5 text-xs font-medium text-gray-700 ring-1 ring-black/10">
+                    {vehFilter.modelName}
+                  </span>
+                )}
+                 {selectedManufacturerId && (
+                  <span className="inline-flex items-center gap-1 rounded bg-white px-2 py-0.5 text-xs font-medium text-gray-700 ring-1 ring-black/10">
+                    Manufacturer: {manufacturers.find(m => String(m.id) === selectedManufacturerId)?.name || 'Unknown'}
+                     <button onClick={() => setSelectedManufacturerId('')} className="ml-1 text-gray-400 hover:text-red-500">×</button>
+                  </span>
+                )}
+                <button 
+                  onClick={() => {
+                    setVehFilter({ brandName: '', modelName: '', year: '', engineName: '' })
+                    setPersistedVehicleFilter({ brandName: '', modelName: '', year: '', engineName: '' })
+                    setSelectedManufacturerId('')
+                  }}
+                  className="ml-auto text-xs font-medium underline hover:text-blue-600"
+                >
+                  Clear All
+                </button>
+              </div>
+            )}
+
+            {/* Conditional Views based on Drilldown Mode */}
+            
+            {/* 1. Brand Drilldown Mode */}
+            {inBrandDrillMode ? (
+              <div className="space-y-8">
+                 <BrandDrilldown 
+                   initialBrandId={brandIdParam}
+                   onCategorySelect={(catName) => setBrandDrilldownCategoryFilter(catName)}
+                 />
+                 
+                 {/* Manufacturer Filter in Brand Drilldown Mode */}
+                 {renderManufacturerFilter(paginatedBrandProducts)}
+
+                 <div ref={productsRef} className="scroll-mt-24">
+                   <h2 className="mb-4 text-xl font-bold text-gray-900">
+                      {brandDrilldownCategoryFilter 
+                        ? `${brandDrilldownCategoryFilter} for ${vehFilter.brandName || 'Selected Brand'}`
+                        : `All Parts for ${vehFilter.brandName || 'Selected Brand'}`
+                      }
+                   </h2>
+                   
+                   {paginatedBrandProducts.length > 0 ? (
+                      <>
+                        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+                          {paginatedBrandProducts.map((product) => (
+                             <ProductActionCard 
+                               key={product.id || (product as any).product_id}
+                               product={product}
+                               onAddToCart={() => onAddToCart(product)}
+                               onViewDetails={() => onViewProduct(product)}
+                             />
+                          ))}
+                        </div>
+                        <PaginationControls 
+                           page={brandPage}
+                           setPage={setBrandPage}
+                           pageSize={brandPageSize}
+                           setPageSize={setBrandPageSize}
+                           total={brandProductsSource.length}
+                        />
+                      </>
+                   ) : (
+                      <div className="rounded-xl bg-white p-12 text-center ring-1 ring-black/5">
+                        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-gray-100">
+                          <svg className="h-6 w-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                          </svg>
+                        </div>
+                        <h3 className="text-lg font-medium text-gray-900">No parts found</h3>
+                        <p className="mt-1 text-gray-500">We couldn't find any parts matching your specific criteria.</p>
+                        <button 
+                           onClick={() => {
+                             setBrandDrilldownCategoryFilter('')
+                             setVehFilter({ brandName: '', modelName: '', year: '', engineName: '' })
+                           }}
+                           className="mt-4 text-sm font-medium text-brand hover:underline"
+                        >
+                          Clear filters
+                        </button>
+                      </div>
+                   )}
+                 </div>
+              </div>
+
+            ) : inVehicleSearchMode ? (
+              /* 2. Vehicle Search Mode */
+              <div className="space-y-8">
+                 <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-black/5">
+                    <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
+                       <div>
+                          <h2 className="text-xl font-bold text-gray-900">
+                             Parts for {activeVehicleBrand} {activeVehicleModel}
+                          </h2>
+                          <p className="text-sm text-gray-600">
+                             {activeVehicleEngine ? `Engine: ${activeVehicleEngine}` : 'Select an engine to refine results'}
+                          </p>
+                       </div>
+                       
+                       {/* Engine Selector if missing */}
+                       {!activeVehicleEngine && vehicleEngines.length > 0 && (
+                          <div className="w-full md:w-64">
+                             <select 
+                                value={activeVehicleEngine}
+                                onChange={(e) => setParams({ vehicleEngine: e.target.value })}
+                                className="w-full rounded-lg border-gray-300 text-sm focus:border-brand focus:ring-brand"
+                             >
+                                <option value="">Select Engine...</option>
+                                {vehicleEngines.map(e => <option key={e} value={e}>{e}</option>)}
+                             </select>
+                          </div>
+                       )}
+                    </div>
+
+                    {/* Category Filter Pills */}
+                    {availableCategories.length > 0 && (
+                       <div className="mt-6">
+                          <div className="mb-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">Filter by Category</div>
+                          <div className="flex flex-wrap gap-2">
+                             <button
+                                onClick={() => setVehicleSearchCategoryFilter('')}
+                                className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${!vehicleSearchCategoryFilter ? 'bg-brand text-white shadow-sm' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                             >
+                                All ({displayFiltered.length})
+                             </button>
+                             {availableCategories.map((cat) => (
+                                <button
+                                   key={cat.name}
+                                   onClick={() => setVehicleSearchCategoryFilter(cat.name)}
+                                   className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${vehicleSearchCategoryFilter === cat.name ? 'bg-brand text-white shadow-sm' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                                >
+                                   {cat.name} ({cat.count})
+                                </button>
+                             ))}
+                          </div>
+                       </div>
+                    )}
+                 </div>
+
+                 {/* Manufacturer Filter in Vehicle Search Mode */}
+                 {renderManufacturerFilter(filteredWithCategory)}
+
+                 {/* Results Grid */}
+                 <div className="space-y-6">
+                    <div className="flex items-center justify-between">
+                       <h3 className="text-lg font-bold text-gray-900">
+                          {vehicleSearchCategoryFilter || 'All'} Components
+                       </h3>
+                       <span className="text-sm text-gray-500">{filteredWithCategory.length} items</span>
+                    </div>
+
+                    {filteredWithCategory.length > 0 ? (
+                       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+                          {filteredWithCategory.map((product) => (
+                             <ProductActionCard 
+                                key={product.id || (product as any).product_id}
+                                product={product}
+                                onAddToCart={() => onAddToCart(product)}
+                                onViewDetails={() => onViewProduct(product)}
+                             />
+                          ))}
+                       </div>
+                    ) : (
+                       <div className="rounded-lg border-2 border-dashed border-gray-200 p-12 text-center">
+                          <p className="text-gray-500">No parts found for this specific configuration.</p>
+                          <button 
+                             onClick={() => setVehicleSearchCategoryFilter('')}
+                             className="mt-2 text-sm font-medium text-brand hover:underline"
+                          >
+                             View all parts for this model
+                          </button>
+                       </div>
+                    )}
+                 </div>
+              </div>
+
+            ) : activeCatId ? (
+              /* 3. Category Drilldown Mode */
+              <div className="space-y-8">
+                 {/* Breadcrumb / Back Navigation */}
+                 <div className="flex items-center gap-2 text-sm text-gray-500">
+                    <button onClick={() => setParams({ catId: '', subCatId: '', subSubCatId: '' })} className="hover:text-brand hover:underline">All Categories</button>
+                    <span>›</span>
+                    <span className={`font-medium ${!activeSubCatId ? 'text-gray-900' : ''}`}>{activeCategoryName}</span>
+                    {activeSubCatId && (
+                       <>
+                          <span>›</span>
+                          <button onClick={() => setParams({ subSubCatId: '' })} className={`hover:text-brand hover:underline ${!activeSubSubCatId ? 'font-medium text-gray-900' : ''}`}>
+                             {activeSubCategoryName}
+                          </button>
+                       </>
+                    )}
+                    {activeSubSubCatId && (
+                       <>
+                          <span>›</span>
+                          <span className="font-medium text-gray-900">{activeTypeName}</span>
+                       </>
+                    )}
+                 </div>
+
+                 {/* Level 1: Sub-Categories Selection */}
+                 {!activeSubCatId && (
+                    <div ref={catSectionRef} className="animate-fade-in space-y-4">
+                       <h2 className="text-xl font-bold text-gray-900">Select a Sub-Category</h2>
+                       {subCatsLoading ? (
+                          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+                             {[1,2,3,4].map(i => <div key={i} className="h-32 animate-pulse rounded-xl bg-gray-200"></div>)}
+                          </div>
+                       ) : subCats.length > 0 ? (
+                          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+                             {subCats.map((sc) => (
+                                <button
+                                   key={sc.id}
+                                   onClick={() => setParams({ subCatId: sc.id })}
+                                   className="group relative flex h-32 flex-col items-center justify-center overflow-hidden rounded-xl bg-white p-4 text-center shadow-sm ring-1 ring-black/10 transition hover:shadow-md hover:ring-brand/50"
+                                >
+                                   <div className="mb-2 h-16 w-16 opacity-80 transition group-hover:scale-110 group-hover:opacity-100">
+                                      <img src={sc.image} alt="" className="h-full w-full object-contain" />
+                                   </div>
+                                   <span className="text-sm font-semibold text-gray-900 group-hover:text-brand">{sc.name}</span>
+                                </button>
+                             ))}
+                          </div>
+                       ) : (
+                          <div className="py-12 text-center text-gray-500">No sub-categories found.</div>
+                       )}
+                    </div>
+                 )}
+
+                 {/* Level 2: Sub-Sub-Categories (Pills) */}
+                 {activeSubCatId && (
+                    <div ref={subSubCatSectionRef} className="animate-fade-in space-y-4">
+                       <div className="flex items-center justify-between">
+                          <h2 className="text-lg font-semibold text-gray-900">Filter by Type</h2>
+                          <button onClick={() => setParams({ subCatId: '' })} className="text-xs text-gray-500 hover:text-brand">Change Category</button>
+                       </div>
+                       
+                       {subSubCatsLoading ? (
+                          <div className="flex gap-2 overflow-x-auto pb-2">
+                             {[1,2,3,4].map(i => <div key={i} className="h-10 w-24 animate-pulse rounded-full bg-gray-200"></div>)}
+                          </div>
+                       ) : subSubCats.length > 0 ? (
+                          <div className="flex flex-wrap gap-2">
+                             {subSubCats.map((ssc) => (
+                                <button
+                                   key={ssc.id}
+                                   onClick={() => setParams({ subSubCatId: ssc.id })}
+                                   className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
+                                      activeSubSubCatId === ssc.id 
+                                      ? 'bg-brand text-white shadow-md' 
+                                      : 'bg-white text-gray-700 ring-1 ring-black/10 hover:bg-gray-50'
+                                   }`}
+                                >
+                                   {ssc.name}
+                                </button>
+                             ))}
+                          </div>
+                       ) : (
+                          <p className="text-sm text-gray-500">No specific types found.</p>
+                       )}
+                    </div>
+                 )}
+
+                 {/* Level 3: Products Grid */}
+                 {activeSubSubCatId && (
+                    <div ref={productsSectionRef} className="animate-fade-in space-y-6 pt-4 border-t border-gray-100">
+                       <h2 className="text-xl font-bold text-gray-900">
+                          {activeTypeName} 
+                          {hasVehicleFilter && <span className="text-base font-normal text-gray-500 ml-2">compatible with {vehicleEcho}</span>}
+                       </h2>
+                       
+                       {/* Manufacturer Filter in Drilldown Level 3 */}
+                       {renderManufacturerFilter(filteredSubProducts)}
+
+                       {subProductsLoading ? (
+                          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+                             {[1,2,3,4].map(i => <div key={i} className="h-64 animate-pulse rounded-xl bg-gray-200"></div>)}
+                          </div>
+                       ) : subProductsPaged.length > 0 ? (
+                          <>
+                             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+                                {subProductsPaged.map((product) => (
+                                   <ProductActionCard 
+                                      key={product.id || (product as any).product_id}
+                                      product={product}
+                                      onAddToCart={() => onAddToCart(product)}
+                                      onViewDetails={() => onViewProduct(product)}
+                                   />
+                                ))}
+                             </div>
+                             <PaginationControls 
+                                page={subProductsPage}
+                                setPage={setSubProductsPage}
+                                pageSize={subProductsPageSize}
+                                setPageSize={setSubProductsPageSize}
+                                total={filteredSubProducts.length}
+                             />
+                          </>
+                       ) : (
+                          <div className="rounded-xl bg-gray-50 p-12 text-center ring-1 ring-black/5">
+                             <p className="text-lg font-medium text-gray-900">No products found</p>
+                             <p className="text-gray-500">Try adjusting your vehicle filters or selecting a different category.</p>
+                          </div>
+                       )}
+                    </div>
+                 )}
+              </div>
+
+            ) : (
+              /* 4. Default Catalogue View (All Categories) */
+              <div className="space-y-12">
+                 
+                 {/* Search Results (if q param exists) */}
+                 {qParam && (
+                    <div className="space-y-6">
+                       <h2 className="text-xl font-bold text-gray-900">Search Results for "{qParam}"</h2>
+                       
+                       {/* Manufacturer Filter in Search Results */}
+                       {renderManufacturerFilter(searchPaged)}
+
+                       {searchLoading ? (
+                          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+                             {[1,2,3,4].map(i => <div key={i} className="h-64 animate-pulse rounded-xl bg-gray-200"></div>)}
+                          </div>
+                       ) : searchPaged.length > 0 ? (
+                          <>
+                             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+                                {searchPaged.map((p) => (
+                                   <ProductActionCard 
+                                      key={p.id || (p as any).product_id}
+                                      product={p}
+                                      onAddToCart={() => onAddToCart(p)}
+                                      onViewDetails={() => onViewProduct(p)}
+                                   />
+                                ))}
+                             </div>
+                             <PaginationControls 
+                                page={searchPage}
+                                setPage={setSearchPage}
+                                pageSize={searchPageSize}
+                                setPageSize={setSearchPageSize}
+                                total={filteredSearchResults.length}
+                             />
+                          </>
+                       ) : (
+                          <div className="text-center py-12 text-gray-500">No results found matching "{qParam}"</div>
+                       )}
+                    </div>
+                 )}
+
+                 {/* Render Groups by Category */}
+                 {/* Only show if NOT searching or if search is empty */}
+                 {!qParam && (
+                    <>
+                      {/* Manufacturer Filter for General List */}
+                      {renderManufacturerFilter(filteredPaged)}
+                      
+                      {grouped.map(([catName, items]) => {
+                         const catInfo = catInfoFor(items[0])
+                         const previewItems = items.slice(0, 8)
+                         const catId = categoryIdOf(items[0])
+
+                         return (
+                            <section key={catName} id={`cat-${toSlug(catName)}`} className="scroll-mt-24 rounded-xl bg-white p-6 shadow-sm ring-1 ring-black/5">
+                               <div className="mb-6 flex items-center justify-between border-b border-gray-100 pb-4">
+                                  <div className="flex items-center gap-4">
+                                     <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-gray-50 p-2 ring-1 ring-black/5">
+                                        <img src={catInfo.image} alt="" className="max-h-full max-w-full object-contain" />
+                                     </div>
+                                     <h2 className="text-lg font-bold text-gray-900">{catInfo.name}</h2>
+                                  </div>
+                                  <button 
+                                     onClick={() => {
+                                        if (catId) setParams({ catId })
+                                        else toast.error('Category ID missing')
+                                     }}
+                                     className="text-sm font-semibold text-brand hover:underline"
+                                  >
+                                     View All ({items.length})
+                                  </button>
+                               </div>
+
+                               <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+                                  {previewItems.map((p) => (
+                                     <ProductActionCard 
+                                        key={p.id || (p as any).product_id}
+                                        product={p}
+                                        onAddToCart={() => onAddToCart(p)}
+                                        onViewDetails={() => onViewProduct(p)}
+                                     />
+                                  ))}
+                               </div>
+                            </section>
+                         )
+                      })}
+                      
+                      {/* Fallback if no groups found */}
+                      {grouped.length === 0 && !loading && (
+                         <div className="flex flex-col items-center justify-center py-20 text-center">
+                            <div className="mb-4 rounded-full bg-gray-100 p-6">
+                               <svg className="h-10 w-10 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                               </svg>
+                            </div>
+                            <h3 className="text-lg font-medium text-gray-900">No parts found</h3>
+                            <p className="mt-2 text-gray-500 max-w-md">
+                               We couldn't find any parts matching your current filters. Try clearing the vehicle filter or searching for a different term.
+                            </p>
+                            <button 
+                               onClick={() => {
+                                  setVehFilter({ brandName: '', modelName: '', year: '', engineName: '' })
+                                  setPageSearch('')
+                                  setParams({ catId: '', subCatId: '', subSubCatId: '' })
+                                  setSelectedManufacturerId('')
+                               }}
+                               className="mt-6 rounded-lg bg-brand px-6 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-brand-dark focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2"
+                            >
+                               Reset Filters
+                            </button>
+                         </div>
+                      )}
+                    </>
+                 )}
+              </div>
+            )}
+          </main>
+        </div>
+
+        {/* SEO / Extra Content Section at Bottom */}
+        {!activeCatId && !qParam && (
+          <section className="mt-20 rounded-2xl bg-gray-100 p-6 md:p-10">
+            <div className="grid gap-10 md:grid-cols-[2fr_1fr]">
+              <div>
+                <h2 className="text-[20px] font-bold text-gray-900 md:text-[24px]">Comprehensive Car Parts &amp; Accessories</h2>
+                <div className="mt-4 space-y-4 text-[13px] leading-6 text-gray-700 md:text-[14px]">
+                  <p>
+                    Find everything you need to keep your vehicle running smoothly. From essential engine components to interior upgrades,
+                    Gapa Naija offers a vast selection of high-quality parts for all major car brands.
+                  </p>
+                  <ul className="space-y-4">
+                    <li>
+                      <div className="font-semibold text-gray-900">Car Electronics</div>
+                      <p className="mt-1 text-gray-600">Upgrade your driving experience with dash cams, Bluetooth kits, GPS trackers, and premium audio systems.</p>
+                    </li>
+                    <li>
+                      <div className="font-semibold text-gray-900">Exterior Accessories</div>
+                      <p className="mt-1 text-gray-600">Protect and style your car with car covers, mud flaps, window visors, and bumper guards. These protect your vehicle from wear, scratches.</p>
+                    </li>
+                    <li>
+                      <div className="font-semibold text-gray-900">Car Care Essentials</div>
+                      <p className="mt-1 text-gray-600">Brushes, scrapers, sponges, and cleaning kits to help you maintain a spotless car without damaging the paintwork.</p>
+                    </li>
+                    <li>
+                      <div className="font-semibold text-gray-900">Safety &amp; Emergency Gear</div>
+                      <p className="mt-1 text-gray-600">Be prepared with first aid kits, warning triangles, fire extinguishers, reflective vests, safety hammers, and other must-haves for emergencies.</p>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+
+              {/* Why choose */}
+              <aside className="md:pl-6">
+                <h3 className="text-[16px] font-semibold text-gray-900">Why Choose Gapa Naija?</h3>
+                <p className="mt-3 text-[13px] leading-6 text-gray-700">
+                  At Gapa Naija, we make shopping for car accessories simple, affordable, and reliable. With thousands of products,
+                  competitive prices, and fast delivery across Nigeria, you can always count on us to keep your car in top shape.
+                </p>
+              </aside>
+            </div>
+          </section>
+        )}
+      </div>
+    </div>
+  )
+}
+
+export default function CarParts() {
+  return (
+    <ErrorBoundary>
+      <CarPartsInner />
+    </ErrorBoundary>
+  )
+}
