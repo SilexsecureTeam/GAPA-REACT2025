@@ -33,7 +33,7 @@ export default function TopBrands({ title = 'Top brands', limit = 12, viewAll = 
       <div className="flex items-center justify-between">
         <h3 className="text-[14px] font-semibold text-gray-900 sm:text-[16px]">{title}</h3>
         {viewAll && (
-          <a href="#" className="inline-flex items-center gap-1 text-xs font-medium text-brand hover:underline">View all
+          <a href="/parts" className="inline-flex items-center gap-1 text-xs font-medium text-brand hover:underline">View all
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M5 12h14" />
               <path d="M12 5l7 7-7 7" />
