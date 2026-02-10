@@ -673,7 +673,7 @@ export default function Home() {
           {renderTabContent()}
         </div>
 
-        <button className='bg-[#F7CD3A] px-10 rounded-md flex mt-5 w-fit mx-auto justify-center py-2'>View Catalogue</button>
+        <button className='bg-[#F7CD3A] px-10 rounded-md flex mt-5 w-fit mx-auto justify-center py-2'><a href="/parts">View Catalogue</a></button>
       </section>
 
       {/* Top brands (from API) */}
