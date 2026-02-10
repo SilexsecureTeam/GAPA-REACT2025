@@ -133,10 +133,6 @@ function CarPartsInner() {
   const [searchLoading, setSearchLoading] = useState(false)
   const [searchResults, setSearchResults] = useState<ApiProduct[]>([])
 
-  // Filters for search mode
-  const [selectedBrands, setSelectedBrands] = useState<Set<string>>(new Set())
-  const [selectedCats, setSelectedCats] = useState<Set<string>>(new Set())
-
   // --- Shared vehicle filter (persisted across pages) ---
   const [vehFilter, setVehFilter] = useState<VehState>(() => {
     const initial = getPersistedVehicleFilter()
@@ -172,26 +168,6 @@ function CarPartsInner() {
   const vehicleSearchFlag = searchParams.get('vehicleSearch')
   const inVehicleSearchMode = !!vehicleSearchFlag
 
-  // Helper to toggle entries in a Set state
-  const toggleSet = <T,>(setter: React.Dispatch<React.SetStateAction<Set<T>>>, value: T) => {
-    setter((prev) => {
-      const next = new Set(prev)
-      if (next.has(value)) next.delete(value)
-      else next.add(value)
-      return next
-    })
-  }
-
-  // Derive brand and category options from search results
-  const allSearchBrands = useMemo<string[]>(() => {
-    const set = new Set<string>()
-    for (const p of searchResults) {
-      const b = brandOf(p)
-      if (b) set.add(b)
-    }
-    return Array.from(set).sort((a, b) => a.localeCompare(b))
-  }, [searchResults])
-
   // Resolve category name from raw category field using categories API mapping
   const resolveCategoryName = useCallback((raw: any): string => {
     if (!raw) return ''
@@ -202,16 +178,6 @@ function CarPartsInner() {
     }
     return String(raw)
   }, [categoriesById])
-
-  const allSearchCats = useMemo<string[]>(() => {
-    const set = new Set<string>()
-    for (const p of searchResults) {
-      const raw = (p as any)?.category
-      const name = resolveCategoryName(raw) || categoryOf(p)
-      if (name) set.add(name)
-    }
-    return Array.from(set).sort((a, b) => a.localeCompare(b))
-  }, [searchResults, resolveCategoryName])
 
   // --- Vehicle compatibility matching (shared util) ---
   const productMatchesVehicle = (p: any) => {
@@ -226,16 +192,8 @@ function CarPartsInner() {
 
   // --- Filter Logic ---
   const filteredSearchResults = useMemo<ApiProduct[]>(() => {
-    return searchResults
-      .filter((p) => {
-        const b = brandOf(p)
-        const cName = resolveCategoryName((p as any)?.category) || categoryOf(p)
-        const brandPass = selectedBrands.size === 0 || (b && selectedBrands.has(b))
-        const catPass = selectedCats.size === 0 || (cName && selectedCats.has(cName))
-        return brandPass && catPass
-      })
-      .filter(productMatchesVehicle)
-  }, [searchResults, selectedBrands, selectedCats, vehFilter, hasVehicleFilter])
+    return searchResults.filter(productMatchesVehicle)
+  }, [searchResults, productMatchesVehicle])
 
   // NEW: Search results filtered by Manufacturer
   const finalSearchResults = useMemo(() => {
@@ -486,7 +444,7 @@ function CarPartsInner() {
   // Fetch search results when qParam present
   useEffect(() => {
     let alive = true
-    if (!qParam) { setSearchResults([]); setSelectedBrands(new Set()); setSelectedCats(new Set()); return }
+    if (!qParam) { setSearchResults([]); return }
     ; (async () => {
       try {
         setSearchLoading(true)
@@ -1124,11 +1082,6 @@ function CarPartsInner() {
     // sourceProducts here should be the list *before* applying the selectedManufacturerId filter,
     // but *after* other contextual filters (like search query, vehicle filter, etc.)
     
-    // We need to calculate which manufacturers are relevant.
-    // However, if we pass the *filtered* list (which already excludes other manufacturers),
-    // the user can't switch manufacturers easily. 
-    // The sourceProducts passed here must be the "Context Filtered" list (e.g. filtered by Vehicle/Search).
-    
     // Calculate unique manufacturer IDs present in the source list
     const relevantMakerIds = new Set<string>()
     sourceProducts.forEach(p => {
@@ -1242,8 +1195,6 @@ function CarPartsInner() {
             {activeVehicleEngine ? `${activeVehicleBrand} ${activeVehicleModel} ${activeVehicleEngine}` : activeVehicleModel ? `${activeVehicleBrand} ${activeVehicleModel}` : activeVehicleBrand}
           </h1>
           
-          {/* ... Breadcrumbs and selectors ... */}
-           {/* (Omitting full breadcrumb code for brevity, logic remains same) */}
           <nav aria-label="Breadcrumb" className="mt-2 text-[14px] text-gray-700">
              <ol className="flex items-center gap-2 font-medium">
                 <li><Link to="/parts" className="hover:underline">Parts Catalogue</Link></li>
@@ -1260,6 +1211,22 @@ function CarPartsInner() {
                   {vehicleModels.map((model) => (
                     <li key={model}>
                       <button onClick={() => setParams({ vehicleBrand: activeVehicleBrand, vehicleModel: model, vehicleEngine: '' })} className="w-full rounded-full border border-black/10 bg-white px-4 py-2 text-[13px] font-medium text-gray-900 transition hover:border-[#F7CD3A] hover:bg-[#F7CD3A]/10">{model}</button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+
+          {/* Engine Selection - Previously missing block */}
+          {activeVehicleBrand && activeVehicleModel && !activeVehicleEngine && (
+            <div className="mt-6">
+              <h3 className="text-[16px] font-semibold text-gray-900">Select Engine</h3>
+              {vehicleEnginesLoading ? <div className="mt-3"><FallbackLoader label="Loading engines…" /></div> : (
+                <ul className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+                  {vehicleEngines.map((engine) => (
+                    <li key={engine}>
+                      <button onClick={() => setParams({ vehicleBrand: activeVehicleBrand, vehicleModel: activeVehicleModel, vehicleEngine: engine })} className="w-full rounded-full border border-black/10 bg-white px-4 py-2 text-[13px] font-medium text-gray-900 transition hover:border-[#F7CD3A] hover:bg-[#F7CD3A]/10">{engine}</button>
                     </li>
                   ))}
                 </ul>
