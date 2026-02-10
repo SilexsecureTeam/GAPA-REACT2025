@@ -18,6 +18,8 @@ import { brandOf, categoryOf, mapProductToActionData, toSlug, makerIdOf } from '
 import useManufacturers from '../hooks/useManufacturers'
 import ManufacturerSelector from '../components/ManufacturerSelector'
 
+// --- Helpers & Static Components ---
+
 // Error boundary to surface runtime errors on the page
 class ErrorBoundary extends React.Component<{ children?: React.ReactNode }, { hasError: boolean; error?: Error | null; info?: React.ErrorInfo | null }> {
   constructor(props: { children?: React.ReactNode }) {
@@ -106,6 +108,131 @@ function formatNaira(n: number) {
   return `₦${n.toLocaleString('en-NG')}`
 }
 
+// Pagination helper component
+function PaginationControls({ page, setPage, pageSize, setPageSize, total }: { page: number; setPage: (n: number) => void; pageSize: number; setPageSize: (n: number) => void; total: number }) {
+  const totalPages = Math.max(1, Math.ceil(total / pageSize))
+  
+  const toDisplay = (current: number, total: number) => {
+    const set = new Set<number>()
+    set.add(1)
+    set.add(total)
+    set.add(current)
+    if (current - 1 >= 1) set.add(current - 1)
+    if (current + 1 <= total) set.add(current + 1)
+    if (current - 2 >= 1) set.add(current - 2)
+    if (current + 2 <= total) set.add(current + 2)
+    const arr = Array.from(set).sort((a, b) => a - b)
+    const out: (number | '...')[] = []
+    let last = 0
+    for (const n of arr) {
+      if (last && n - last > 1) out.push('...')
+      out.push(n)
+      last = n
+    }
+    return out
+  }
+  
+  const pages = toDisplay(page, totalPages)
+  
+  return (
+    <div className="mt-8 flex flex-col items-center gap-4">
+      <div className="w-full max-w-3xl flex flex-col items-center justify-between gap-3 sm:flex-row">
+        <div className="flex items-center gap-3">
+          <div className="text-sm text-gray-600">Showing</div>
+          <div className="rounded-md border bg-white px-3 py-1 text-sm font-medium text-gray-900">{pageSize}</div>
+          <div className="text-sm text-gray-600">per page</div>
+          <div className="ml-4 hidden items-center gap-2 sm:flex">
+            <span className="text-sm text-gray-500">Results</span>
+            <span className="rounded-md bg-[#F7CD3A] px-3 py-1 text-sm font-semibold text-[#201A2B]">{total.toLocaleString()}</span>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <label htmlFor="pageSizeSelect" className="sr-only">Items per page</label>
+          <select id="pageSizeSelect" value={pageSize} onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1) }} className="inline-flex h-9 items-center justify-center rounded-md border px-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-brand">
+            <option value={8}>8</option>
+            <option value={12}>12</option>
+            <option value={16}>16</option>
+            <option value={24}>24</option>
+            <option value={48}>48</option>
+          </select>
+        </div>
+      </div>
+      <nav className="w-full max-w-3xl" aria-label="Pagination">
+        <ul className="mx-auto flex items-center justify-center gap-2">
+          <li>
+            <button onClick={() => setPage(1)} disabled={page === 1} aria-label="Go to first page" className={`inline-flex h-9 min-w-[44px] items-center justify-center rounded-md px-3 text-sm ${page === 1 ? 'bg-gray-100 text-gray-400' : 'bg-white text-gray-700 ring-1 ring-black/5 hover:bg-gray-50'}`}>«</button>
+          </li>
+          <li>
+            <button onClick={() => setPage(Math.max(1, page - 1))} disabled={page === 1} aria-label="Previous page" className={`inline-flex h-9 min-w-[44px] items-center justify-center rounded-md px-3 text-sm ${page === 1 ? 'bg-gray-100 text-gray-400' : 'bg-white text-gray-700 ring-1 ring-black/5 hover:bg-gray-50'}`}>‹</button>
+          </li>
+          {pages.map((p, idx) => (
+            <li key={`p-${idx}`}>
+              {p === '...' ? (
+                <div className="inline-flex h-9 min-w-[44px] items-center justify-center text-sm text-gray-500">…</div>
+              ) : (
+                <button onClick={() => setPage(Number(p))} aria-current={p === page ? 'page' : undefined} className={`inline-flex h-9 min-w-[44px] items-center justify-center rounded-md px-3 text-sm ${p === page ? 'bg-brand text-white shadow' : 'bg-white text-gray-700 ring-1 ring-black/5 hover:bg-gray-50'}`}>{p}</button>
+              )}
+            </li>
+          ))}
+          <li>
+            <button onClick={() => setPage(Math.min(totalPages, page + 1))} disabled={page === totalPages} aria-label="Next page" className={`inline-flex h-9 min-w-[44px] items-center justify-center rounded-md px-3 text-sm ${page === totalPages ? 'bg-gray-100 text-gray-400' : 'bg-white text-gray-700 ring-1 ring-black/5 hover:bg-gray-50'}`}>›</button>
+          </li>
+          <li>
+            <button onClick={() => setPage(totalPages)} disabled={page === totalPages} aria-label="Go to last page" className={`inline-flex h-9 min-w-[44px] items-center justify-center rounded-md px-3 text-sm ${page === totalPages ? 'bg-gray-100 text-gray-400' : 'bg-white text-gray-700 ring-1 ring-black/5 hover:bg-gray-50'}`}>»</button>
+          </li>
+        </ul>
+      </nav>
+    </div>
+  )
+}
+
+type Accessory = { id: string; title: string; image: string; rating: number; reviews: number; price: number; badge?: string }
+
+function AccessoryCard({ a }: { a: Accessory }) {
+  return (
+    <div className="relative overflow-hidden rounded-xl bg-white ring-1 ring-black/10">
+      {a.badge && (
+        <span className="absolute left-3 top-3 z-10 rounded-full bg-accent px-2 py-0.5 text-[11px] font-semibold text-[#201A2B] ring-1 ring-black/10">{a.badge}</span>
+      )}
+      <div className="px-4 pb-4 pt-3">
+        <Link to={`/product/${a.id}`} className="block">
+          <div className="flex h-40 items-center justify-center overflow-hidden rounded-lg bg-white">
+            <img src={a.image} alt={a.title} className="h-[80%] w-auto object-contain" onError={(e) => { (e.currentTarget as HTMLImageElement).src = logoImg }} />
+          </div>
+        </Link>
+        <div className="mt-3 space-y-1">
+          <div className="text-[12px] text-gray-600">{(a.rating as number).toFixed ? (a.rating as any).toFixed(1) : Number(a.rating).toFixed(1)} • ({a.reviews.toLocaleString()})</div>
+          <Link to={`/product/${a.id}`} className="block text-[14px] font-semibold text-gray-900 hover:underline">{a.title}</Link>
+          <div className="text-[16px] font-extrabold text-brand">{formatNaira(a.price)}</div>
+          <div className="text-left text-[11px] leading-3 text-gray-600">Incl. VAT</div>
+        </div>
+        <div className="mt-3 flex items-center justify-end">
+          <button type="button" aria-label="Add to cart" className="inline-flex h-9 items-center justify-center rounded-md bg-[#F7CD3A] px-4 text-[12px] font-semibold text-[#201A2B] ring-1 ring-black/10 hover:brightness-105">
+            Add to cart
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Helper to extract category id (string) from product
+const categoryIdOf = (p: any): string => {
+  const c = p?.category
+  if (!c) return ''
+  if (typeof c === 'object') return String(c.id ?? c.category_id ?? c.cat_id ?? '')
+  if (typeof c === 'number' || (typeof c === 'string' && /^\d+$/.test(c))) return String(c)
+  return ''
+}
+
+// Helper to check if product has complete data (used to filter out incomplete products)
+const isCompleteProduct = (p: any): boolean => {
+  const hasTitle = !!(p?.part_name || p?.name || p?.title)
+  const hasPrice = !!(p?.price || p?.selling_price || p?.sellingPrice || p?.amount || p?.cost || p?.unit_price)
+  // Product must have title and at least price or image
+  return hasTitle && hasPrice
+}
+
 function CarPartsInner() {
   const navigate = useNavigate()
   const { user } = useAuth()
@@ -143,23 +270,6 @@ function CarPartsInner() {
   // Categories where vehicle compatibility does NOT apply (Car Care=3, Accessories=4, Tools=7)
   const NON_VEHICLE_CATEGORY_IDS = useMemo(() => new Set(['3', '4', '7']), [])
 
-  // Helper to extract category id (string) from product
-  const categoryIdOf = (p: any): string => {
-    const c = p?.category
-    if (!c) return ''
-    if (typeof c === 'object') return String(c.id ?? c.category_id ?? c.cat_id ?? '')
-    if (typeof c === 'number' || (typeof c === 'string' && /^\d+$/.test(c))) return String(c)
-    return ''
-  }
-
-  // Helper to check if product has complete data (used to filter out incomplete products)
-  const isCompleteProduct = (p: any): boolean => {
-    const hasTitle = !!(p?.part_name || p?.name || p?.title)
-    const hasPrice = !!(p?.price || p?.selling_price || p?.sellingPrice || p?.amount || p?.cost || p?.unit_price)
-    // Product must have title and at least price or image
-    return hasTitle && hasPrice
-  }
-
   // Detect drilldown-start flag (from home search)
   const drillFlag = searchParams.get('drill')
   const inDrillMode = !!drillFlag
@@ -180,7 +290,8 @@ function CarPartsInner() {
   }, [categoriesById])
 
   // --- Vehicle compatibility matching (shared util) ---
-  const productMatchesVehicle = (p: any) => {
+  // STABILIZED: Wrapped in useCallback to prevent infinite effect loops in filtering
+  const productMatchesVehicle = useCallback((p: any) => {
     if (!hasVehicleFilter) return true
     const cid = categoryIdOf(p)
     if (cid && NON_VEHICLE_CATEGORY_IDS.has(cid)) return true // skip filtering for non-vehicle categories
@@ -188,7 +299,7 @@ function CarPartsInner() {
     // Delegate entirely to the shared service which now handles
     // strict ID checks, token-based model safety, and fuzzy engine matching.
     return sharedVehicleMatches(p, vehFilter)
-  }
+  }, [hasVehicleFilter, vehFilter, NON_VEHICLE_CATEGORY_IDS])
 
   // --- Filter Logic ---
   const filteredSearchResults = useMemo<ApiProduct[]>(() => {
@@ -687,7 +798,7 @@ function CarPartsInner() {
     }
 
     return list
-  }, [products, hasVehicleFilter, vehFilter, inVehicleDrillMode, activeVehicleBrand, activeVehicleModel, activeVehicleEngine, activeBrandFilter, isCompatibleWithBrand, inBrandDrillMode])
+  }, [products, hasVehicleFilter, vehFilter, inVehicleDrillMode, activeVehicleBrand, activeVehicleModel, activeVehicleEngine, activeBrandFilter, isCompatibleWithBrand, inBrandDrillMode, productMatchesVehicle])
 
   // NEW: Final filtered list incorporating Manufacturer selection
   const finalFiltered = useMemo(() => {
@@ -879,7 +990,6 @@ function CarPartsInner() {
   }
 
   // Accessories UI mapping
-  type Accessory = { id: string; title: string; image: string; rating: number; reviews: number; price: number; badge?: string }
   const ACCESSORIES: Accessory[] = useMemo(() => {
     if (!accProducts || accProducts.length === 0) return []
     let source = accProducts
@@ -896,34 +1006,6 @@ function CarPartsInner() {
       return m
     })
   }, [accProducts])
-
-  function AccessoryCard({ a }: { a: Accessory }) {
-    return (
-      <div className="relative overflow-hidden rounded-xl bg-white ring-1 ring-black/10">
-        {a.badge && (
-          <span className="absolute left-3 top-3 z-10 rounded-full bg-accent px-2 py-0.5 text-[11px] font-semibold text-[#201A2B] ring-1 ring-black/10">{a.badge}</span>
-        )}
-        <div className="px-4 pb-4 pt-3">
-          <Link to={`/product/${a.id}`} className="block">
-            <div className="flex h-40 items-center justify-center overflow-hidden rounded-lg bg-white">
-              <img src={a.image} alt={a.title} className="h-[80%] w-auto object-contain" onError={(e) => { (e.currentTarget as HTMLImageElement).src = logoImg }} />
-            </div>
-          </Link>
-          <div className="mt-3 space-y-1">
-            <div className="text-[12px] text-gray-600">{(a.rating as number).toFixed ? (a.rating as any).toFixed(1) : Number(a.rating).toFixed(1)} • ({a.reviews.toLocaleString()})</div>
-            <Link to={`/product/${a.id}`} className="block text-[14px] font-semibold text-gray-900 hover:underline">{a.title}</Link>
-            <div className="text-[16px] font-extrabold text-brand">{formatNaira(a.price)}</div>
-            <div className="text-left text-[11px] leading-3 text-gray-600">Incl. VAT</div>
-          </div>
-          <div className="mt-3 flex items-center justify-end">
-            <button type="button" aria-label="Add to cart" className="inline-flex h-9 items-center justify-center rounded-md bg-[#F7CD3A] px-4 text-[12px] font-semibold text-[#201A2B] ring-1 ring-black/10 hover:brightness-105">
-              Add to cart
-            </button>
-          </div>
-        </div>
-      </div>
-    )
-  }
 
   const wishlist = useWishlist()
 
@@ -962,82 +1044,7 @@ function CarPartsInner() {
       base = base.filter(p => makerIdOf(p) === selectedManufacturerId)
     }
     return base
-  }, [subProducts, hasVehicleFilter, activeCatId, vehFilter, selectedManufacturerId])
-
-  // Pagination helper
-  function PaginationControls({ page, setPage, pageSize, setPageSize, total }: { page: number; setPage: (n: number) => void; pageSize: number; setPageSize: (n: number) => void; total: number }) {
-    const totalPages = Math.max(1, Math.ceil(total / pageSize))
-    const toDisplay = (current: number, total: number) => {
-      const set = new Set<number>()
-      set.add(1)
-      set.add(total)
-      set.add(current)
-      if (current - 1 >= 1) set.add(current - 1)
-      if (current + 1 <= total) set.add(current + 1)
-      if (current - 2 >= 1) set.add(current - 2)
-      if (current + 2 <= total) set.add(current + 2)
-      const arr = Array.from(set).sort((a, b) => a - b)
-      const out: (number | '...')[] = []
-      let last = 0
-      for (const n of arr) {
-        if (last && n - last > 1) out.push('...')
-        out.push(n)
-        last = n
-      }
-      return out
-    }
-    const pages = toDisplay(page, totalPages)
-    return (
-      <div className="mt-8 flex flex-col items-center gap-4">
-        <div className="w-full max-w-3xl flex flex-col items-center justify-between gap-3 sm:flex-row">
-          <div className="flex items-center gap-3">
-            <div className="text-sm text-gray-600">Showing</div>
-            <div className="rounded-md border bg-white px-3 py-1 text-sm font-medium text-gray-900">{pageSize}</div>
-            <div className="text-sm text-gray-600">per page</div>
-            <div className="ml-4 hidden items-center gap-2 sm:flex">
-              <span className="text-sm text-gray-500">Results</span>
-              <span className="rounded-md bg-[#F7CD3A] px-3 py-1 text-sm font-semibold text-[#201A2B]">{total.toLocaleString()}</span>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <label htmlFor="pageSizeSelect" className="sr-only">Items per page</label>
-            <select id="pageSizeSelect" value={pageSize} onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1) }} className="inline-flex h-9 items-center justify-center rounded-md border px-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-brand">
-              <option value={8}>8</option>
-              <option value={12}>12</option>
-              <option value={16}>16</option>
-              <option value={24}>24</option>
-              <option value={48}>48</option>
-            </select>
-          </div>
-        </div>
-        <nav className="w-full max-w-3xl" aria-label="Pagination">
-          <ul className="mx-auto flex items-center justify-center gap-2">
-            <li>
-              <button onClick={() => setPage(1)} disabled={page === 1} aria-label="Go to first page" className={`inline-flex h-9 min-w-[44px] items-center justify-center rounded-md px-3 text-sm ${page === 1 ? 'bg-gray-100 text-gray-400' : 'bg-white text-gray-700 ring-1 ring-black/5 hover:bg-gray-50'}`}>«</button>
-            </li>
-            <li>
-              <button onClick={() => setPage(Math.max(1, page - 1))} disabled={page === 1} aria-label="Previous page" className={`inline-flex h-9 min-w-[44px] items-center justify-center rounded-md px-3 text-sm ${page === 1 ? 'bg-gray-100 text-gray-400' : 'bg-white text-gray-700 ring-1 ring-black/5 hover:bg-gray-50'}`}>‹</button>
-            </li>
-            {pages.map((p, idx) => (
-              <li key={`p-${idx}`}>
-                {p === '...' ? (
-                  <div className="inline-flex h-9 min-w-[44px] items-center justify-center text-sm text-gray-500">…</div>
-                ) : (
-                  <button onClick={() => setPage(Number(p))} aria-current={p === page ? 'page' : undefined} className={`inline-flex h-9 min-w-[44px] items-center justify-center rounded-md px-3 text-sm ${p === page ? 'bg-brand text-white shadow' : 'bg-white text-gray-700 ring-1 ring-black/5 hover:bg-gray-50'}`}>{p}</button>
-                )}
-              </li>
-            ))}
-            <li>
-              <button onClick={() => setPage(Math.min(totalPages, page + 1))} disabled={page === totalPages} aria-label="Next page" className={`inline-flex h-9 min-w-[44px] items-center justify-center rounded-md px-3 text-sm ${page === totalPages ? 'bg-gray-100 text-gray-400' : 'bg-white text-gray-700 ring-1 ring-black/5 hover:bg-gray-50'}`}>›</button>
-            </li>
-            <li>
-              <button onClick={() => setPage(totalPages)} disabled={page === totalPages} aria-label="Go to last page" className={`inline-flex h-9 min-w-[44px] items-center justify-center rounded-md px-3 text-sm ${page === totalPages ? 'bg-gray-100 text-gray-400' : 'bg-white text-gray-700 ring-1 ring-black/5 hover:bg-gray-50'}`}>»</button>
-            </li>
-          </ul>
-        </nav>
-      </div>
-    )
-  }
+  }, [subProducts, hasVehicleFilter, activeCatId, vehFilter, selectedManufacturerId, productMatchesVehicle])
 
   const PAGE_SIZE_DEFAULT = 16;
   const [brandPage, setBrandPage] = useState(1);
