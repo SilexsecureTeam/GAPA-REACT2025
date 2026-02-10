@@ -157,7 +157,9 @@ export default function Header() {
             'ridex brake pad set',
             'stark brake pad set',
             'napa brake pad set',
-            'icer 182372 brake pad'
+            'icer 182372 brake pad', 
+          'icer brake pad', 
+          'icer brake pad set'
         ]);
         
         // Helper to safely add item
